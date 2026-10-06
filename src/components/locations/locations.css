@@ -1,0 +1,112 @@
+.location-panel { display: grid; gap: var(--g-space-5); }
+
+.location-panel__intro {
+  display: grid;
+  gap: var(--g-space-2);
+  padding: var(--g-space-4);
+  border-radius: var(--g-radius-lg);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-glass-border);
+  border-left: 3px solid var(--location-accent, var(--g-accent));
+}
+
+.location-panel__tagline {
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-base);
+  font-weight: 600;
+}
+
+.location-panel__actions { display: grid; gap: var(--g-space-2); }
+
+.location-action {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  width: 100%;
+  padding: var(--g-space-4);
+  border-radius: var(--g-radius-md);
+  border: 1px solid var(--g-glass-border);
+  background: var(--g-surface-2);
+  color: var(--g-text);
+  text-align: left;
+  transition: transform var(--g-dur) var(--g-ease), background var(--g-dur) var(--g-ease),
+    border-color var(--g-dur) var(--g-ease);
+}
+
+.location-action:hover {
+  transform: translateX(3px);
+  background: var(--g-surface-3);
+  border-color: var(--g-glass-border-strong);
+}
+
+.location-action__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-3);
+  color: var(--location-accent, var(--g-accent));
+}
+
+.location-action__body { flex: 1; min-width: 0; display: grid; gap: 1px; }
+
+.location-action__label {
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-sm);
+  font-weight: 600;
+}
+
+.location-action__desc { font-size: var(--g-text-xs); color: var(--g-text-dim); }
+
+/* ---------- City guide ---------- */
+.city-guide { display: grid; gap: var(--g-space-3); }
+
+.city-guide__item {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  width: 100%;
+  padding: var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-glass-border);
+  text-align: left;
+  color: var(--g-text);
+  transition: background var(--g-dur) var(--g-ease);
+}
+
+.city-guide__item:hover { background: var(--g-surface-3); }
+
+.city-guide__swatch {
+  flex: none;
+  width: 10px;
+  height: 34px;
+  border-radius: var(--g-radius-pill);
+}
+
+.city-guide__body { flex: 1; min-width: 0; }
+.city-guide__name { font-size: var(--g-text-sm); font-weight: 600; }
+.city-guide__tagline { font-size: var(--g-text-xs); color: var(--g-text-dim); }
+
+/* ---------- Companies ---------- */
+.company-card { display: grid; gap: var(--g-space-3); }
+.company-card__head { display: flex; gap: var(--g-space-3); align-items: center; }
+.company-card__name { font-family: var(--g-font-display); font-size: var(--g-text-base); font-weight: 600; }
+.company-card__tagline { font-size: var(--g-text-sm); color: var(--g-text-muted); }
+
+/* ---------- Courses ---------- */
+.course-card { display: grid; gap: var(--g-space-3); }
+
+.course-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--g-space-3);
+}
+
+.course-card__title { font-family: var(--g-font-display); font-size: var(--g-text-base); font-weight: 600; }
+.course-card__provider { font-size: var(--g-text-xs); color: var(--g-text-dim); }
+.course-card__desc { font-size: var(--g-text-sm); color: var(--g-text-muted); line-height: 1.6; }
+.course-card__meta { display: flex; flex-wrap: wrap; gap: var(--g-space-2); }
