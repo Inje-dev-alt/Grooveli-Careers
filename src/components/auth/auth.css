@@ -1,0 +1,188 @@
+.auth {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  background:
+    radial-gradient(900px 540px at 10% -10%, rgba(91, 227, 200, 0.09), transparent 62%),
+    radial-gradient(760px 480px at 92% 8%, rgba(108, 140, 255, 0.1), transparent 64%),
+    var(--g-bg);
+}
+
+@media (min-width: 1040px) {
+  .auth { grid-template-columns: 1.05fr 0.95fr; }
+}
+
+.auth__pitch {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--g-space-5);
+  padding: var(--g-space-8) var(--g-space-7);
+  border-right: 1px solid var(--g-glass-border);
+}
+
+@media (min-width: 1040px) {
+  .auth__pitch { display: flex; }
+}
+
+.auth__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+}
+
+.auth__mark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--g-radius-lg);
+  background: var(--g-gradient);
+  color: var(--g-text-on-accent);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-md);
+  font-weight: 700;
+}
+
+.auth__title {
+  font-size: var(--g-text-2xl);
+  letter-spacing: -0.03em;
+  max-width: 14ch;
+}
+
+.auth__lede {
+  color: var(--g-text-muted);
+  font-size: var(--g-text-md);
+  max-width: 44ch;
+}
+
+.auth__points { display: grid; gap: var(--g-space-3); }
+
+.auth__point {
+  display: flex;
+  gap: var(--g-space-3);
+  align-items: flex-start;
+  font-size: var(--g-text-sm);
+  color: var(--g-text-muted);
+  max-width: 46ch;
+}
+
+.auth__panel {
+  display: grid;
+  place-items: center;
+  padding: var(--g-space-6) var(--g-space-5);
+  padding-top: calc(var(--g-space-6) + var(--g-safe-top));
+}
+
+.auth__card {
+  width: min(440px, 100%);
+  display: grid;
+  gap: var(--g-space-5);
+}
+
+.auth__card-head { display: grid; gap: 6px; }
+
+.auth__card-title { font-size: var(--g-text-xl); letter-spacing: -0.02em; }
+
+.auth__form { display: grid; gap: var(--g-space-4); }
+
+.auth__alt {
+  text-align: center;
+  font-size: var(--g-text-sm);
+  color: var(--g-text-muted);
+}
+
+.auth__link {
+  color: var(--g-accent);
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.auth__link:hover { text-decoration: underline; }
+
+.auth__demo {
+  display: grid;
+  gap: var(--g-space-2);
+  padding: var(--g-space-4);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border: 1px dashed var(--g-glass-border-strong);
+}
+
+.auth__demo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-space-3);
+  font-size: var(--g-text-sm);
+}
+
+.auth__note {
+  font-size: var(--g-text-xs);
+  color: var(--g-text-dim);
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* ---------- Role selection ---------- */
+.role-select {
+  width: min(880px, 100%);
+  display: grid;
+  gap: var(--g-space-5);
+  justify-items: center;
+  text-align: center;
+}
+
+.role-cards {
+  display: grid;
+  gap: var(--g-space-4);
+  width: 100%;
+}
+
+@media (min-width: 760px) {
+  .role-cards { grid-template-columns: 1fr 1fr; }
+}
+
+.role-card {
+  display: grid;
+  gap: var(--g-space-3);
+  padding: var(--g-space-6);
+  border-radius: var(--g-radius-xl);
+  background: var(--g-surface-1);
+  border: 1px solid var(--g-glass-border);
+  text-align: left;
+  transition: transform var(--g-dur) var(--g-ease), border-color var(--g-dur) var(--g-ease),
+    background var(--g-dur) var(--g-ease);
+}
+
+.role-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--g-accent-line);
+  background: var(--g-surface-2);
+}
+
+.role-card__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--g-radius-lg);
+  background: var(--g-gradient-soft);
+  color: var(--g-accent);
+}
+
+.role-card__title { font-size: var(--g-text-md); }
+
+.role-card__body { font-size: var(--g-text-sm); color: var(--g-text-muted); line-height: 1.65; }
+
+.role-card__cta {
+  margin-top: var(--g-space-2);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-sm);
+  font-weight: 700;
+  color: var(--g-accent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

@@ -116,6 +116,20 @@ export const apiClient = {
 };
 
 /**
+ * Observer invoked after every successful mock call.
+ *
+ * The mock backend registers here so it can snapshot itself after a write,
+ * without every service having to remember to do it and without this module
+ * knowing anything about how the mock stores its data.
+ */
+let mockObserver = null;
+
+/** @param {() => void} observer */
+export function registerMockObserver(observer) {
+  mockObserver = observer;
+}
+
+/**
  * Service bodies read as "the real call, or the mock". Keeping the branch in one
  * helper makes the remaining mock surface greppable: search for `withMock`.
  *
@@ -125,5 +139,11 @@ export const apiClient = {
  * @returns {Promise<T>}
  */
 export function withMock(mockFn, realFn) {
-  return apiConfig.useMocks ? mockFn() : realFn();
+  if (!apiConfig.useMocks) return realFn();
+  return Promise.resolve()
+    .then(mockFn)
+    .then((result) => {
+      mockObserver?.();
+      return result;
+    });
 }

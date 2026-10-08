@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import './shell.css';
-import { ProgressBar, IconBell, IconMenu } from '../ui/index.js';
-import { PRIMARY_NAV } from './navigation.js';
+import { ProgressBar, Button, IconBell, IconMenu } from '../ui/index.js';
+import { PRIMARY_NAV, COMPACT_NAV } from './navigation.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
+import { useAuthStore, selectCanSwitchRole } from '../../stores/authStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 
@@ -19,6 +20,13 @@ export function AppShell({ children }) {
   const openModal = useUiStore((s) => s.openModal);
   const toggleMenu = useUiStore((s) => s.toggleMenu);
   const unreadCount = useNotificationStore((s) => s.items.filter((n) => !n.read).length);
+  const switchRole = useAuthStore((s) => s.switchRole);
+  const canSwitchRole = useAuthStore(selectCanSwitchRole);
+
+  const goToEmployer = async () => {
+    await switchRole('employer');
+    navigate('/employer');
+  };
 
   return (
     <div className="app">
@@ -74,6 +82,12 @@ export function AppShell({ children }) {
             {unreadCount > 0 ? <span className="hud-btn__count">{unreadCount}</span> : null}
           </button>
 
+          {canSwitchRole ? (
+            <Button variant="ghost" size="sm" onClick={goToEmployer}>
+              Employer space
+            </Button>
+          ) : null}
+
           <button type="button" className="hud-btn" onClick={toggleMenu} aria-label="Open menu">
             <IconMenu size={18} />
           </button>
@@ -83,7 +97,7 @@ export function AppShell({ children }) {
       {children}
 
       <nav className="tabbar" aria-label="Primary">
-        {PRIMARY_NAV.map((item) => {
+        {COMPACT_NAV.map((item) => {
           const Icon = item.icon;
           return (
             <NavLink

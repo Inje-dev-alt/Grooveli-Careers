@@ -18,10 +18,10 @@ import { companyColor } from './JobCard.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useJobStore } from '../../stores/jobStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
-import * as companyService from '../../services/companyService.js';
+import * as organizationService from '../../services/organizationService.js';
 import { recordApplication } from '../../stores/progression.js';
 import { isSuitableApplication, SUITABLE_MATCH_THRESHOLD } from '../../utils/careerEvents.js';
-import { formatSalaryRange, formatRelativeTime, titleCase } from '../../utils/format.js';
+import { formatSalaryRange, formatRelativeTime, formatDeadline, titleCase } from '../../utils/format.js';
 
 /**
  * Full job detail with the apply flow.
@@ -41,7 +41,10 @@ export function JobDetail({ job, onBack }) {
   const apply = useJobStore((s) => s.apply);
   const pushToast = useUiStore((s) => s.pushToast);
 
-  const companyQuery = useAsync(() => companyService.getCompany(job.companyId), [job.companyId]);
+  const companyQuery = useAsync(
+    () => organizationService.getOrganization(job.organizationId),
+    [job.organizationId],
+  );
 
   const saved = savedJobIds.includes(job.id);
   const applied = applications.some((a) => a.jobId === job.id);
@@ -75,27 +78,28 @@ export function JobDetail({ job, onBack }) {
             {job.companyName} · {job.location}
           </p>
           <div className="g-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
-            <MatchBadge score={job.matchScore} />
+            {typeof job.matchScore === 'number' ? <MatchBadge score={job.matchScore} /> : null}
             <Badge>{titleCase(job.employmentType)}</Badge>
-            <Badge>{titleCase(job.workMode)}</Badge>
-            <Badge>{titleCase(job.seniority)}</Badge>
+            <Badge>{titleCase(job.workType)}</Badge>
+            <Badge>{titleCase(job.experienceLevel)}</Badge>
+            <Badge>{job.industry}</Badge>
           </div>
         </div>
       </div>
 
       <StatGrid>
-        <StatTile label="Salary" value={formatSalaryRange(job.salary)} />
-        <StatTile label="Posted" value={formatRelativeTime(job.postedAt)} />
-        <StatTile label="Work mode" value={titleCase(job.workMode)} />
+        <StatTile label="Salary" value={formatSalaryRange(job)} />
+        <StatTile label="Posted" value={formatRelativeTime(job.createdAt)} />
+        <StatTile label="Closing" value={formatDeadline(job.deadline) ?? 'Open'} />
       </StatGrid>
 
       <div className="job-detail__match">
         <div className="g-row-between">
           <strong style={{ fontFamily: 'var(--g-font-display)' }}>Why this matched you</strong>
-          <MatchBadge score={job.matchScore} />
+          {typeof job.matchScore === 'number' ? <MatchBadge score={job.matchScore} /> : null}
         </div>
 
-        {job.matchReasons.length > 0 ? (
+        {(job.matchReasons?.length ?? 0) > 0 ? (
           <ul className="g-stack" style={{ gap: 8 }}>
             {job.matchReasons.map((reason) => (
               <li key={reason} className="job-detail__reason">
@@ -110,7 +114,7 @@ export function JobDetail({ job, onBack }) {
           </p>
         )}
 
-        {job.skillGaps.length > 0 ? (
+        {(job.skillGaps?.length ?? 0) > 0 ? (
           <div className="g-stack" style={{ gap: 8 }}>
             <span className="g-eyebrow">Gaps</span>
             {job.skillGaps.map((gap) => (
@@ -126,36 +130,53 @@ export function JobDetail({ job, onBack }) {
       <section className="job-detail__section">
         <h3 className="g-eyebrow">About the role</h3>
         <p className="g-muted" style={{ lineHeight: 1.7 }}>
-          {job.summary}
+          {job.description}
         </p>
       </section>
 
-      <section className="job-detail__section">
-        <h3 className="g-eyebrow">What you will do</h3>
-        <ul className="job-detail__list">
-          {job.responsibilities.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
+      {(job.responsibilities?.length ?? 0) > 0 ? (
+        <section className="job-detail__section">
+          <h3 className="g-eyebrow">What you will do</h3>
+          <ul className="job-detail__list">
+            {job.responsibilities.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
-      <section className="job-detail__section">
-        <h3 className="g-eyebrow">What they are asking for</h3>
-        <ul className="job-detail__list">
-          {job.requirements.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
+      {(job.requirements?.length ?? 0) > 0 ? (
+        <section className="job-detail__section">
+          <h3 className="g-eyebrow">What they are asking for</h3>
+          <ul className="job-detail__list">
+            {job.requirements.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="job-detail__section">
         <h3 className="g-eyebrow">Skills</h3>
-        <div className="job-card__skills">
-          {job.skills.map((skill) => (
-            <span key={skill} className="job-card__skill">
-              {skill}
-            </span>
-          ))}
+        <div className="g-stack" style={{ gap: 'var(--g-space-3)' }}>
+          <div>
+            <p className="g-dim" style={{ fontSize: 'var(--g-text-xs)', marginBottom: 6 }}>Required</p>
+            <div className="job-card__skills">
+              {job.requiredSkills.map((skill) => (
+                <span key={skill} className="job-card__skill">{skill}</span>
+              ))}
+            </div>
+          </div>
+          {job.preferredSkills.length > 0 ? (
+            <div>
+              <p className="g-dim" style={{ fontSize: 'var(--g-text-xs)', marginBottom: 6 }}>Nice to have</p>
+              <div className="job-card__skills">
+                {job.preferredSkills.map((skill) => (
+                  <span key={skill} className="job-card__skill">{skill}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -171,7 +192,8 @@ export function JobDetail({ job, onBack }) {
                 <div className="g-row" style={{ flexWrap: 'wrap' }}>
                   <Badge>{company.industry}</Badge>
                   <Badge>{company.size} people</Badge>
-                  <Badge>{company.openRoles} open roles</Badge>
+                  <Badge>{company.location}</Badge>
+                  {company.verified ? <Badge tone="accent" dot>Verified</Badge> : null}
                 </div>
               </div>
             ) : (

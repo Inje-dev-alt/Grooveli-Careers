@@ -5,7 +5,7 @@ import { ObjectiveList } from './ObjectiveList.jsx';
 import { useMissionStore } from '../../stores/missionStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import * as missionService from '../../services/missionService.js';
-import * as profileService from '../../services/profileService.js';
+import * as candidateService from '../../services/candidateService.js';
 import { recordCareerEvent } from '../../stores/progression.js';
 import { CAREER_EVENTS } from '../../utils/careerEvents.js';
 
@@ -51,7 +51,7 @@ export function MissionDetail({ mission, onNavigate }) {
             : CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
           { label: `${mission.title} passed` },
         );
-        if (skill) profileService.verifySkill(skill).catch(() => {});
+        if (skill) candidateService.verifySkill(skill, result.score).catch(() => {});
       } else {
         pushToast({
           title: 'Not quite',

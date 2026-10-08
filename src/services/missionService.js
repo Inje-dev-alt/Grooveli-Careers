@@ -7,7 +7,7 @@
  * can persist it.
  */
 import { apiClient, withMock } from './apiClient.js';
-import { db } from './mockDb.js';
+import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 
 /** @returns {Promise<import('../models/index.js').Mission[]>} */
@@ -37,6 +37,39 @@ export function getMission(missionId) {
 }
 
 /**
+ * Mission progress for the signed-in account.
+ *
+ * Progress belongs to the account, not the browser — switching accounts must
+ * not inherit someone else's half-finished missions.
+ *
+ * @returns {Promise<Record<string, import('../models/index.js').MissionProgress>>}
+ */
+export function getMissionProgress() {
+  return withMock(
+    async () => {
+      await delay(160);
+      const id = currentAccount()?.id;
+      return id ? { ...(db.missionProgress[id] ?? {}) } : {};
+    },
+    async () => {
+      const result = await apiClient.get('/missions/progress');
+      return result?.progress ?? {};
+    },
+  );
+}
+
+export function saveMissionProgress(progress) {
+  return withMock(
+    async () => {
+      const id = currentAccount()?.id;
+      if (id) db.missionProgress[id] = progress;
+      return progress;
+    },
+    () => apiClient.put('/missions/progress', { progress }),
+  );
+}
+
+/**
  * Report a mission as complete so the backend can award XP and persist it.
  * The frontend already knows locally; this is the write that makes it real.
  */
@@ -44,7 +77,6 @@ export function completeMission(missionId) {
   return withMock(
     async () => {
       await delay(300);
-      db.stats.completedMissions += 1;
       return { missionId, completedAt: new Date().toISOString() };
     },
     () => apiClient.post(`/missions/${missionId}/complete`),

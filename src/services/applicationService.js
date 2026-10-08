@@ -1,17 +1,24 @@
 /**
- * Applications and interviews.
+ * Applications and interviews, candidate side.
  * Backed by `POST /jobs/:id/apply`, `GET /applications`, `GET /interviews`.
  */
 import { apiClient, withMock } from './apiClient.js';
-import { db, nextId } from './mockDb.js';
+import { db, nextId, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+
+function candidateId() {
+  return currentAccount()?.id ?? 'anonymous';
+}
 
 /** @returns {Promise<import('../models/index.js').Application[]>} */
 export function listApplications() {
   return withMock(
     async () => {
       await delay();
-      return [...db.applications].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      const me = candidateId();
+      return db.applications
+        .filter((a) => a.candidateId === me)
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     },
     () => apiClient.get('/applications'),
   );
@@ -20,12 +27,11 @@ export function listApplications() {
 /**
  * Submit an application.
  *
- * The AI flow in the PRD confirms before consequential actions; the UI asks
- * first and only then calls this. Re-applying is rejected rather than silently
- * duplicated, which is also the behaviour the backend should implement.
+ * Re-applying returns the existing record rather than creating a duplicate,
+ * which is also the behaviour the backend should implement. The UI confirms
+ * before calling this — applying is consequential and should never be a side
+ * effect of a click somewhere else.
  *
- * @param {string} jobId
- * @param {{ note?: string }} [payload]
  * @returns {Promise<import('../models/index.js').Application>}
  */
 export function applyToJob(jobId, payload = {}) {
@@ -33,11 +39,11 @@ export function applyToJob(jobId, payload = {}) {
     async () => {
       await delay(520);
       const job = db.jobs.find((j) => j.id === jobId);
-      if (!job) {
-        throw new Error('That role is no longer listed.');
-      }
-      const existing = db.applications.find((a) => a.jobId === jobId);
-      if (existing) return existing;
+      if (!job) throw new Error('That role is no longer listed.');
+
+      const me = candidateId();
+      const existing = db.applications.find((a) => a.jobId === jobId && a.candidateId === me);
+      if (existing) return { ...existing };
 
       const now = new Date().toISOString();
       /** @type {import('../models/index.js').Application} */
@@ -45,17 +51,33 @@ export function applyToJob(jobId, payload = {}) {
         id: nextId('app'),
         jobId: job.id,
         jobTitle: job.title,
+        organizationId: job.organizationId,
         companyName: job.companyName,
-        status: 'submitted',
+        candidateId: me,
+        status: 'applied',
         appliedAt: now,
         updatedAt: now,
         note: payload.note,
       };
+
       db.applications.unshift(application);
-      db.stats.applications += 1;
-      return application;
+      return { ...application };
     },
     () => apiClient.post(`/jobs/${jobId}/apply`, payload),
+  );
+}
+
+export function withdrawApplication(applicationId) {
+  return withMock(
+    async () => {
+      await delay(300);
+      const application = db.applications.find((a) => a.id === applicationId);
+      if (!application) throw new Error('That application no longer exists.');
+      application.status = 'withdrawn';
+      application.updatedAt = new Date().toISOString();
+      return { ...application };
+    },
+    () => apiClient.patch(`/applications/${applicationId}`, { status: 'withdrawn' }),
   );
 }
 
@@ -71,14 +93,13 @@ export function listInterviews() {
 }
 
 /**
- * Record a completed interview simulation.
- * The score is produced by the AI service; the frontend only reports completion.
+ * Record a completed interview simulation. The score comes from the AI service;
+ * the frontend only reports completion.
  */
 export function recordInterviewSimulation({ jobTitle, companyName, score }) {
   return withMock(
     async () => {
       await delay(300);
-      /** @type {import('../models/index.js').Interview} */
       const interview = {
         id: nextId('int'),
         applicationId: '',
@@ -90,7 +111,6 @@ export function recordInterviewSimulation({ jobTitle, companyName, score }) {
         score,
       };
       db.interviews.push(interview);
-      db.stats.interviews += 1;
       return interview;
     },
     () => apiClient.post('/interviews/simulations', { jobTitle, companyName, score }),

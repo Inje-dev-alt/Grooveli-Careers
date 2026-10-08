@@ -16,6 +16,7 @@ import {
   IconTarget,
 } from '../ui/index.js';
 import { MissionCard } from '../missions/MissionCard.jsx';
+import { NextCareerAction } from '../ai/NextCareerAction.jsx';
 import { JobCard } from '../jobs/JobCard.jsx';
 import { ApplicationList } from './ApplicationList.jsx';
 import { useAsync } from '../../hooks/useAsync.js';
@@ -57,6 +58,8 @@ export function CareerDashboard() {
 
   return (
     <div className="g-stack">
+      <NextCareerAction />
+
       <Panel>
         <PanelHeader
           title={`Career level ${progression.level}`}
@@ -72,7 +75,7 @@ export function CareerDashboard() {
           />
           <StatGrid>
             <StatTile label="To next level" value={`${progression.xpForNextLevel - progression.xpIntoLevel} XP`} />
-            <StatTile label="Reputation" value={reputation} accent="var(--g-accent)" />
+            <StatTile label="Reputation" value={`${reputation}/100`} accent="var(--g-accent)" />
             <StatTile label="Missions open" value={activeMissions.length} />
           </StatGrid>
         </div>

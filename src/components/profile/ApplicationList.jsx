@@ -3,26 +3,7 @@ import { Badge, AsyncBoundary, LoadingState, EmptyState, CompanyMark, IconBriefc
 import { useAsync } from '../../hooks/useAsync.js';
 import * as applicationService from '../../services/applicationService.js';
 import { formatRelativeTime } from '../../utils/format.js';
-
-const STATUS_TONE = {
-  draft: 'default',
-  submitted: 'info',
-  'in-review': 'info',
-  interview: 'warning',
-  offer: 'success',
-  rejected: 'danger',
-  withdrawn: 'default',
-};
-
-const STATUS_LABEL = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  'in-review': 'In review',
-  interview: 'Interview',
-  offer: 'Offer',
-  rejected: 'Not progressing',
-  withdrawn: 'Withdrawn',
-};
+import { statusLabel, statusTone } from '../../utils/applicationStatus.js';
 
 /** Application history. Reads from the service so it stays correct after an apply. */
 export function ApplicationList({ limit }) {
@@ -52,7 +33,7 @@ export function ApplicationList({ limit }) {
                   {application.companyName} · {formatRelativeTime(application.updatedAt)}
                 </p>
               </div>
-              <Badge tone={STATUS_TONE[application.status]}>{STATUS_LABEL[application.status]}</Badge>
+              <Badge tone={statusTone(application.status)}>{statusLabel(application.status)}</Badge>
             </li>
           ))}
         </ul>

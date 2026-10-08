@@ -1,12 +1,14 @@
 import './jobs.css';
-import { Chip, Field, Select, SearchInput, Button } from '../ui/index.js';
+import { Chip, Field, Select, SearchInput, Button, TextInput } from '../ui/index.js';
 import { useJobStore } from '../../stores/jobStore.js';
+import { useAsync } from '../../hooks/useAsync.js';
+import * as jobService from '../../services/jobService.js';
 import { cityLocations } from '../../game/world/locations.js';
 import { formatCompactMoney } from '../../utils/format.js';
 
 const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
-const WORK_MODES = ['onsite', 'hybrid', 'remote'];
-const SENIORITY = ['entry', 'junior', 'mid', 'senior', 'lead'];
+const WORK_TYPES = ['onsite', 'hybrid', 'remote'];
+const EXPERIENCE_LEVELS = ['entry', 'junior', 'mid', 'senior', 'lead'];
 
 const LABELS = {
   'full-time': 'Full-time',
@@ -28,7 +30,7 @@ const districtOptions = cityLocations.filter((l) => l.interactions.includes('job
 
 /**
  * Search, sort and facets. All of it writes into `jobStore.query`, which the
- * service layer consumes as query parameters — so the same filters will work
+ * service consumes as query parameters — so the same filters will work
  * unchanged against the real `GET /jobs`.
  */
 export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, resultCount }) {
@@ -37,6 +39,10 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
   const toggleFacet = useJobStore((s) => s.toggleFacet);
   const resetQuery = useJobStore((s) => s.resetQuery);
   const hasActiveFilters = useJobStore((s) => s.hasActiveFilters());
+
+  // Industries and skills come from the live listings rather than a hardcoded
+  // list, so employer-created roles appear in the filters automatically.
+  const facets = useAsync(() => jobService.getJobFacets(), []);
 
   return (
     <div className="job-browser__controls">
@@ -80,6 +86,26 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
             </Field>
           ) : null}
 
+          <Field label="Location" htmlFor="filter-location">
+            <TextInput
+              id="filter-location"
+              value={query.location}
+              placeholder="Lagos, Abuja, Remote…"
+              onChange={(event) => setQuery({ location: event.target.value })}
+            />
+          </Field>
+
+          <Field label="Industry">
+            <Select value={query.industry} onChange={(event) => setQuery({ industry: event.target.value })}>
+              <option value="">Every industry</option>
+              {(facets.data?.industries ?? []).map((industry) => (
+                <option key={industry} value={industry}>
+                  {industry}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
           <div className="job-browser__facet">
             <span className="g-field__label">Employment type</span>
             <div className="job-browser__chips">
@@ -96,13 +122,13 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
           </div>
 
           <div className="job-browser__facet">
-            <span className="g-field__label">Work mode</span>
+            <span className="g-field__label">Work type</span>
             <div className="job-browser__chips">
-              {WORK_MODES.map((mode) => (
+              {WORK_TYPES.map((mode) => (
                 <Chip
                   key={mode}
-                  active={query.workModes.includes(mode)}
-                  onClick={() => toggleFacet('workModes', mode)}
+                  active={query.workTypes.includes(mode)}
+                  onClick={() => toggleFacet('workTypes', mode)}
                 >
                   {LABELS[mode]}
                 </Chip>
@@ -111,19 +137,36 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
           </div>
 
           <div className="job-browser__facet">
-            <span className="g-field__label">Seniority</span>
+            <span className="g-field__label">Experience level</span>
             <div className="job-browser__chips">
-              {SENIORITY.map((level) => (
+              {EXPERIENCE_LEVELS.map((level) => (
                 <Chip
                   key={level}
-                  active={query.seniority.includes(level)}
-                  onClick={() => toggleFacet('seniority', level)}
+                  active={query.experienceLevels.includes(level)}
+                  onClick={() => toggleFacet('experienceLevels', level)}
                 >
                   {LABELS[level]}
                 </Chip>
               ))}
             </div>
           </div>
+
+          {(facets.data?.skills ?? []).length > 0 ? (
+            <div className="job-browser__facet">
+              <span className="g-field__label">Skills</span>
+              <div className="job-browser__chips">
+                {facets.data.skills.slice(0, 14).map((skill) => (
+                  <Chip
+                    key={skill}
+                    active={query.skills.includes(skill)}
+                    onClick={() => toggleFacet('skills', skill)}
+                  >
+                    {skill}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <Field label={`Minimum salary — ${formatCompactMoney(query.minSalary)}`}>
             <input

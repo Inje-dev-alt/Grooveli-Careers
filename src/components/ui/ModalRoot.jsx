@@ -10,6 +10,7 @@ import { JobDetail } from '../jobs/JobDetail.jsx';
 import { MissionBrowser } from '../missions/MissionBrowser.jsx';
 import { MissionDetail } from '../missions/MissionDetail.jsx';
 import { AICareerCenter } from '../ai/AICareerCenter.jsx';
+import { CareerDiscovery } from '../ai/CareerDiscovery.jsx';
 import { CareerProfile } from '../profile/CareerProfile.jsx';
 import { CareerStats } from '../profile/CareerStats.jsx';
 import { CareerDashboard } from '../profile/CareerDashboard.jsx';
@@ -120,6 +121,24 @@ function ModalLayer({ modal }) {
           <div style={{ minHeight: '46vh', display: 'flex' }}>
             <AICareerCenter initialIntent={props.initialIntent} embedded />
           </div>
+        </Modal>
+      );
+
+    case 'career-discovery':
+      return (
+        <Modal
+          eyebrow="Grooveli AI"
+          title="Career Discovery"
+          subtitle="Career paths your skills point at, and what stands between you and each one."
+          size="md"
+          onClose={closeModal}
+        >
+          <CareerDiscovery
+            onExplore={(match) => {
+              closeAllModals();
+              navigate(`/jobs?search=${encodeURIComponent(match.title)}`);
+            }}
+          />
         </Modal>
       );
 

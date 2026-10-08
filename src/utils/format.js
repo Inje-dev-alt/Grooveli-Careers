@@ -14,12 +14,28 @@ export function formatCompactMoney(amount, currency = 'NGN') {
   return `${symbol}${amount}`;
 }
 
-/** @param {{ min:number, max:number, currency:string, period:string }} salary */
-export function formatSalaryRange(salary) {
-  if (!salary) return 'Not disclosed';
-  const { min, max, currency, period } = salary;
-  const suffix = period === 'month' ? '/mo' : '/yr';
-  return `${formatCompactMoney(min, currency)} – ${formatCompactMoney(max, currency)}${suffix}`;
+/**
+ * Salary is stored flat on the Job, so this takes the job (or anything with the
+ * same four fields) rather than a nested object.
+ * @param {{ salaryMin:number, salaryMax:number, currency:string, salaryPeriod?:string }} job
+ */
+export function formatSalaryRange(job) {
+  if (!job || (!job.salaryMin && !job.salaryMax)) return 'Not disclosed';
+  const { salaryMin, salaryMax, currency, salaryPeriod } = job;
+  const suffix = salaryPeriod === 'year' ? '/yr' : '/mo';
+  return `${formatCompactMoney(salaryMin, currency)} – ${formatCompactMoney(salaryMax, currency)}${suffix}`;
+}
+
+/** "in 12 days" / "closed" for an application deadline. */
+export function formatDeadline(isoString) {
+  if (!isoString) return null;
+  const days = Math.ceil((new Date(isoString).getTime() - Date.now()) / 86_400_000);
+  if (Number.isNaN(days)) return null;
+  if (days < 0) return 'Closed';
+  if (days === 0) return 'Closes today';
+  if (days === 1) return 'Closes tomorrow';
+  if (days <= 30) return `Closes in ${days} days`;
+  return null;
 }
 
 export function formatNumber(value) {

@@ -73,6 +73,13 @@ export const INTERACTIONS = {
     open: ({ replaceModal }) => replaceModal('courses', {}),
   },
 
+  'career-discovery': {
+    label: 'Career Discovery',
+    description: 'Career paths your skills already point at',
+    icon: IconTrendUp,
+    open: ({ replaceModal }) => replaceModal('career-discovery', {}),
+  },
+
   assessment: {
     label: 'Career Assessment',
     description: 'A calibrated read on where you stand',

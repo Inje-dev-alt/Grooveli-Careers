@@ -1,10 +1,11 @@
 import './jobs.css';
 import { Panel, Badge, MatchBadge, CompanyMark, IconBookmark, IconMapPin, Button } from '../ui/index.js';
-import { formatSalaryRange, formatRelativeTime, titleCase } from '../../utils/format.js';
+import { formatSalaryRange, formatRelativeTime, formatDeadline, titleCase } from '../../utils/format.js';
+import { jobSkills } from '../../services/jobService.js';
 
 /**
  * One job, rendered the same way everywhere it appears — the marketplace, a
- * district panel, the AI's recommendations.
+ * district panel, the AI's recommendations, an employer's own listing.
  *
  * @param {{
  *   job: import('../../models/index.js').Job,
@@ -13,6 +14,9 @@ import { formatSalaryRange, formatRelativeTime, titleCase } from '../../utils/fo
  * }} props
  */
 export function JobCard({ job, saved = false, applied = false, onOpen, onToggleSave }) {
+  const skills = jobSkills(job);
+  const closing = formatDeadline(job.deadline);
+
   return (
     <Panel pad="sm" className="job-card">
       <div className="job-card__top">
@@ -42,27 +46,28 @@ export function JobCard({ job, saved = false, applied = false, onOpen, onToggleS
         <span className="job-card__dot" />
         <span>{titleCase(job.employmentType)}</span>
         <span className="job-card__dot" />
-        <span className="job-card__salary">{formatSalaryRange(job.salary)}</span>
+        <span className="job-card__salary">{formatSalaryRange(job)}</span>
       </div>
 
       <div className="job-card__skills">
-        {job.skills.slice(0, 4).map((skill) => (
+        {skills.slice(0, 4).map((skill) => (
           <span key={skill} className="job-card__skill">
             {skill}
           </span>
         ))}
-        {job.skills.length > 4 ? <span className="job-card__skill">+{job.skills.length - 4}</span> : null}
+        {skills.length > 4 ? <span className="job-card__skill">+{skills.length - 4}</span> : null}
       </div>
 
       <div className="job-card__footer">
         <div className="g-row" style={{ gap: 8 }}>
-          <MatchBadge score={job.matchScore} />
+          {typeof job.matchScore === 'number' ? <MatchBadge score={job.matchScore} /> : null}
           {applied ? <Badge tone="success">Applied</Badge> : null}
           {job.featured && !applied ? <Badge tone="info">Featured</Badge> : null}
+          {closing ? <Badge tone="warning">{closing}</Badge> : null}
         </div>
         <div className="g-row" style={{ gap: 8 }}>
           <span className="g-dim" style={{ fontSize: 'var(--g-text-xs)' }}>
-            {formatRelativeTime(job.postedAt)}
+            {formatRelativeTime(job.createdAt)}
           </span>
           {onOpen ? (
             <Button size="sm" variant="ghost" onClick={() => onOpen(job)}>

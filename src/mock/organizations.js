@@ -1,11 +1,16 @@
 /**
- * Mocked employer records.
- * Replaced by `GET /companies` and `GET /companies/:id`.
- * @type {import('../models/index.js').Company[]}
+ * Mocked organizations (employer accounts and their company profiles).
+ * Replaced by `GET /organizations` and `GET /organizations/:id`.
+ *
+ * An Organization is the employer-side entity: it owns a company profile,
+ * members, jobs and a social presence. Companies created through employer
+ * onboarding are appended to this set at runtime.
+ *
+ * @type {import('../models/index.js').Organization[]}
  */
-export const companies = [
+export const organizations = [
   {
-    id: 'cmp-northwind',
+    id: 'org-northwind',
     name: 'Northwind Systems',
     tagline: 'Payments infrastructure for African commerce.',
     description:
@@ -13,13 +18,15 @@ export const companies = [
     industry: 'Fintech',
     size: '120-400',
     location: 'Lagos, Nigeria',
-    districtId: 'technology-hub',
     website: 'https://example.com/northwind',
+    districtId: 'technology-hub',
     logoColor: '#6fe0ff',
-    openRoles: 6,
+    followerCount: 4820,
+    verified: true,
+    createdAt: '2024-03-11T09:00:00.000Z',
   },
   {
-    id: 'cmp-meridian',
+    id: 'org-meridian',
     name: 'Meridian Capital Partners',
     tagline: 'Investment research and advisory.',
     description:
@@ -27,13 +34,15 @@ export const companies = [
     industry: 'Financial Services',
     size: '400-1200',
     location: 'Lagos, Nigeria',
-    districtId: 'finance-district',
     website: 'https://example.com/meridian',
+    districtId: 'finance-district',
     logoColor: '#9fb2d8',
-    openRoles: 4,
+    followerCount: 2140,
+    verified: true,
+    createdAt: '2023-08-02T09:00:00.000Z',
   },
   {
-    id: 'cmp-lumen',
+    id: 'org-lumen',
     name: 'Lumen Studio',
     tagline: 'Brand, motion and product design.',
     description:
@@ -41,13 +50,15 @@ export const companies = [
     industry: 'Design & Media',
     size: '20-60',
     location: 'Remote (WAT ±3)',
-    districtId: 'creative-district',
     website: 'https://example.com/lumen',
+    districtId: 'creative-district',
     logoColor: '#d98cff',
-    openRoles: 3,
+    followerCount: 7310,
+    verified: false,
+    createdAt: '2024-11-20T09:00:00.000Z',
   },
   {
-    id: 'cmp-vitalis',
+    id: 'org-vitalis',
     name: 'Vitalis Health Group',
     tagline: 'Clinics, diagnostics and care coordination.',
     description:
@@ -55,13 +66,15 @@ export const companies = [
     industry: 'Healthcare',
     size: '1200-3000',
     location: 'Abuja, Nigeria',
-    districtId: 'healthcare-district',
     website: 'https://example.com/vitalis',
+    districtId: 'healthcare-district',
     logoColor: '#76e8a8',
-    openRoles: 5,
+    followerCount: 3380,
+    verified: true,
+    createdAt: '2022-05-14T09:00:00.000Z',
   },
   {
-    id: 'cmp-azure-bay',
+    id: 'org-azure-bay',
     name: 'Azure Bay Hotels',
     tagline: 'Boutique hospitality across the coast.',
     description:
@@ -69,13 +82,15 @@ export const companies = [
     industry: 'Hospitality',
     size: '600-1500',
     location: 'Lagos, Nigeria',
-    districtId: 'hospitality-district',
     website: 'https://example.com/azurebay',
+    districtId: 'hospitality-district',
     logoColor: '#ff9f7a',
-    openRoles: 4,
+    followerCount: 1890,
+    verified: false,
+    createdAt: '2023-02-27T09:00:00.000Z',
   },
   {
-    id: 'cmp-keystone',
+    id: 'org-keystone',
     name: 'Keystone Talent',
     tagline: 'Specialist recruitment for operations and HR roles.',
     description:
@@ -83,13 +98,15 @@ export const companies = [
     industry: 'Recruitment',
     size: '40-120',
     location: 'Lagos / Remote',
-    districtId: 'recruitment-agency',
     website: 'https://example.com/keystone',
+    districtId: 'recruitment-agency',
     logoColor: '#5be3c8',
-    openRoles: 7,
+    followerCount: 5640,
+    verified: true,
+    createdAt: '2024-01-09T09:00:00.000Z',
   },
   {
-    id: 'cmp-brightpath',
+    id: 'org-brightpath',
     name: 'Brightpath Learning',
     tagline: 'Professional certification and upskilling.',
     description:
@@ -97,13 +114,15 @@ export const companies = [
     industry: 'Education',
     size: '80-250',
     location: 'Remote',
-    districtId: 'university-campus',
     website: 'https://example.com/brightpath',
+    districtId: 'university-campus',
     logoColor: '#ffc46b',
-    openRoles: 2,
+    followerCount: 9120,
+    verified: true,
+    createdAt: '2023-06-30T09:00:00.000Z',
   },
   {
-    id: 'cmp-atlas-holdings',
+    id: 'org-atlas-holdings',
     name: 'Atlas Holdings',
     tagline: 'Diversified industrial and consumer group.',
     description:
@@ -111,13 +130,15 @@ export const companies = [
     industry: 'Conglomerate',
     size: '3000+',
     location: 'Lagos, Nigeria',
-    districtId: 'corporate-district',
     website: 'https://example.com/atlas',
+    districtId: 'corporate-district',
     logoColor: '#7f9cff',
-    openRoles: 8,
+    followerCount: 6450,
+    verified: true,
+    createdAt: '2021-10-05T09:00:00.000Z',
   },
   {
-    id: 'cmp-signal-labs',
+    id: 'org-signal-labs',
     name: 'Signal Labs',
     tagline: 'Applied machine learning for logistics.',
     description:
@@ -125,13 +146,15 @@ export const companies = [
     industry: 'Technology',
     size: '20-60',
     location: 'Remote',
-    districtId: 'technology-hub',
     website: 'https://example.com/signallabs',
+    districtId: 'technology-hub',
     logoColor: '#6c8cff',
-    openRoles: 3,
+    followerCount: 2760,
+    verified: false,
+    createdAt: '2025-04-18T09:00:00.000Z',
   },
   {
-    id: 'cmp-harbour-co',
+    id: 'org-harbour-co',
     name: 'Harbour & Co.',
     tagline: 'Audit, tax and advisory.',
     description:
@@ -139,9 +162,11 @@ export const companies = [
     industry: 'Accounting',
     size: '400-900',
     location: 'Lagos, Nigeria',
-    districtId: 'finance-district',
     website: 'https://example.com/harbour',
+    districtId: 'finance-district',
     logoColor: '#b8c6e4',
-    openRoles: 5,
+    followerCount: 3010,
+    verified: true,
+    createdAt: '2022-09-12T09:00:00.000Z',
   },
 ];

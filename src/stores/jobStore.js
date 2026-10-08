@@ -13,9 +13,12 @@ import * as applicationService from '../services/applicationService.js';
 export const EMPTY_QUERY = {
   search: '',
   districtId: '',
+  location: '',
+  industry: '',
   employmentTypes: [],
-  workModes: [],
-  seniority: [],
+  workTypes: [],
+  experienceLevels: [],
+  skills: [],
   minSalary: 0,
   minMatch: 0,
   sort: 'match',
@@ -48,13 +51,20 @@ export const useJobStore = create((set, get) => ({
     return Boolean(
       q.search ||
         q.districtId ||
+        q.location ||
+        q.industry ||
         q.employmentTypes.length ||
-        q.workModes.length ||
-        q.seniority.length ||
+        q.workTypes.length ||
+        q.experienceLevels.length ||
+        q.skills.length ||
         q.minSalary > 0 ||
         q.minMatch > 0,
     );
   },
+
+  /** Clear on sign-out so the next account does not inherit a search. */
+  reset: () =>
+    set({ query: { ...EMPTY_QUERY }, savedJobIds: [], applications: [], applyingJobId: null }),
 
   /**
    * Saved jobs and application history are supporting data for the list — a

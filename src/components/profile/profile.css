@@ -146,3 +146,17 @@
 
 .ledger__xp { font-family: var(--g-font-mono); color: var(--g-accent); }
 .ledger__xp--zero { color: var(--g-text-dim); }
+
+.profile__goal {
+  display: grid;
+  gap: 4px;
+  padding: var(--g-space-3) var(--g-space-4);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border-left: 3px solid var(--g-accent);
+}
+
+.profile__timeline-item {
+  padding-left: var(--g-space-4);
+  border-left: 2px solid var(--g-glass-border);
+}

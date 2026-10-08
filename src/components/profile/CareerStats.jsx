@@ -13,7 +13,7 @@ import {
 import { useAsync } from '../../hooks/useAsync.js';
 import { useCareerStore, selectProgression, selectCareerTitle } from '../../stores/careerStore.js';
 import { useMissionStore, selectCompletedMissionCount } from '../../stores/missionStore.js';
-import * as profileService from '../../services/profileService.js';
+import * as careerService from '../../services/careerService.js';
 import { formatRelativeTime } from '../../utils/format.js';
 
 /**
@@ -31,7 +31,7 @@ export function CareerStats() {
   const ledger = useCareerStore((s) => s.ledger);
   const completedMissions = useMissionStore(selectCompletedMissionCount);
 
-  const statsQuery = useAsync(() => profileService.getCareerStats(), []);
+  const statsQuery = useAsync(() => careerService.getStats(), []);
 
   return (
     <div className="g-stack">
@@ -59,7 +59,7 @@ export function CareerStats() {
         <AsyncBoundary query={statsQuery} loading={<LoadingState rows={1} label="Loading statistics" />}>
           {(stats) => (
             <StatGrid>
-              <StatTile label="Missions completed" value={stats.completedMissions + completedMissions} />
+              <StatTile label="Missions completed" value={Math.max(stats.completedMissions, completedMissions)} />
               <StatTile label="Certifications" value={stats.certifications} />
               <StatTile label="Applications" value={stats.applications} />
               <StatTile label="Interviews" value={stats.interviews} />

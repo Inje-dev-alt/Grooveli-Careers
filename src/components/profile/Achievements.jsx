@@ -1,11 +1,11 @@
 import './profile.css';
 import { AsyncBoundary, LoadingState, EmptyState, IconAward, IconLock } from '../ui/index.js';
 import { useAsync } from '../../hooks/useAsync.js';
-import * as profileService from '../../services/profileService.js';
+import * as careerService from '../../services/careerService.js';
 
 /** The trophy shelf. Earned achievements first, locked ones dimmed behind them. */
 export function Achievements() {
-  const query = useAsync(() => profileService.listAchievements(), []);
+  const query = useAsync(() => careerService.listAchievements(), []);
 
   return (
     <AsyncBoundary
