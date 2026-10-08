@@ -1,0 +1,122 @@
+/*
+ * Grooveli design tokens.
+ * The whole interface reads from this file — no component should invent a raw
+ * colour, radius or shadow. Changing the brand means changing this file only.
+ */
+:root {
+  /* --- Surfaces: deep, slightly blue-black foundation --- */
+  --g-bg: #070a14;
+  --g-bg-deep: #04060d;
+  --g-surface-1: rgba(19, 25, 44, 0.86);
+  --g-surface-2: rgba(25, 32, 55, 0.82);
+  --g-surface-3: rgba(33, 42, 70, 0.78);
+  --g-surface-raised: rgba(30, 38, 64, 0.94);
+
+  /* --- Glass --- */
+  --g-glass: rgba(18, 24, 43, 0.72);
+  --g-glass-strong: rgba(12, 17, 32, 0.9);
+  --g-glass-border: rgba(140, 165, 225, 0.16);
+  --g-glass-border-strong: rgba(150, 180, 245, 0.28);
+  --g-blur: 18px;
+
+  /* --- Brand: mint-to-indigo, no neon --- */
+  --g-accent: #5be3c8;
+  --g-accent-soft: rgba(91, 227, 200, 0.14);
+  --g-accent-line: rgba(91, 227, 200, 0.42);
+  --g-accent-2: #6c8cff;
+  --g-accent-2-soft: rgba(108, 140, 255, 0.16);
+  --g-accent-3: #b98cff;
+  --g-gradient: linear-gradient(135deg, #5be3c8 0%, #6c8cff 100%);
+  --g-gradient-soft: linear-gradient(135deg, rgba(91, 227, 200, 0.18) 0%, rgba(108, 140, 255, 0.18) 100%);
+  --g-gradient-warm: linear-gradient(135deg, #ffc46b 0%, #ff8e7a 100%);
+
+  /* --- Text --- */
+  --g-text: #eef2fb;
+  --g-text-muted: #9aa7c4;
+  --g-text-dim: #6b7694;
+  --g-text-on-accent: #04121a;
+
+  /* --- Status --- */
+  --g-success: #4ad492;
+  --g-success-soft: rgba(74, 212, 146, 0.14);
+  --g-warning: #ffc46b;
+  --g-warning-soft: rgba(255, 196, 107, 0.14);
+  --g-danger: #ff7a85;
+  --g-danger-soft: rgba(255, 122, 133, 0.14);
+  --g-info: #6c8cff;
+  --g-info-soft: rgba(108, 140, 255, 0.14);
+
+  /* --- Typography --- */
+  --g-font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
+  --g-font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --g-font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --g-text-xs: 0.6875rem;
+  --g-text-sm: 0.8125rem;
+  --g-text-base: 0.9375rem;
+  --g-text-md: 1.0625rem;
+  --g-text-lg: 1.375rem;
+  --g-text-xl: 1.875rem;
+  --g-text-2xl: 2.5rem;
+
+  /* --- Space --- */
+  --g-space-1: 4px;
+  --g-space-2: 8px;
+  --g-space-3: 12px;
+  --g-space-4: 16px;
+  --g-space-5: 24px;
+  --g-space-6: 32px;
+  --g-space-7: 48px;
+  --g-space-8: 64px;
+
+  /* --- Radius --- */
+  --g-radius-sm: 8px;
+  --g-radius-md: 12px;
+  --g-radius-lg: 18px;
+  --g-radius-xl: 26px;
+  --g-radius-pill: 999px;
+
+  /* --- Elevation: soft, never glowing --- */
+  --g-shadow-sm: 0 2px 8px rgba(3, 6, 15, 0.4);
+  --g-shadow-md: 0 10px 30px rgba(3, 6, 15, 0.46);
+  --g-shadow-lg: 0 26px 70px rgba(3, 6, 15, 0.58);
+  --g-ring: 0 0 0 1px var(--g-glass-border);
+  --g-ring-accent: 0 0 0 1px var(--g-accent-line);
+
+  /* --- Motion: minimal but purposeful --- */
+  --g-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --g-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --g-dur-fast: 120ms;
+  --g-dur: 220ms;
+  --g-dur-slow: 420ms;
+
+  /* --- Layers --- */
+  --g-z-world: 0;
+  --g-z-hud: 20;
+  --g-z-controls: 30;
+  --g-z-panel: 40;
+  --g-z-modal: 60;
+  --g-z-toast: 80;
+
+  /* --- Layout --- */
+  --g-shell-max: 1240px;
+  --g-safe-top: env(safe-area-inset-top, 0px);
+  --g-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --g-safe-left: env(safe-area-inset-left, 0px);
+  --g-safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* District accents — shared by the world renderer and the interface so a
+   district looks the same in the city as it does in a panel. */
+:root {
+  --g-district-corporate: #7f9cff;
+  --g-district-recruitment: #5be3c8;
+  --g-district-education: #ffc46b;
+  --g-district-technology: #6fe0ff;
+  --g-district-creative: #d98cff;
+  --g-district-healthcare: #76e8a8;
+  --g-district-hospitality: #ff9f7a;
+  --g-district-finance: #9fb2d8;
+  --g-district-home: #ffd9a0;
+  --g-district-ai: #8ef0d8;
+}

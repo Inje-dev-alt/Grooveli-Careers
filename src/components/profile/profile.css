@@ -1,0 +1,162 @@
+.profile { display: grid; gap: var(--g-space-5); }
+
+.profile__hero {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-5);
+  padding: var(--g-space-5);
+  border-radius: var(--g-radius-xl);
+  background: var(--g-gradient-soft);
+  border: 1px solid var(--g-glass-border);
+  flex-wrap: wrap;
+}
+
+.profile__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 76px;
+  height: 76px;
+  border-radius: var(--g-radius-lg);
+  background: var(--g-gradient);
+  color: var(--g-text-on-accent);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-lg);
+  font-weight: 700;
+}
+
+.profile__identity { flex: 1; min-width: 200px; display: grid; gap: 4px; }
+
+.profile__name { font-size: var(--g-text-xl); }
+
+.profile__headline { color: var(--g-text-muted); font-size: var(--g-text-sm); }
+
+.profile__level {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 170px;
+}
+
+.profile__level-value {
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xl);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.profile__grid {
+  display: grid;
+  gap: var(--g-space-4);
+}
+
+@media (min-width: 900px) {
+  .profile__grid--split { grid-template-columns: 1.15fr 0.85fr; align-items: start; }
+}
+
+.profile__skills { display: grid; gap: var(--g-space-4); }
+
+.profile__checklist { display: grid; gap: var(--g-space-2); }
+
+.profile__checklist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: 10px var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-glass-border);
+  font-size: var(--g-text-sm);
+}
+
+.profile__cv {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-4);
+  border-radius: var(--g-radius-lg);
+  border: 1px dashed var(--g-glass-border-strong);
+  background: var(--g-surface-2);
+  flex-wrap: wrap;
+}
+
+.profile__cv-info { flex: 1; min-width: 160px; }
+
+.application {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-glass-border);
+}
+
+.application__body { flex: 1; min-width: 0; }
+.application__title { font-size: var(--g-text-sm); font-weight: 600; }
+.application__company { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: var(--g-space-3);
+}
+
+.achievement {
+  display: grid;
+  gap: 6px;
+  padding: var(--g-space-4);
+  border-radius: var(--g-radius-lg);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-glass-border);
+  text-align: center;
+  justify-items: center;
+}
+
+.achievement--locked { opacity: 0.45; }
+
+.achievement__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--g-radius-md);
+  background: var(--g-gradient-soft);
+  color: var(--g-accent);
+}
+
+.achievement--locked .achievement__icon { background: var(--g-surface-3); color: var(--g-text-dim); }
+
+.achievement__name { font-family: var(--g-font-display); font-size: var(--g-text-sm); font-weight: 600; }
+.achievement__desc { font-size: var(--g-text-xs); color: var(--g-text-dim); line-height: 1.5; }
+
+.ledger { display: grid; gap: var(--g-space-2); }
+
+.ledger__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-space-3);
+  padding: 9px var(--g-space-3);
+  border-radius: var(--g-radius-sm);
+  background: var(--g-surface-2);
+  font-size: var(--g-text-sm);
+}
+
+.ledger__xp { font-family: var(--g-font-mono); color: var(--g-accent); }
+.ledger__xp--zero { color: var(--g-text-dim); }
+
+.profile__goal {
+  display: grid;
+  gap: 4px;
+  padding: var(--g-space-3) var(--g-space-4);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+  border-left: 3px solid var(--g-accent);
+}
+
+.profile__timeline-item {
+  padding-left: var(--g-space-4);
+  border-left: 2px solid var(--g-glass-border);
+}

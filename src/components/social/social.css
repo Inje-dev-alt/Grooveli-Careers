@@ -1,0 +1,241 @@
+.network {
+  display: grid;
+  gap: var(--g-space-4);
+  /* Grid items default to min-width:auto, which lets a wide child push the
+     whole column past the viewport. Every level of this layout opts out. */
+  min-width: 0;
+}
+
+.network > *,
+.network__feed > *,
+.network__aside > * {
+  min-width: 0;
+}
+
+@media (min-width: 1000px) {
+  .network { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+}
+
+.network__feed { display: grid; gap: var(--g-space-3); min-width: 0; }
+
+.network__aside { display: grid; gap: var(--g-space-3); min-width: 0; }
+
+@media (max-width: 999px) {
+  .network__aside { order: -1; }
+}
+
+/* ---------- Composer ---------- */
+.composer { display: grid; gap: var(--g-space-3); }
+
+.composer__head { display: flex; gap: var(--g-space-3); align-items: center; }
+
+.composer__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--g-radius-pill);
+  background: var(--g-gradient);
+  color: var(--g-text-on-accent);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+}
+
+.composer__types { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.composer__attach {
+  display: grid;
+  gap: 6px;
+  padding: var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-gradient-soft);
+  border: 1px solid var(--g-glass-border);
+}
+
+.composer__attach-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-space-2);
+  font-size: var(--g-text-sm);
+  font-weight: 600;
+}
+
+.composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-space-3);
+}
+
+/* ---------- Post ---------- */
+.post { display: grid; gap: var(--g-space-3); }
+
+.post__head { display: flex; gap: var(--g-space-3); align-items: center; }
+
+.post__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--g-radius-pill);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+  color: var(--g-text-on-accent);
+}
+
+.post__avatar--org { border-radius: var(--g-radius-md); }
+
+.post__who { flex: 1; min-width: 0; }
+
+.post__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-sm);
+  font-weight: 600;
+}
+
+.post__headline { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+.post__time { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--g-text-dim); }
+
+.post__body {
+  font-size: var(--g-text-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Career evidence attached to a post — the thing that makes it social proof
+   rather than a status update. */
+.post__evidence {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-3) var(--g-space-4);
+  border-radius: var(--g-radius-md);
+  background: var(--g-gradient-soft);
+  border: 1px solid var(--g-glass-border);
+}
+
+.post__evidence-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-md);
+  background: rgba(10, 15, 28, 0.45);
+  color: var(--g-accent);
+}
+
+.post__evidence-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.post__evidence-label { font-family: var(--g-font-display); font-size: var(--g-text-sm); font-weight: 600; }
+.post__evidence-detail { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+
+.post__evidence-score {
+  flex: none;
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-md);
+  font-weight: 700;
+  color: var(--g-accent);
+}
+
+.post__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  padding-top: var(--g-space-3);
+  border-top: 1px solid var(--g-glass-border);
+}
+
+.post__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--g-radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--g-text-muted);
+  font-size: var(--g-text-sm);
+  font-weight: 500;
+  transition: all var(--g-dur) var(--g-ease);
+}
+
+.post__action:hover { background: var(--g-surface-2); color: var(--g-text); }
+.post__action--active { color: var(--g-accent); background: var(--g-accent-soft); }
+
+.post__comments { display: grid; gap: var(--g-space-2); }
+
+.post__comment {
+  display: flex;
+  gap: var(--g-space-2);
+  align-items: flex-start;
+  padding: var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2);
+}
+
+.post__comment-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--g-radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--g-font-display);
+  color: var(--g-text-on-accent);
+}
+
+.post__comment-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.post__comment-name { font-size: var(--g-text-xs); font-weight: 600; }
+.post__comment-text { font-size: var(--g-text-sm); color: var(--g-text-muted); line-height: 1.6; }
+
+.post__comment-form { display: flex; gap: var(--g-space-2); }
+.post__comment-form .g-input { flex: 1; }
+
+/* ---------- People ---------- */
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-3) 0;
+}
+
+.person + .person { border-top: 1px solid var(--g-glass-border); }
+
+.person__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-pill);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+  color: var(--g-text-on-accent);
+}
+
+.person__body { flex: 1; min-width: 0; }
+.person__name { font-size: var(--g-text-sm); font-weight: 600; }
+.person__headline { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+.person__mutual { font-size: 10px; color: var(--g-text-dim); }
+
+@media (max-width: 560px) {
+  /* The badge-and-timestamp group cannot shrink, so on a phone it moves to its
+     own line rather than pushing the whole post past the viewport. */
+  .post__head { flex-wrap: wrap; }
+  .post__who { flex: 1 1 100%; order: 2; }
+  .post__head > .g-row { order: 3; flex: 1 1 100%; justify-content: space-between; }
+
+  .composer__head { flex-wrap: wrap; }
+}
