@@ -27,6 +27,7 @@ import { useUiStore } from '../../stores/uiStore.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import * as candidateService from '../../services/candidateService.js';
 import * as careerService from '../../services/careerService.js';
+import * as socialService from '../../services/socialService.js';
 import { recordCareerEvent } from '../../stores/progression.js';
 import { CAREER_EVENTS } from '../../utils/careerEvents.js';
 import { formatCompactMoney, initials, formatRelativeTime, titleCase } from '../../utils/format.js';
@@ -43,7 +44,9 @@ export function CareerProfile({ compact = false }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const refreshAvatar = useAuthStore((s) => s.refreshUser);
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
 
   const user = useAuthStore((s) => s.user);
   const progression = useCareerStore(selectProgression);
@@ -54,6 +57,7 @@ export function CareerProfile({ compact = false }) {
   const profileQuery = useAsync(() => candidateService.getProfile(), []);
   const statsQuery = useAsync(() => careerService.getStats(), []);
   const activityQuery = useAsync(() => careerService.listActivity(6), []);
+  const connectionsQuery = useAsync(() => socialService.countConnections(), []);
 
   const profile = profileQuery.data;
 
@@ -63,6 +67,20 @@ export function CareerProfile({ compact = false }) {
       recordCareerEvent(CAREER_EVENTS.PROFILE_COMPLETED, { once: true });
     }
   }, [profile?.completeness]);
+
+  const handleAvatarSelected = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await socialService.uploadAvatar({ fileName: file.name });
+      await refreshAvatar();
+      pushToast({ title: 'Profile picture updated', body: file.name, tone: 'success' });
+    } catch (error) {
+      pushToast({ title: 'Could not update picture', body: error.message, tone: 'danger' });
+    } finally {
+      event.target.value = '';
+    }
+  };
 
   const startEditing = () => {
     setDraft({
@@ -129,6 +147,21 @@ export function CareerProfile({ compact = false }) {
                 <Badge tone="accent">{careerTitle}</Badge>
                 {profile.location ? <Badge>{profile.location}</Badge> : null}
                 {profile.yearsExperience > 0 ? <Badge>{profile.yearsExperience} years experience</Badge> : null}
+              </div>
+              <div className="g-row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="g-sr-only"
+                  onChange={handleAvatarSelected}
+                />
+                <Button size="sm" variant="ghost" onClick={() => avatarInputRef.current?.click()}>
+                  {user?.avatarUrl ? 'Change picture' : 'Add profile picture'}
+                </Button>
+                {user?.avatarUrl ? (
+                  <span className="g-dim" style={{ fontSize: 'var(--g-text-xs)' }}>{user.avatarUrl}</span>
+                ) : null}
               </div>
             </div>
             <div className="profile__level">
@@ -323,6 +356,7 @@ export function CareerProfile({ compact = false }) {
                   {(stats) => (
                     <StatGrid>
                       <StatTile label="Reputation" value={reputation} accent="var(--g-accent)" />
+                      <StatTile label="Connections" value={connectionsQuery.data ?? 0} />
                       <StatTile label="Missions" value={stats.completedMissions} />
                       <StatTile label="Certifications" value={stats.certifications} />
                       <StatTile label="Applications" value={stats.applications} />

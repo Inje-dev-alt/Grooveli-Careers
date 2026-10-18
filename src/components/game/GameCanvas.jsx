@@ -9,7 +9,7 @@ import { usePlayerStore } from '../../stores/playerStore.js';
  * Phaser is imported dynamically so the engine is fetched only when a world
  * route is opened — the marketplace, profile and AI routes never pay for it.
  *
- * @param {{ scene: 'city' | 'apartment' }} props
+ * @param {{ scene: 'city' | 'apartment' | 'company' }} props
  */
 export function GameCanvas({ scene }) {
   const hostRef = useRef(null);
@@ -22,17 +22,18 @@ export function GameCanvas({ scene }) {
 
     async function boot() {
       // Dynamic import keeps Phaser out of the initial bundle.
-      const [{ default: Phaser }, { createGameConfig }, { CityScene }, { ApartmentScene }] =
+      const [{ default: Phaser }, { createGameConfig }, { CityScene }, { ApartmentScene }, { CompanyScene }] =
         await Promise.all([
           import('phaser'),
           import('../../game/config.js'),
           import('../../game/scenes/CityScene.js'),
           import('../../game/scenes/ApartmentScene.js'),
+          import('../../game/scenes/CompanyScene.js'),
         ]);
 
       if (cancelled || !host) return;
 
-      const SceneClass = scene === 'apartment' ? ApartmentScene : CityScene;
+      const SceneClass = scene === 'apartment' ? ApartmentScene : scene === 'company' ? CompanyScene : CityScene;
       const config = createGameConfig({ parent: host, scenes: [SceneClass] });
       const game = new Phaser.Game(config);
       gameRef.current = game;

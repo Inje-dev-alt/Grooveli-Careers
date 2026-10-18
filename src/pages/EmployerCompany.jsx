@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmployerShell, EmployerPage } from '../components/employer/EmployerShell.jsx';
 import {
   Panel,
@@ -38,10 +38,12 @@ export default function EmployerCompany() {
   const jobs = useEmployerStore((s) => s.jobs);
   const load = useEmployerStore((s) => s.load);
   const updateCompany = useEmployerStore((s) => s.updateCompany);
+  const uploadLogo = useEmployerStore((s) => s.uploadLogo);
   const pushToast = useUiStore((s) => s.pushToast);
 
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const logoInputRef = useRef(null);
 
   const postsQuery = useAsync(
     () => (organization ? socialService.listOrganizationPosts(organization.id) : Promise.resolve([])),
@@ -73,6 +75,19 @@ export default function EmployerCompany() {
       pushToast({ title: 'Could not save', body: caught.message, tone: 'danger' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoSelected = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await uploadLogo({ fileName: file.name });
+      pushToast({ title: 'Company logo updated', body: file.name, tone: 'success' });
+    } catch (caught) {
+      pushToast({ title: 'Could not update logo', body: caught.message, tone: 'danger' });
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -148,6 +163,21 @@ export default function EmployerCompany() {
                     <Badge>{organization.size} people</Badge>
                     <Badge>{organization.location}</Badge>
                     {organization.website ? <Badge>{organization.website.replace(/^https?:\/\//, '')}</Badge> : null}
+                  </div>
+                  <div className="g-row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="g-sr-only"
+                      onChange={handleLogoSelected}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => logoInputRef.current?.click()}>
+                      {organization.logoUrl ? 'Change logo' : 'Upload logo'}
+                    </Button>
+                    {organization.logoUrl ? (
+                      <span className="g-dim" style={{ fontSize: 'var(--g-text-xs)' }}>{organization.logoUrl}</span>
+                    ) : null}
                   </div>
                 </div>
               )}

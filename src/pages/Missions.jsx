@@ -1,5 +1,6 @@
 import { AppShell, Page } from '../components/shell/AppShell.jsx';
 import { MissionBrowser } from '../components/missions/MissionBrowser.jsx';
+import { MissionReminders } from '../components/missions/MissionReminders.jsx';
 import { Panel, StatTile, StatGrid } from '../components/ui/index.js';
 import { useUiStore } from '../stores/uiStore.js';
 import { useCareerStore, selectProgression } from '../stores/careerStore.js';
@@ -29,6 +30,8 @@ export default function Missions() {
           </Panel>
 
           <MissionBrowser wide onOpenMission={(mission) => openModal('mission-detail', { mission })} />
+
+          <MissionReminders />
         </div>
       </Page>
     </AppShell>

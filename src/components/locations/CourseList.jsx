@@ -26,9 +26,16 @@ export function CourseList() {
   const complete = async (course) => {
     setCompleting(course.id);
     try {
-      await learningService.completeCourse(course.id);
+      const result = await learningService.completeCourse(course.id);
       setCompleted((prev) => [...prev, course.id]);
-      recordCareerEvent(CAREER_EVENTS.COURSE_COMPLETED, { label: `${course.title} completed` });
+      // A course may only be completed once. The service tells us when this
+      // call was a no-op, so the XP loop cannot be farmed by re-clicking.
+      if (!result.alreadyCompleted) {
+        recordCareerEvent(CAREER_EVENTS.COURSE_COMPLETED, {
+          label: `${course.title} completed`,
+          context: { course: course.id, skill: course.skill },
+        });
+      }
     } catch (error) {
       pushToast({ title: 'Could not record the course', body: error.message, tone: 'danger' });
     } finally {
@@ -46,7 +53,7 @@ export function CourseList() {
       {(courses) => (
         <ul className="g-stack">
           {courses.map((course) => {
-            const done = completed.includes(course.id);
+            const done = course.completed || completed.includes(course.id);
             return (
               <li key={course.id}>
                 <Panel pad="sm" className="course-card">

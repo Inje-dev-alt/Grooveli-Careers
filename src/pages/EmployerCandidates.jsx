@@ -7,6 +7,7 @@ import {
   Badge,
   Tabs,
   SearchInput,
+  TextArea,
   CompanyMark,
   Meter,
   Modal,
@@ -29,18 +30,26 @@ const TABS = [
   { id: 'discover', label: 'Discover candidates' },
 ];
 
+const TERMINAL = new Set(['rejected', 'withdrawn', 'declined', 'hired']);
+
 /**
  * Candidate discovery and the hiring pipeline.
  *
  * What an employer sees is the career identity Grooveli actually produces:
  * verified skills with assessment scores, achievements, career level and real
- * activity. That is the point of the candidate side — evidence an employer can
+ * activity. That is the point of the candidate side - evidence an employer can
  * act on, rather than claims they have to take on trust.
+ *
+ * Rejecting asks for a reason. The candidate sees it, and their Bounce Back
+ * mission turns it into the next move - a no that teaches is worth more than a
+ * no that stings.
  */
 export default function EmployerCandidates() {
   const [tab, setTab] = useState('pipeline');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [feedbackDraft, setFeedbackDraft] = useState('');
 
   const status = useEmployerStore((s) => s.status);
   const applications = useEmployerStore((s) => s.applications);
@@ -57,9 +66,33 @@ export default function EmployerCandidates() {
   const advance = async (application, nextStatus) => {
     await setApplicationStatus(application.id, nextStatus);
     pushToast({
-      title: `${application.candidate?.name ?? 'Candidate'} — ${statusLabel(nextStatus)}`,
+      title: `${application.candidate?.name ?? 'Candidate'} - ${statusLabel(nextStatus)}`,
       tone: 'success',
     });
+  };
+
+  const openReject = (application) => {
+    if (rejectingId === application.id) {
+      setRejectingId(null);
+      return;
+    }
+    setFeedbackDraft('');
+    setRejectingId(application.id);
+  };
+
+  const confirmReject = async (application) => {
+    try {
+      await setApplicationStatus(application.id, 'rejected', { feedback: feedbackDraft.trim() });
+      pushToast({
+        title: `${application.candidate?.name ?? 'Candidate'} - not progressing`,
+        body: 'Your feedback was sent with the decision.',
+        tone: 'info',
+      });
+      setRejectingId(null);
+      setFeedbackDraft('');
+    } catch (error) {
+      pushToast({ title: 'Could not reject', body: error.message, tone: 'danger' });
+    }
   };
 
   return (
@@ -73,7 +106,10 @@ export default function EmployerCandidates() {
 
           {tab === 'pipeline' ? (
             <Panel>
-              <PanelHeader title="Applications" subtitle="Move a candidate along the pipeline." />
+              <PanelHeader
+                title="Applications"
+                subtitle="Move a candidate along the pipeline. Rejecting asks for a reason - send one."
+              />
               {applications.length === 0 ? (
                 <EmptyState
                   title="No applications yet"
@@ -85,6 +121,7 @@ export default function EmployerCandidates() {
                   {applications.map((application) => {
                     const index = PIPELINE_ORDER.indexOf(application.status);
                     const nextStatus = index >= 0 ? PIPELINE_ORDER[index + 1] : null;
+                    const terminal = TERMINAL.has(application.status);
                     return (
                       <li key={application.id} className="pipeline__row">
                         <CompanyMark
@@ -107,6 +144,28 @@ export default function EmployerCandidates() {
                           <Button size="sm" variant="primary" onClick={() => advance(application, nextStatus)}>
                             {statusLabel(nextStatus)}
                           </Button>
+                        ) : null}
+                        {!terminal ? (
+                          <Button size="sm" variant="ghost" onClick={() => openReject(application)}>
+                            {rejectingId === application.id ? 'Cancel' : 'Reject'}
+                          </Button>
+                        ) : null}
+
+                        {rejectingId === application.id ? (
+                          <div className="g-stack" style={{ gridColumn: '1 / -1', gap: 8, marginTop: 8 }}>
+                            <TextArea
+                              value={feedbackDraft}
+                              rows={3}
+                              aria-label="Feedback for the candidate"
+                              placeholder="Why? One sentence is enough - the candidate reads this and it shapes their next move."
+                              onChange={(e) => setFeedbackDraft(e.target.value)}
+                            />
+                            <div className="g-row" style={{ gap: 8 }}>
+                              <Button size="sm" variant="primary" onClick={() => confirmReject(application)}>
+                                Send decision and feedback
+                              </Button>
+                            </div>
+                          </div>
                         ) : null}
                       </li>
                     );

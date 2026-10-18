@@ -24,6 +24,7 @@ import { useIsCompact } from './hooks/useMediaQuery.js';
 // Routes are split so the first paint is the shell, not the whole product.
 const SignIn = lazy(() => import('./pages/SignIn.jsx'));
 const SignUp = lazy(() => import('./pages/SignUp.jsx'));
+const Landing = lazy(() => import('./pages/Landing.jsx'));
 const RoleSelect = lazy(() => import('./pages/RoleSelect.jsx'));
 const CandidateOnboarding = lazy(() => import('./pages/CandidateOnboarding.jsx'));
 const EmployerOnboarding = lazy(() => import('./pages/EmployerOnboarding.jsx'));
@@ -75,18 +76,22 @@ function RequireSession({ children }) {
   const isRestoring = useAuthStore(selectIsRestoring);
 
   if (isRestoring) return <WorldLoader label="Restoring your session" />;
-  if (!isAuthenticated) return <Navigate to="/signin" replace />;
+  if (!isAuthenticated) return <Landing />;
   return children;
 }
 
-/** Sends `/` wherever this particular account belongs. */
+/**
+ * `/` is the front door: guests meet Landing here, and signed-in accounts go
+ * wherever their role and setup state say they belong.
+ */
 function IdentityRedirect() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const isRestoring = useAuthStore(selectIsRestoring);
   const identityRoute = useIdentityRoute();
 
   if (isRestoring) return <WorldLoader label="Restoring your session" />;
-  return <Navigate to={isAuthenticated ? identityRoute : '/signin'} replace />;
+  if (!isAuthenticated) return <Landing />;
+  return <Navigate to={identityRoute} replace />;
 }
 
 /** Cross-cutting concerns that need the router but belong to no single screen. */

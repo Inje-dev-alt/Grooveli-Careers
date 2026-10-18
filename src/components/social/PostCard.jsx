@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import './social.css';
-import { Panel, Badge, Button, TextInput, IconAward, IconCheck, IconBriefcase } from '../ui/index.js';
+import { Panel, Badge, Button, TextInput, IconAward, IconCheck, IconBriefcase, IconAlert } from '../ui/index.js';
 import { useSocialStore } from '../../stores/socialStore.js';
+import { useUiStore } from '../../stores/uiStore.js';
+import * as socialService from '../../services/socialService.js';
 import { formatRelativeTime, initials } from '../../utils/format.js';
 
 const TYPE_LABEL = {
@@ -26,15 +28,22 @@ const ATTACHMENT_ICON = {
  * score is career evidence, which is what makes this feed different from a
  * generic social timeline.
  *
+ * Every post carries the two moderation verbs a real network cannot launch
+ * without: report (a row for human review, never an instant takedown) and
+ * block (this account only, immediate).
+ *
  * @param {{ post: import('../../models/index.js').Post }} props
  */
 export function PostCard({ post }) {
   const [commenting, setCommenting] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleLike = useSocialStore((s) => s.toggleLike);
   const comment = useSocialStore((s) => s.comment);
+  const blockAuthor = useSocialStore((s) => s.blockAuthor);
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const AttachmentIcon = post.attachment ? ATTACHMENT_ICON[post.attachment.kind] ?? IconAward : null;
   const isOrg = post.author.kind === 'organization';
@@ -48,6 +57,30 @@ export function PostCard({ post }) {
       setDraft('');
     } finally {
       setSending(false);
+    }
+  };
+
+  const report = async () => {
+    setMenuOpen(false);
+    try {
+      await socialService.reportPost(post.id, 'inappropriate');
+      pushToast({
+        title: 'Reported',
+        body: 'A person reviews every report. Thank you for keeping the network worth reading.',
+        tone: 'info',
+      });
+    } catch (error) {
+      pushToast({ title: 'Could not report', body: error.message, tone: 'danger' });
+    }
+  };
+
+  const block = async () => {
+    setMenuOpen(false);
+    try {
+      await blockAuthor(post.author.id);
+      pushToast({ title: `Hidden ${post.author.name}`, body: 'You will not see their posts again.' });
+    } catch (error) {
+      pushToast({ title: 'Could not block', body: error.message, tone: 'danger' });
     }
   };
 
@@ -72,6 +105,27 @@ export function PostCard({ post }) {
         <div className="g-row" style={{ gap: 8, flex: 'none' }}>
           <Badge>{TYPE_LABEL[post.type] ?? post.type}</Badge>
           <span className="post__time">{formatRelativeTime(post.createdAt)}</span>
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="post__action"
+              aria-label={`Moderation options for ${post.author.name}'s post`}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              ···
+            </button>
+            {menuOpen ? (
+              <div className="post__menu" role="menu">
+                <button type="button" role="menuitem" className="post__menu-item" onClick={report}>
+                  <IconAlert size={14} /> Report post
+                </button>
+                <button type="button" role="menuitem" className="post__menu-item" onClick={block}>
+                  Hide {post.author.name}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 

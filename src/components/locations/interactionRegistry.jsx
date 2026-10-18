@@ -111,6 +111,53 @@ export const INTERACTIONS = {
     },
   },
 
+  'company-jobs': {
+    label: 'Manage Roles',
+    description: 'Create jobs and manage published roles',
+    icon: IconBriefcase,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/jobs');
+    },
+  },
+
+  'company-candidates': {
+    label: 'Review Candidates',
+    description: 'Applications waiting on your decision',
+    icon: IconUser,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/candidates');
+    },
+  },
+
+  'company-analytics': {
+    label: 'Hiring Analytics',
+    description: 'Pipeline, time in stage and applicant mix',
+    icon: IconTrendUp,
+    open: ({ replaceModal }) => replaceModal('company-analytics', {}),
+  },
+
+  'company-profile': {
+    label: 'Company Profile',
+    description: 'What candidates see before they apply',
+    icon: IconGrid,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/company');
+    },
+  },
+
+  'company-exit': {
+    label: 'Leave HQ',
+    description: 'Back to the employer dashboard',
+    icon: IconHome,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer');
+    },
+  },
+
   'career-dashboard': {
     label: 'Career Dashboard',
     description: 'Level, XP, reputation and what is in flight',
@@ -144,6 +191,13 @@ export const INTERACTIONS = {
     description: 'What you have proved',
     icon: IconAward,
     open: ({ replaceModal }) => replaceModal('achievements', {}),
+  },
+
+  leaderboard: {
+    label: 'City Standings',
+    description: 'The most credible careers in Grooveli, ranked by reputation',
+    icon: IconTrendUp,
+    open: ({ replaceModal }) => replaceModal('leaderboard', {}),
   },
 
   notifications: {

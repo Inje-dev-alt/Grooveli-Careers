@@ -16,8 +16,11 @@ import { CareerStats } from '../profile/CareerStats.jsx';
 import { CareerDashboard } from '../profile/CareerDashboard.jsx';
 import { Achievements } from '../profile/Achievements.jsx';
 import { NotificationList } from '../hud/NotificationList.jsx';
+import { Leaderboard } from '../leaderboard/Leaderboard.jsx';
+import { HiringAnalytics } from '../employer/HiringAnalytics.jsx';
 import { getLocation } from '../../game/world/locations.js';
 import { getApartmentObject } from '../../game/world/apartment.js';
+import { getCompanyObject } from '../../game/world/company.js';
 
 /**
  * Renders whichever panel is on top of the modal stack.
@@ -48,7 +51,7 @@ function ModalLayer({ modal }) {
   switch (type) {
     case 'location': {
       const location =
-        getLocation(props.locationId) ?? getApartmentObject(props.locationId) ?? null;
+        getLocation(props.locationId) ?? getApartmentObject(props.locationId) ?? getCompanyObject(props.locationId) ?? null;
       if (!location) return null;
       return <LocationPanel location={location} />;
     }
@@ -218,10 +221,41 @@ function ModalLayer({ modal }) {
         </Modal>
       );
 
+    case 'leaderboard':
+      return (
+        <Modal
+          eyebrow="Plaza board"
+          title="City Standings"
+          subtitle="Ranked by reputation - what employers can verify, not what people post."
+          size="md"
+          onClose={closeModal}
+        >
+          <Leaderboard />
+        </Modal>
+      );
+
     case 'notifications':
       return (
         <Modal eyebrow="Phone" title="Notifications" size="md" onClose={closeModal}>
           <NotificationList />
+        </Modal>
+      );
+
+    case 'company-analytics':
+      return (
+        <Modal
+          eyebrow="Hiring board"
+          title="Hiring Analytics"
+          subtitle="Your pipeline as numbers."
+          size="md"
+          onClose={closeModal}
+          footer={
+            <Button variant="ghost" onClick={() => goTo('/employer/candidates')}>
+              Review candidates
+            </Button>
+          }
+        >
+          <HiringAnalytics />
         </Modal>
       );
 

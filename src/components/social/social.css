@@ -239,3 +239,38 @@
 
   .composer__head { flex-wrap: wrap; }
 }
+
+/* Post moderation menu: report and block, always one click away. */
+.post__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  min-width: 170px;
+  padding: 6px;
+  border-radius: var(--g-radius-md);
+  background: var(--g-surface-2, #141b2e);
+  border: 1px solid var(--g-border, rgba(255, 255, 255, 0.08));
+  box-shadow: var(--g-shadow-md, 0 12px 32px rgba(0, 0, 0, 0.4));
+  display: grid;
+  gap: 2px;
+}
+
+.post__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--g-radius-sm, 8px);
+  background: transparent;
+  color: var(--g-text, #e7ecf7);
+  font-size: var(--g-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.post__menu-item:hover {
+  background: var(--g-surface-3, rgba(255, 255, 255, 0.06));
+}

@@ -20,6 +20,7 @@ import {
 import { useEmployerStore } from '../stores/employerStore.js';
 import { statusLabel, statusTone } from '../utils/applicationStatus.js';
 import { formatRelativeTime } from '../utils/format.js';
+import { HiringAnalytics } from '../components/employer/HiringAnalytics.jsx';
 
 /**
  * The employer dashboard.
@@ -164,6 +165,8 @@ export default function EmployerDashboard() {
                 </ul>
               )}
             </Panel>
+
+            <HiringAnalytics />
           </div>
         ) : null}
       </EmployerPage>

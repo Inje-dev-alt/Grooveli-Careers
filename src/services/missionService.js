@@ -110,3 +110,103 @@ export function runSkillChallenge(mission) {
     () => apiClient.post(`/missions/${mission.id}/attempt`),
   );
 }
+/* ----------------------------------------- mission reminders --- */
+
+/**
+ * Reminder preferences for the signed-in account.
+ * Backed by `GET /users/me/notification-preferences`.
+ */
+export function getNotificationPreferences() {
+  return withMock(
+    async () => {
+      await delay(140);
+      const id = currentAccount()?.id;
+      return {
+        missionReminders: true,
+        quietHours: null,
+        ...(id ? db.notificationPreferences[id] ?? {} : {}),
+      };
+    },
+    () => apiClient.get('/users/me/notification-preferences'),
+  );
+}
+
+/**
+ * Save reminder preferences. `quietHours` is `{ start, end }` in 24h hours or
+ * null for no quiet period.
+ * Backed by `PUT /users/me/notification-preferences`.
+ */
+export function saveNotificationPreferences(patch) {
+  return withMock(
+    async () => {
+      await delay(200);
+      const id = currentAccount()?.id;
+      const current = {
+        missionReminders: true,
+        quietHours: null,
+        ...(id ? db.notificationPreferences[id] ?? {} : {}),
+      };
+      const next = { ...current, ...patch };
+      if (id) db.notificationPreferences[id] = next;
+      return { ...next };
+    },
+    () => apiClient.put('/users/me/notification-preferences', patch),
+  );
+}
+
+/**
+ * Missions worth nudging about: active (started, not complete), not reminded
+ * in the last 24h, and outside quiet hours. The UI calls this on load and
+ * turns the result into in-app notices; the backend runs the same rule on a
+ * scheduler and writes `POST /notifications` rows.
+ *
+ * @param {Record<string, import('../models/index.js').MissionProgress>} progress
+ */
+export function dueMissionReminders(progress = {}) {
+  const id = currentAccount()?.id;
+  const prefs = id ? db.notificationPreferences[id] ?? {} : {};
+  if (prefs.missionReminders === false) return [];
+
+  const hour = new Date().getHours();
+  const quiet = prefs.quietHours;
+  if (quiet && typeof quiet.start === 'number' && typeof quiet.end === 'number') {
+    const inQuiet = quiet.start <= quiet.end
+      ? hour >= quiet.start && hour < quiet.end
+      : hour >= quiet.start || hour < quiet.end;
+    if (inQuiet) return [];
+  }
+
+  const dayAgo = Date.now() - 86400000;
+  return db.missions.filter((mission) => {
+    const state = progress[mission.id];
+    if (!state || state.status !== 'active') return false;
+    const last = state.lastRemindedAt ? new Date(state.lastRemindedAt).getTime() : 0;
+    return last < dayAgo;
+  });
+}
+
+/**
+ * Stamp a mission as reminded so the 24h rule has something to read.
+ * Backed by the scheduler's write; the mock keeps it on the progress row.
+ */
+export function markMissionReminded(missionId, progress) {
+  return withMock(
+    async () => {
+      const id = currentAccount()?.id;
+      const next = {
+        ...(progress ?? {}),
+        [missionId]: {
+          missionId,
+          status: 'active',
+          objectiveCounts: {},
+          ...(progress?.[missionId] ?? {}),
+          lastRemindedAt: new Date().toISOString(),
+        },
+      };
+      if (id) db.missionProgress[id] = next;
+      return next;
+    },
+    () => apiClient.post(`/missions/${missionId}/reminded`),
+  );
+}
+

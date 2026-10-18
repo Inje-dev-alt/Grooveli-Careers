@@ -78,8 +78,8 @@ export const useEmployerStore = create((set, get) => ({
     return job;
   },
 
-  setApplicationStatus: async (applicationId, status) => {
-    const updated = await organizationService.setApplicationStatus(applicationId, status);
+  setApplicationStatus: async (applicationId, status, options) => {
+    const updated = await organizationService.setApplicationStatus(applicationId, status, options);
     const organization = get().organization;
     const overview = organization
       ? await organizationService.getRecruitmentOverview(organization.id)
@@ -97,6 +97,14 @@ export const useEmployerStore = create((set, get) => ({
     const organization = get().organization;
     if (!organization) throw new Error('No company profile on this account yet.');
     const updated = await organizationService.updateOrganization(organization.id, patch);
+    set({ organization: updated });
+    return updated;
+  },
+
+  uploadLogo: async ({ fileName }) => {
+    const organization = get().organization;
+    if (!organization) throw new Error('No company profile on this account yet.');
+    const updated = await organizationService.uploadOrganizationLogo(organization.id, { fileName });
     set({ organization: updated });
     return updated;
   },

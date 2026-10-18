@@ -11,6 +11,7 @@ import { create } from 'zustand';
 const CANDIDATE_DRAFT = {
   name: '',
   location: '',
+  gender: '',
   careerInterests: [],
   yearsExperience: '',
   headline: '',

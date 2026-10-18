@@ -6,13 +6,19 @@
  * components, because the backend will own them. The mock branch implements the
  * same semantics locally so the UI never changes shape.
  *
+ * Match scores are computed per requesting candidate by `matchingService` -
+ * never read from the fixture. A seeded number would show one person's match to
+ * another, and the application threshold keys off this score, so the integrity
+ * of the XP loop depends on it being honestly computed here.
+ *
  * The service consumes a normalised Job and never branches on `source`: a role
  * published by an employer here, a partner feed later and a seeded mock today
  * are all the same object to every screen above this line.
  */
 import { apiClient, withMock } from './apiClient.js';
-import { db } from './mockDb.js';
+import { db, currentAccount, savedJobIdsFor } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+import { scoreJobForProfile } from './matchingService.js';
 
 /**
  * @typedef {Object} JobQuery
@@ -34,6 +40,20 @@ const SORTERS = {
   recent: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   salary: (a, b) => b.salaryMax - a.salaryMax,
 };
+
+/** The signed-in candidate's profile, or null for an employer / new account. */
+function profileForRequest() {
+  const account = currentAccount();
+  return account?.candidateProfileId ? db.profiles[account.candidateProfileId] ?? null : null;
+}
+
+/** Attach an honest, per-candidate match to one job row. */
+function withMatch(job, profile) {
+  const result = scoreJobForProfile(job, profile);
+  // Nothing to match on: omit the score rather than fabricate one.
+  if (!result) return { ...job, matchScore: undefined, matchReasons: [], skillGaps: [] };
+  return { ...job, ...result };
+}
 
 /** Every skill a job asks for, required or preferred. */
 export function jobSkills(job) {
@@ -91,8 +111,12 @@ export function listJobs(query = {}) {
   return withMock(
     async () => {
       await delay();
+      const profile = profileForRequest();
       const sorter = SORTERS[query.sort] ?? SORTERS.match;
-      return db.jobs.filter((job) => matchesQuery(job, query)).sort(sorter);
+      return db.jobs
+        .map((job) => withMatch(job, profile))
+        .filter((job) => matchesQuery(job, query))
+        .sort(sorter);
     },
     () => apiClient.get('/jobs', { params: query }),
   );
@@ -103,19 +127,22 @@ export function getJob(jobId) {
   return withMock(
     async () => {
       await delay(220);
-      return db.jobs.find((job) => job.id === jobId) ?? null;
+      const job = db.jobs.find((j) => j.id === jobId) ?? null;
+      return job ? withMatch(job, profileForRequest()) : null;
     },
     () => apiClient.get(`/jobs/${jobId}`),
   );
 }
 
-/** The strongest matches — what the AI surfaces as "new matches". */
+/** The strongest matches - what the AI surfaces as "new matches". */
 export function listRecommendedJobs(limit = 4) {
   return withMock(
     async () => {
       await delay(260);
+      const profile = profileForRequest();
       return db.jobs
         .filter((j) => j.status === 'published')
+        .map((job) => withMatch(job, profile))
         .sort(SORTERS.match)
         .slice(0, limit);
     },
@@ -128,9 +155,13 @@ export function setJobSaved(jobId, saved) {
   return withMock(
     async () => {
       await delay(140);
-      if (saved) db.savedJobIds.add(jobId);
-      else db.savedJobIds.delete(jobId);
-      return [...db.savedJobIds];
+      const me = currentAccount()?.id;
+      if (!me) return [];
+      const ids = new Set(savedJobIdsFor(me));
+      if (saved) ids.add(jobId);
+      else ids.delete(jobId);
+      db.savedJobIdsByUser[me] = [...ids];
+      return [...ids];
     },
     async () => {
       const result = saved
@@ -145,7 +176,7 @@ export function listSavedJobIds() {
   return withMock(
     async () => {
       await delay(120);
-      return [...db.savedJobIds];
+      return savedJobIdsFor(currentAccount()?.id);
     },
     async () => {
       const result = await apiClient.get('/jobs/saved');

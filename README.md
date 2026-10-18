@@ -53,12 +53,14 @@ a new candidate correctly starts at **level 1 with 0 XP**.
 career onboarding → enter Grooveli City → walk to a district and press **E** →
 explore jobs, missions or career discovery → complete a skill challenge, earn XP
 and an achievement → check the AI Career Center for your next move and the reason
-for it → apply to a role above 60% match → share the achievement on the network.
+for it → apply to a role above 60% match → watch the application move through the
+pipeline (review, shortlist or a rejection with feedback) → accept an offer
+and see the role join your profile → share the achievement on the network.
 
 **Employer.** Create an account → choose *Hire talent* → company onboarding →
 employer dashboard → publish a role → **it appears in the same marketplace
 candidates browse**, tagged `grooveli_employer` → discover candidates whose
-skills carry assessment scores → move an application along the pipeline.
+skills carry assessment scores → move an application along the pipeline — rejecting asks for a reason the candidate actually reads.
 
 That crossover is the thing worth watching: one job object, published by an
 employer, consumed unchanged by the candidate marketplace.
@@ -87,8 +89,17 @@ experience, education, completeness checklist, CV, statistics, achievements and 
 career activity stream.
 
 **Career progression.** XP, levels, missions whose objectives listen for career
-events, achievements earned from the same events, and reputation as a separate
-number.
+events, achievements **counted** against their stated conditions (five district
+visits, the *Excel* challenge specifically), and reputation as a separate
+number. One-shot awards are persisted per account, so a reload cannot replay
+them, and every award lands in a stored XP ledger with its reason.
+
+**The living pipeline.** Applications on mock jobs advance on their own —
+review, then shortlist or rejection-with-feedback, then interview, then an
+offer you accept or decline. Accepting signs the role onto your profile and
+is worth 150 XP; a rejection unlocks the Bounce Back mission. Every move is
+recorded as stage history the candidate can read. Roles published by real
+employers are never auto-advanced — they own their timeline.
 
 **Job marketplace.** Search, facet filters (district, location, industry,
 employment type, work type, experience level, skills, salary, match), sorting,
@@ -216,9 +227,10 @@ notices. No screen awards XP directly.
 | Interview simulation | 100 |
 | Application to a **suitable** role | 25 |
 | Course completion | 200 |
+| Accepting a real offer | 150 |
 
-Deliberate zeros: viewing a job, saving a job, posting, connecting, and applying
-below the 60% match threshold. The interface says so before you apply. The system
+Deliberate zeros: viewing a job, saving a job, posting, connecting, being
+rejected, declining an offer, and applying below the 60% match threshold. The interface says so before you apply. The system
 cannot be farmed by volume, because volume is not career progress.
 
 **Reputation is a separate number** and only moves on work someone else could
@@ -295,7 +307,8 @@ sign-up screen warns against reusing a real password.
 
 Per the brief: production authentication, payments and employer billing,
 real-time messaging, multiplayer, recommendation algorithms, a production AI
-provider, external job ingestion, advanced analytics, leaderboards, and
-organization permission enforcement. Contracts for the employer and social sides
+provider, external job ingestion, advanced analytics, and organization permission
+enforcement. Referrals, feed moderation (report/block) and the opt-in
+reputation leaderboard **are** built and contracted in the handoff. Contracts for the employer and social sides
 are documented in the handoff where they were cheap to pin down, so they are not
 invented twice.

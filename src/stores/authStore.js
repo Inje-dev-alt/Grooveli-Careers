@@ -85,6 +85,17 @@ export const useAuthStore = create((set, get) => ({
     return user;
   },
 
+  /** Re-read the current user — e.g. after an avatar upload changes it. */
+  refreshUser: async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      set({ user });
+      return user;
+    } catch {
+      return get().user;
+    }
+  },
+
   signOut: async () => {
     // The local session clears whatever the server says — a failed round-trip
     // must not leave someone stuck signed in.

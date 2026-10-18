@@ -20,7 +20,7 @@ import {
  * call this; they never award XP directly.
  *
  * @param {string} event one of CAREER_EVENTS
- * @param {{ once?: boolean, label?: string, silent?: boolean, ledger?: boolean, shareable?: boolean }} [options]
+ * @param {{ once?: boolean, label?: string, silent?: boolean, ledger?: boolean, shareable?: boolean, context?: Record<string, unknown> }} [options]
  */
 export function recordCareerEvent(event, options = {}) {
   const result = useCareerStore.getState().recordEvent(event, options);
@@ -51,7 +51,7 @@ export function recordCareerEvent(event, options = {}) {
 
   // Achievements listen to the same vocabulary as missions.
   careerService
-    .awardAchievementsFor(event)
+    .awardAchievementsFor(event, options.context ?? {})
     .then((won) => {
       won.forEach((achievement) => {
         ui.pushToast({

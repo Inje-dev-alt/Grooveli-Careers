@@ -8,9 +8,10 @@
  * what makes the eventual migration from mock to employer to partner jobs a
  * data change rather than a UI change.
  *
- * `matchScore`, `matchReasons` and `skillGaps` come from the backend matching
- * service. They are baked in here so the interface can render the explanation
- * surface — why this matched, what is missing — before a matching engine exists.
+ * `matchScore`, `matchReasons` and `skillGaps` are deliberately ABSENT here.
+ * They are per-candidate output, computed at request time by
+ * `src/services/matchingService.js` (and later by the backend matching
+ * service). Baking them into fixtures showed one person's match to another.
  *
  * @type {import('../models/index.js').Job[]}
  */
@@ -50,9 +51,6 @@ export const jobs = [
       'Clear written communication — decisions get written down here',
     ],
     featured: true,
-    matchScore: 41,
-    matchReasons: ['Remote work matches your preference', 'Salary band is above your minimum'],
-    skillGaps: ['Node.js', 'NestJS', 'PostgreSQL'],
   },
   {
     id: 'job-002',
@@ -89,13 +87,6 @@ export const jobs = [
       'Comfortable living in a spreadsheet',
     ],
     featured: true,
-    matchScore: 94,
-    matchReasons: [
-      'Recruitment is your strongest skill at 90',
-      'Five years experience meets the 3+ year requirement',
-      'Hybrid matches your stated work preference',
-    ],
-    skillGaps: [],
   },
   {
     id: 'job-003',
@@ -132,13 +123,6 @@ export const jobs = [
       'People management experience',
     ],
     featured: false,
-    matchScore: 86,
-    matchReasons: [
-      'HR Operations at 82 is close to the senior bar',
-      'Your five years meets the experience requirement',
-      'Payroll appears in your profile',
-    ],
-    skillGaps: ['Project Management'],
   },
   {
     id: 'job-004',
@@ -175,13 +159,6 @@ export const jobs = [
       'Able to work independently across time zones',
     ],
     featured: true,
-    matchScore: 91,
-    matchReasons: [
-      'AI Automation is a skill you are actively building',
-      'Remote matches your preference',
-      'HR Operations and Excel both appear in your profile',
-    ],
-    skillGaps: ['Data Analysis'],
   },
   {
     id: 'job-005',
@@ -216,9 +193,6 @@ export const jobs = [
       'Experience with data-dense interfaces',
     ],
     featured: false,
-    matchScore: 34,
-    matchReasons: ['Hybrid matches your work preference'],
-    skillGaps: ['React'],
   },
   {
     id: 'job-006',
@@ -253,12 +227,6 @@ export const jobs = [
       'Clear written English',
     ],
     featured: false,
-    matchScore: 58,
-    matchReasons: [
-      'Excel at 72 covers the modelling requirement',
-      'Communication appears in your profile',
-    ],
-    skillGaps: ['Financial Modelling'],
   },
   {
     id: 'job-007',
@@ -293,9 +261,6 @@ export const jobs = [
       'Attention to detail',
     ],
     featured: false,
-    matchScore: 36,
-    matchReasons: ['Excel appears in your profile'],
-    skillGaps: ['Audit', 'IFRS'],
   },
   {
     id: 'job-008',
@@ -330,9 +295,6 @@ export const jobs = [
       'Comfortable presenting to clients',
     ],
     featured: false,
-    matchScore: 39,
-    matchReasons: ['Remote matches your preference', 'Communication appears in your profile'],
-    skillGaps: ['Figma', 'Motion Design'],
   },
   {
     id: 'job-009',
@@ -367,9 +329,6 @@ export const jobs = [
       'Comfortable owning a calendar',
     ],
     featured: false,
-    matchScore: 48,
-    matchReasons: ['Open to contract work', 'Communication appears in your profile'],
-    skillGaps: ['Copywriting'],
   },
   {
     id: 'job-010',
@@ -404,9 +363,6 @@ export const jobs = [
       'Calm under pressure',
     ],
     featured: false,
-    matchScore: 52,
-    matchReasons: ['Operations experience transfers well', 'Excel appears in your profile'],
-    skillGaps: ['Clinical Administration'],
   },
   {
     id: 'job-011',
@@ -441,13 +397,6 @@ export const jobs = [
       'Strong candidate care',
     ],
     featured: true,
-    matchScore: 89,
-    matchReasons: [
-      'Recruitment at 90 is your strongest skill',
-      'Hybrid matches your preference',
-      'HR Operations and Stakeholder Management both appear in your profile',
-    ],
-    skillGaps: [],
   },
   {
     id: 'job-012',
@@ -482,9 +431,6 @@ export const jobs = [
       'Service recovery instincts',
     ],
     featured: false,
-    matchScore: 55,
-    matchReasons: ['Communication and Stakeholder Management transfer directly'],
-    skillGaps: ['Guest Relations'],
   },
   {
     id: 'job-013',
@@ -519,9 +465,6 @@ export const jobs = [
       'Confident presenting',
     ],
     featured: false,
-    matchScore: 76,
-    matchReasons: ['HR Operations at 82 covers the core requirement', 'Hybrid matches your preference'],
-    skillGaps: [],
   },
   {
     id: 'job-014',
@@ -552,9 +495,6 @@ export const jobs = [
     ],
     requirements: ['4+ years applied ML in production', 'Strong Python', 'Experience with time series'],
     featured: false,
-    matchScore: 22,
-    matchReasons: ['Remote matches your preference'],
-    skillGaps: ['Python', 'Data Analysis', 'SQL'],
   },
   {
     id: 'job-015',
@@ -589,9 +529,6 @@ export const jobs = [
       'Data-informed approach',
     ],
     featured: false,
-    matchScore: 64,
-    matchReasons: ['Remote matches your preference', 'Communication appears in your profile'],
-    skillGaps: ['Project Management', 'Data Analysis'],
   },
   {
     id: 'job-016',
@@ -626,13 +563,6 @@ export const jobs = [
       'Able to present to senior stakeholders',
     ],
     featured: false,
-    matchScore: 73,
-    matchReasons: [
-      'Excel at 72 meets the advanced requirement',
-      'Stakeholder Management appears in your profile',
-      'Hybrid matches your preference',
-    ],
-    skillGaps: ['Data Analysis'],
   },
   {
     id: 'job-017',
@@ -667,9 +597,6 @@ export const jobs = [
       'Calm with a busy calendar',
     ],
     featured: false,
-    matchScore: 81,
-    matchReasons: ['Recruitment at 90 exceeds the requirement', 'Remote matches your preference'],
-    skillGaps: [],
   },
   {
     id: 'job-018',
@@ -704,9 +631,6 @@ export const jobs = [
       'Clear phone manner',
     ],
     featured: false,
-    matchScore: 46,
-    matchReasons: ['Communication appears in your profile'],
-    skillGaps: ['Sales'],
   },
   {
     id: 'job-019',
@@ -737,13 +661,6 @@ export const jobs = [
     ],
     requirements: ['3+ years payroll experience', 'Statutory filing knowledge', 'Advanced Excel'],
     featured: false,
-    matchScore: 84,
-    matchReasons: [
-      'Payroll and HR Operations both appear in your profile',
-      'Excel at 72 covers the requirement',
-      'Hybrid matches your preference',
-    ],
-    skillGaps: [],
   },
   {
     id: 'job-020',
@@ -774,9 +691,6 @@ export const jobs = [
     ],
     requirements: ['Strong motion reel', 'After Effects fluency', 'Reliable with deadlines'],
     featured: false,
-    matchScore: 18,
-    matchReasons: ['Remote matches your preference'],
-    skillGaps: ['Motion Design', 'Figma'],
   },
   {
     id: 'job-021',
@@ -811,9 +725,6 @@ export const jobs = [
       'Strong written communication',
     ],
     featured: false,
-    matchScore: 29,
-    matchReasons: ['HR Operations appears in your profile'],
-    skillGaps: [],
   },
   {
     id: 'job-022',
@@ -848,8 +759,5 @@ export const jobs = [
       'Available evenings WAT',
     ],
     featured: false,
-    matchScore: 61,
-    matchReasons: ['Excel at 72 covers most of the syllabus', 'Remote matches your preference'],
-    skillGaps: ['SQL'],
   },
 ];

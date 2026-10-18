@@ -35,7 +35,7 @@
  * The full recruitment pipeline. The MVP only moves applications as far as
  * `shortlisted`, but the states a backend will need are named here so no screen
  * has to invent one.
- * @typedef {'applied' | 'under-review' | 'shortlisted' | 'interview' | 'assessment' | 'offer' | 'rejected' | 'withdrawn' | 'hired'} ApplicationStatus
+ * @typedef {'applied' | 'under-review' | 'shortlisted' | 'interview' | 'assessment' | 'offer' | 'rejected' | 'withdrawn' | 'declined' | 'hired'} ApplicationStatus
  */
 
 /** @typedef {'owner' | 'admin' | 'recruiter' | 'hiring-manager'} OrganizationRole */
@@ -56,7 +56,7 @@
  * @property {string} displayName
  * @property {UserRole[]} roles
  * @property {UserRole} activeRole
- * @property {string} [avatarUrl]
+ * @property {string} [avatarUrl]       profile picture; multipart upload, monogram fallback
  * @property {string} createdAt                       ISO 8601
  * @property {string | null} candidateProfileId       null until candidate onboarding completes
  * @property {OrganizationMembership[]} organizationMemberships
@@ -99,6 +99,8 @@
  * @property {string} [year]
  */
 
+/** @typedef {'female' | 'male' | 'non-binary' | 'prefer-not-to-say'} Gender */
+
 /**
  * @typedef {Object} CandidateProfile
  * @property {string} id
@@ -106,6 +108,7 @@
  * @property {string} headline
  * @property {string} summary
  * @property {string} location
+ * @property {Gender} [gender]          optional, private — never surfaced to employers
  * @property {number} yearsExperience
  * @property {string} careerGoal
  * @property {string[]} careerInterests
@@ -137,6 +140,7 @@
  * @property {string} [website]
  * @property {string} districtId       which Grooveli City district it sits in
  * @property {string} logoColor        token-friendly hex for the generated tile
+ * @property {string} [logoUrl]        company logo; multipart upload, monogram fallback
  * @property {number} followerCount
  * @property {boolean} verified
  * @property {string} createdAt
@@ -188,12 +192,31 @@
  * @property {ApplicationStatus} status
  * @property {string} appliedAt
  * @property {string} updatedAt
- * @property {string} [note]
+ * @property {string} [stageEnteredAt]  when the current status began
+ * @property {string} [note]            the candidate's note at submission
+ * @property {string} [feedback]        why a rejection happened, from the employer
+ * @property {boolean} [rejectionAcknowledged] set once the candidate has seen the rejection
+ * @property {boolean} [seeded]         fixture history the pipeline simulation must not touch
+ */
+
+/**
+ * One stage transition on an application - the timeline the candidate sees
+ * and the audit trail the backend keeps.
+ *
+ * @typedef {Object} ApplicationEvent
+ * @property {string} id
+ * @property {string} applicationId
+ * @property {ApplicationStatus | null} fromStatus
+ * @property {ApplicationStatus} toStatus
+ * @property {'candidate' | 'employer' | 'system'} actor
+ * @property {string | null} note        feedback where the move carried one
+ * @property {string} at
  */
 
 /**
  * @typedef {Object} Interview
  * @property {string} id
+ * @property {string} userId             whose interview this is
  * @property {string} applicationId
  * @property {string} companyName
  * @property {string} jobTitle
@@ -236,6 +259,7 @@
  * @property {MissionStatus} status
  * @property {Record<string, number>} objectiveCounts
  * @property {string} [completedAt]
+ * @property {string} [lastRemindedAt]  last mission-reminder notice, for the 24h rule
  */
 
 /* ------------------------------------------------------------- career --- */
@@ -272,6 +296,9 @@
  * @property {boolean} earned
  * @property {string} [earnedAt]
  * @property {string} [event]         the career event that earns it
+ * @property {number} [count]         how many times the event must fire (default 1)
+ * @property {{ key: string, value: string }} [context] event payload the award demands, e.g. the skill name
+ * @property {number} [progress]      how far toward `count` the account has come
  * @property {number} [score]         assessment score, where one backs it
  * @property {boolean} [verified]
  */
@@ -291,6 +318,45 @@
  */
 
 /* ------------------------------------------------------------- social --- */
+
+/**
+ * One of the ten launch careers. Owned by the backend (`GET /career-paths`);
+ * the frontend catalog mirrors it. Career interests, Discovery matches and
+ * interview banks all key off `title`, so renaming a path renames it
+ * everywhere — add a path by adding a row, never by editing a screen.
+ *
+ * @typedef {Object} CareerPath
+ * @property {string} id
+ * @property {string} title
+ * @property {string} districtId        where this career lives in Grooveli City
+ * @property {string} tagline           one line for cards and the landing page
+ * @property {string} summary           the honest pitch: what the work is
+ * @property {string[]} core            skills the path is built on
+ * @property {string[]} growth          skills that accelerate the path
+ * @property {string} interviewBankId   question bank for interview simulations
+ */
+
+/**
+ * One sitting of an interview simulation. The pass rule is binary and lives
+ * here, not in the UI: two correct answers pass, two wrong answers fail.
+ * Only a pass earns `interview.simulated`, its XP and the Interview Ready
+ * badge — an exam that cannot be failed certifies nothing.
+ *
+ * @typedef {Object} InterviewAttempt
+ * @property {string} id
+ * @property {string} userId
+ * @property {string} pathId            the career path the questions came from
+ * @property {string} pathTitle
+ * @property {string} jobTitle
+ * @property {{ questionId: string, optionIndex: number, correct: boolean, at: string }[]} answers
+ * @property {number} correctCount
+ * @property {number} wrongCount
+ * @property {'in-progress' | 'passed' | 'failed'} status
+ * @property {boolean | null} passed
+ * @property {number | null} score     correct / answered, as a percentage
+ * @property {string} startedAt
+ * @property {string | null} completedAt
+ */
 
 /**
  * @typedef {Object} PostAuthor
@@ -400,6 +466,114 @@
  * @property {string[]} strengths
  * @property {string[]} gaps
  * @property {string} summary
+ */
+
+
+/* -------------------------------------------- network and standings --- */
+
+/**
+ * A referral request: one person vouches for a candidate to an employer.
+ *
+ * @typedef {Object} Referral
+ * @property {string} id
+ * @property {string} referrerUserId
+ * @property {string} referrerName
+ * @property {string} applicantUserId
+ * @property {string} applicationId
+ * @property {string} jobTitle
+ * @property {string} companyName
+ * @property {'requested' | 'sent' | 'declined'} status
+ * @property {string} createdAt
+ */
+
+/**
+ * A report raised against a post. Reports are rows for human review - a
+ * reporting system that acts on the first click is a harassment weapon.
+ *
+ * @typedef {Object} Report
+ * @property {string} id
+ * @property {string} postId
+ * @property {string} reporterUserId
+ * @property {string} authorId
+ * @property {string} reason
+ * @property {'open' | 'reviewing' | 'actioned' | 'dismissed'} status
+ * @property {string} createdAt
+ */
+
+/**
+ * One row on the plaza board. Ranked by reputation, never by XP - a board
+ * ranked by activity becomes a farming contest.
+ *
+ * @typedef {Object} LeaderboardEntry
+ * @property {number} rank
+ * @property {string} id
+ * @property {string} name
+ * @property {string} headline
+ * @property {number} careerLevel
+ * @property {number} reputation
+ * @property {string} color
+ * @property {boolean} isMe
+ */
+
+/**
+ * A course enrolment. A course can only be completed once; the row is the
+ * evidence, and the certification count is a fact about the account.
+ *
+ * @typedef {Object} CourseEnrollment
+ * @property {string} id
+ * @property {string} courseId
+ * @property {'enrolled' | 'completed'} status
+ * @property {string} [enrolledAt]
+ * @property {string | null} completedAt
+ */
+
+/**
+ * Evidence that a skill was proved, and by what. Without this row,
+ * `verified` is a claim; with it, an employer can see the trail.
+ *
+ * @typedef {Object} SkillAssessment
+ * @property {string} id
+ * @property {string} profileId
+ * @property {string} skillName
+ * @property {'ai-assessment' | 'mission' | 'course'} kind
+ * @property {string} [refId]        the mission or course that produced it
+ * @property {number} score
+ * @property {string} occurredAt
+ */
+
+/**
+ * @typedef {Object} Notification
+ * @property {string} id
+ * @property {string} userId          whose inbox this is
+ * @property {'match' | 'application' | 'interview' | 'mission' | 'mission-reminder' | 'system'} type
+ * @property {string} title
+ * @property {string} body
+ * @property {boolean} read
+ * @property {string} [route]
+ * @property {string} createdAt
+ */
+
+/**
+ * Reminder preferences: mission nudges on or off, with an optional quiet
+ * window in 24h hours. The mock cannot run cron, so the UI evaluates
+ * `dueMissionReminders` on load; the backend runs the same rule on a
+ * scheduler and writes notification rows.
+ *
+ * @typedef {Object} NotificationPreferences
+ * @property {boolean} missionReminders
+ * @property {{ start: number, end: number } | null} quietHours
+ */
+
+/**
+ * HR analytics for one organization, computed from its real application and
+ * job rows. Match buckets share fixed boundaries so the backend owns them.
+ *
+ * @typedef {Object} HiringAnalytics
+ * @property {number} applications
+ * @property {Record<string, number>} byStage
+ * @property {number} avgDaysInStage
+ * @property {Record<string, number>} sourceMix
+ * @property {{ '0-39': number, '40-59': number, '60-79': number, '80-100': number, unscored: number }} matchBuckets
  */
 
 export {};

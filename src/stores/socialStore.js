@@ -92,5 +92,11 @@ export const useSocialStore = create((set, get) => ({
     return followedOrganizationIds;
   },
 
+  /** Hide an author for this account; their posts leave the feed at once. */
+  blockAuthor: async (authorId) => {
+    await socialService.blockAuthor(authorId);
+    set((state) => ({ posts: state.posts.filter((p) => p.author.id !== authorId) }));
+  },
+
   isFollowing: (organizationId) => get().followedOrganizationIds.includes(organizationId),
 }));

@@ -199,6 +199,12 @@ optimistically — **the two must agree**. Current weighting:
 A self-rated skill must never come back verified — the whole employer-side value
 proposition rests on that distinction.
 
+`gender` ∈ `female` | `male` | `non-binary` | `prefer-not-to-say`, optional and
+private. It personalises the candidate's experience only — it must never be
+returned on employer-facing reads, included in matching, or used in analytics.
+`careerInterests` values come from the ten-row `career_paths` catalog (§4.6);
+reject anything not in it.
+
 ### 4.2 Organization
 
 ```json
@@ -381,15 +387,22 @@ Level 1→2 costs 120 XP; level 10→11 about 534. **A new account starts at lev
 with 0 XP** — progression that was handed out rather than earned makes every
 number downstream meaningless.
 
-**Still to design: `POST /career/events`.** XP, reputation, mission progress and
-achievements are currently computed client-side and written back through
-`PUT /career/progress`. The clean replacement is a single write the frontend
-already funnels everything through (`recordCareerEvent` in
-`src/stores/progression.js`):
+**`POST /career/events` - designed, and the single write everything funnels
+through** (`recordCareerEvent` in `src/stores/progression.js`):
 
 ```json
-{ "event": "application.suitable", "occurredAt": "…", "context": { "jobId": "job-002" } }
+{
+  "event": "application.suitable",
+  "occurredAt": "2026-10-06T09:00:00.000Z",
+  "idempotencyKey": "evt-usr-001-application.suitable-job-002-1791286800",
+  "context": { "jobId": "job-002" }
+}
 ```
+
+**The `idempotencyKey` is mandatory and unique per user.** Every screen that
+can fire an event can double-fire it (double-clicks, retries, two tabs); the
+server must treat a repeated key as already-done and return the original
+result with `200`. Client-side guards exist and are not trusted.
 
 **200**
 ```json
@@ -407,7 +420,76 @@ already funnels everything through (`recordCareerEvent` in
 With that endpoint the server owns the XP table, the one-off rule and the
 anti-spam rule, and the frontend becomes a pure renderer of the response.
 
-### 4.6 Social
+**Three tables behind it:**
+
+- **`career_events`** - append-only: `(id, user_id, event, context jsonb,
+  occurred_at, idempotency_key UNIQUE(user_id, idempotency_key))`. The one-off
+  rule (profile, CV, assessment) becomes "one row per key", not a client
+  array: the frontend's `one_time_events` mirror exists only until this lands.
+- **`xp_ledger`** - `(id, user_id, career_event_id, amount, reason,
+  created_at)`. The "why did I level up" history the HUD renders; totals
+  without a ledger are numbers the player cannot defend.
+- **`achievement_progress`** - `(user_id, achievement_id, count, awarded_at
+  NULL)`. Achievements are **counted**, not fired: Career Explorer needs five
+  `location.visited` rows and the Excel award needs `context.skill = "Excel"`.
+  `count` and `context` live on the achievement definition.
+
+### 4.6 Career paths
+
+Ten rows, owned by the backend. Everything that talks about careers keys off
+them — onboarding interests, Discovery matches, interview banks, districts.
+
+`GET /career-paths` → the catalog; `GET /career-paths/:id` → one path.
+
+```json
+{
+  "id": "path-hr",
+  "title": "Human Resources",
+  "districtId": "recruitment-agency",
+  "tagline": "Hiring, people operations and the systems behind them.",
+  "summary": "Run recruitment, own people operations, and build the processes…",
+  "core": ["Recruitment", "HR Operations", "Communication"],
+  "growth": ["Excel", "Data Analysis", "AI Automation"],
+  "interviewBankId": "bank-hr"
+}
+```
+
+**The ten launch titles are fixed** — Human Resources, Software Development,
+AI Engineering, Social Media Management, Digital Marketing, Product Design,
+Motion Design, Video Editing, Customer Support, Virtual Assistance. Add a path
+by adding a row (plus a question bank); renaming a `title` renames it in
+onboarding, Discovery and interviews at once, so treat titles as stable
+identifiers. `core` reuses the skill vocabulary jobs speak, so matching needs
+no translation layer. Candidates submit `careerInterests` as titles from this
+list — reject anything not in it.
+
+### 4.7 Interview attempts
+
+A simulation is a real exam with a binary pass rule, enforced server-side:
+**two correct answers pass, two wrong answers fail**, over up to four
+questions from the candidate's path bank. An exam everyone passes certifies
+nothing — only a pass fires `interview.simulated`, its XP and the Interview
+Ready badge.
+
+`POST /interviews/start` `{ pathId? , jobTitle? }` → `{ attempt, question,
+questionNumber, total, rule }`. The question carries options but **never the
+answer index or rationale** — what the candidate may see is the contract.
+
+`POST /interviews/:id/answer` `{ questionId, optionIndex }` → `{ correct,
+correctOptionIndex, rationale, correctCount, wrongCount, finished, passed,
+score, questionNumber, nextQuestion, attempt }`. The rationale rides with the
+grade because the point of a practice interview is the feedback, not the
+score.
+
+`GET /interviews/attempts` → this account's attempts, newest first.
+`score` is correct ÷ answered as a percentage (2–0 is 100, 2–1 is 67).
+
+**Table `interview_attempts`:** `(id, user_id, path_id, job_title,
+question_ids jsonb, answers jsonb, correct_count, wrong_count, status,
+passed, score, started_at, completed_at)`. `question_ids` is the drawn paper —
+fixed at start so a retry cannot swap questions mid-exam.
+
+### 4.8 Social
 
 ```json
 {
@@ -430,6 +512,20 @@ anti-spam rule, and the frontend becomes a pure renderer of the response.
 `achievement` | `skill` | `advice` | `insight` | `opportunity` |
 `company-update`.
 
+**Identity surfaces.** `avatarUrl` (User) and `logoUrl` (Organization) are
+optional picture references with a generated-monogram fallback — the frontend
+never requires a file to render. Uploads are `multipart/form-data` with a
+`file` part:
+
+- `POST /users/me/avatar` → the updated user with `avatarUrl` set, plus a
+  signed URL if pictures are retrievable. Mocked in `socialService.js`
+  (file name only — nothing leaves the browser, exactly like the CV).
+- `POST /organizations/:id/logo` → the updated organization with `logoUrl`
+  set. Mocked in `organizationService.js`.
+- `GET /social/connections/count?userId=` → `{ count }` of accepted
+  connections, either side of the row. The profile renders it as a
+  "Connections" tile; the company renders `followerCount` as "Followers".
+
 **Only achievements the candidate has actually earned may be attached**, and
 `verified` must come from the backend. An attachable achievement that was not
 earned would turn the feed from social proof into noise.
@@ -437,12 +533,24 @@ earned would turn the feed from social proof into noise.
 `body` is rendered as plain text with newlines preserved. **Do not send Markdown
 or HTML** — the frontend does not parse either, by design.
 
-Connections and follows are **separate relationships**: a user connects with a
-user (mutual, with a `pending` state) and follows a user or an organization
-(one-way). Keeping them apart now means the social graph does not need rebuilding
-when either side grows.
+Connections and follows are **separate relationships**: a user connects with
+a user (mutual, with a `pending` state) and follows a user or an organization
+(one-way). Keeping them apart now means the social graph does not need
+rebuilding when either side grows.
 
-### 4.7 AI
+**Referrals** (`social.referrals`): `{ id, referrerUserId, referrerName,
+applicantUserId, applicationId, jobTitle, companyName, status ∈ requested |
+sent | declined, createdAt }`. A referral is a connection vouching for a
+candidate on a live application. It earns zero XP - a request is not work -
+and the backend must rate-limit it like the consequential action it is.
+
+**Moderation** ships with the feed or the feed does not ship:
+`social.reports` (`{ id, postId, reporterUserId, authorId, reason, status ∈
+open | reviewing | actioned | dismissed, createdAt }`) - rows for human
+review, never instant takedowns - and per-user blocks
+(`blocked_author_ids(user_id, author_id)`), which hide an author from that
+account only.
+### 4.9 AI
 
 ```json
 {
@@ -481,6 +589,23 @@ UI gives it as much space as the title.
 
 ---
 
+### 4.10 Evidence tables - skill assessments and course enrolments
+
+**`skill_assessments`** - `(id, profile_id, skill_name, kind ∈ ai-assessment |
+mission | course, ref_id, score, occurred_at)`. Every time a skill flips to
+`verified`, this row is the reason why. Without it, `verified` is a claim
+the platform makes about itself; with it, an employer can see which mission
+or assessment produced the score and when. The frontend writes
+`POST /candidates/me/skills/verify` and expects this row to appear.
+
+**`course_enrollments`** - `(id, user_id, course_id, status ∈ enrolled |
+completed, enrolled_at, completed_at, UNIQUE(user_id, course_id))`. A course
+completes once. `POST /learning/courses/:id/complete` on an already-completed
+enrolment returns `200` with `alreadyCompleted: true` and awards nothing -
+the 200 XP and the certification increment are not repeatable.
+
+---
+
 ## 5. Endpoints
 
 All **MOCKED** today. "Mocked in" names the file to delete the branch from.
@@ -505,6 +630,39 @@ key per value. Pagination is not used yet; when the catalogue grows return
 
 **`POST /jobs/:id/apply` must be idempotent per candidate+job.**
 
+Every candidate-facing read (`GET /jobs`, `GET /jobs/:id`,
+`GET /jobs/recommended`) computes `matchScore`/`matchReasons`/`skillGaps`
+for the requesting candidate. The frontend mirror is
+`src/services/matchingService.js` - a pure (job, profile) function - which
+also feeds the AI briefing and the 60% suitability threshold. A job the
+profile says nothing about returns no score, not a zero.
+
+### Applications (candidate side)
+| Method | Path | Mocked in |
+| --- | --- | --- |
+| GET | `/applications` (the candidate's own rows) | `applicationService.js` |
+| POST | `/jobs/:id/apply` | `applicationService.js` |
+| PATCH | `/applications/:id` (withdraw) | `applicationService.js` |
+| POST | `/applications/:id/respond` (`{ decision: accept | decline }`) | `applicationService.js` |
+| POST | `/applications/:id/acknowledge` (rejection seen) | `applicationService.js` |
+| GET | `/applications/:id/events` (stage history) | `applicationService.js` |
+| GET | `/interviews`, `POST /interviews/simulations` | `applicationService.js` |
+
+Accepting an offer moves the application to `hired` and the backend should
+also append an experience entry to the candidate profile - the role joins
+the career story at the moment it is signed.
+
+### Career paths and interviews
+| Method | Path | Mocked in |
+| --- | --- | --- |
+| GET | `/career-paths`, `/career-paths/:id` (the ten-row catalog) | `data/careerPaths.js` (static mirror) |
+| POST | `/interviews/start` (`{ pathId?, jobTitle? }`) | `interviewService.js` |
+| POST | `/interviews/:id/answer` (`{ questionId, optionIndex }`) | `interviewService.js` |
+| GET | `/interviews/attempts` (this account, newest first) | `interviewService.js` |
+| GET | `/interviews/pass-rate` (profile surface) | `interviewService.js` |
+
+Questions are served without answer indexes or rationales; the rationale rides
+with the grade. The first-to-2 pass rule is enforced server-side (§4.7).
 ### Candidates
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -531,15 +689,27 @@ candidates should be able to retrieve it.
 | GET | `/organizations/:id/applications` | `organizationService.js` |
 | GET | `/organizations/:id/overview` | `organizationService.js` |
 | PATCH | `/applications/:id` (status) | `organizationService.js` |
+| GET | `/organizations/:id/analytics` (hiring numbers) | `organizationService.js` |
+
+`GET /organizations/:id/analytics` returns `{ applications, byStage,
+avgDaysInStage, sourceMix, matchBuckets }`, computed from the organization's
+real application and job rows — no sample data. `byStage` counts per
+application status; `avgDaysInStage` averages days since `stageEnteredAt`
+(`updatedAt` fallback); `sourceMix` counts published roles by job `source`;
+`matchBuckets` distributes applicants across fixed boundaries `0-39 | 40-59 |
+60-79 | 80-100 | unscored` (unscored = no resolvable profile score). An empty
+pipeline returns zeros and the panel renders honest empty states.
 
 ### Career
 | Method | Path | Mocked in |
 | --- | --- | --- |
-| GET / PUT | `/career/progress` | `careerService.js` |
+| GET | PUT | `/career/progress` | `careerService.js` |
 | GET | `/career/stats`, `POST /career/stats/increment` | `careerService.js` |
 | GET | `/career/achievements`, `POST /career/achievements/evaluate` | `careerService.js` |
-| GET / POST | `/career/activity` | `careerService.js` |
-
+| GET | POST | `/career/activity` | `careerService.js` |
+| GET | POST | `/career/ledger` | `careerService.js` |
+| GET | POST | `/career/one-time-events` | `careerService.js` |
+| POST | `/career/events` (idempotent) | designed above, not yet mocked |
 ### Missions and learning
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -547,15 +717,27 @@ candidates should be able to retrieve it.
 | GET / PUT | `/missions/progress` | `missionService.js` |
 | POST | `/missions/:id/complete`, `/missions/:id/attempt` | `missionService.js` |
 | GET | `/learning/courses`, `POST /learning/courses/:id/complete` | `learningService.js` |
+| GET | `/learning/enrollments`, `POST /learning/courses/:id/enrol` | `learningService.js` |
+| GET | `/users/me/notification-preferences`, `PUT /users/me/notification-preferences` | `missionService.js` |
+
+Reminder preferences are `{ missionReminders: boolean, quietHours: { start,
+end } | null }` in 24h hours, per account. A mission is due when it is
+`active`, unreminded for 24h (`lastRemindedAt` on the progress row), and
+outside quiet hours. The mock evaluates this on page load and writes in-app
+notices; the backend runs the same rule on a scheduler and writes
+`POST /notifications` rows with `type: 'mission-reminder'`. Auth (email
+sign-up, session token) already exists — reminders build on it.
 
 ### Social
 | Method | Path | Mocked in |
 | --- | --- | --- |
-| GET / POST | `/social/posts` | `socialService.js` |
+| GET | POST | `/social/posts` | `socialService.js` |
 | POST | `/social/posts/:id/like`, `/social/posts/:id/comments` | `socialService.js` |
-| GET | `/social/connections/suggestions`, `POST /social/connections` | `socialService.js` |
-| GET / POST | `/social/follows` | `socialService.js` |
-
+| GET | `/social/connections`, `/social/connections/suggestions`, `POST /social/connections` | `socialService.js` |
+| GET | POST | `/social/follows` | `socialService.js` |
+| GET | POST | `/social/referrals` | `socialService.js` |
+| POST | `/social/posts/:id/report` | `socialService.js` |
+| POST | `/social/blocks` | `socialService.js` |
 ### AI
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -566,8 +748,19 @@ candidates should be able to retrieve it.
 
 ### Notifications
 `GET /notifications`, `POST /notifications/:id/read`,
-`POST /notifications/read-all` — `notificationService.js`.
+`POST /notifications/read-all` - `notificationService.js`. Rows carry a
+`userId`; reads are scoped to the signed-in account. The pipeline writes
+notices here on every stage change (review, shortlist, interview, offer,
+rejection).
 
+### Leaderboard
+| Method | Path | Mocked in |
+| --- | --- | --- |
+| GET | `/leaderboard` | `leaderboardService.js` |
+| GET / POST | `/leaderboard/opt-out` | `leaderboardService.js` |
+
+Ranked by reputation, never XP. Opt-out is respected server-side: an opted
+out account must not appear in the response, for anyone.
 ---
 
 ## 6. AI requirements
@@ -645,11 +838,13 @@ no auth secrets, no private tokens.
 
 Documented where cheap to pin down, but no interface consumes them yet:
 employer billing and subscriptions, real-time messaging, multiplayer, the
-recruiter AI, interview scheduling, external job ingestion, notifications
-delivery, and organization permission enforcement.
+recruiter AI, interview scheduling, external job ingestion, notification
+delivery channels (email/push), and organization permission enforcement.
 
----
-
+Referrals, post moderation (report + block) and the opt-in leaderboard are
+no longer out of scope - they have contracts above and interfaces in the
+prototype. Messaging stays out deliberately: a feed plus referrals covers
+the hypothesis without becoming an inbox the team has to moderate.
 ## 11. Suggested order of integration
 
 Each step is independently shippable; the UI keeps working with the rest mocked.
@@ -663,3 +858,29 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
 6. `GET /missions` and `POST /career/events` — XP stops being browser-local.
 7. `/social/*`.
 8. `/ai/*`.
+
+# Batch 2 — Employer HQ, analytics and reminders (continuation)
+
+**Where this batch landed:**
+
+| Area | Frontend surface | Backend endpoint (contract) |
+| --- | --- | --- |
+| Company HQ scene | `GameCanvas scene="company"` + `InteriorScene` subclass — desk / hiring board / candidate wall / brand shelf / door. | `GET /organizations/:id/jobs`, `GET /organizations/:id/applications` |
+| Company profile page | `/employer/company` — edit name/tagline/industry/size/location/website + logo upload + network posts |
+| Hiring analytics | `HiringAnalytics` panel (dashboard + `company-analytics` modal) — stage mix, avg time in stage, source mix, match buckets |
+| Mission reminders | `MissionReminders` panel on `/missions` — preference save/load, quiet hours, on-load due-rule stamp |
+| Notification preferences | `GET /users/me/notification-preferences`, `PUT /users/me/notification-preferences` |
+| Connection count | `GET /social/connections/count?userId=` |
+| Logo upload | `POST /organizations/:id/logo` — `multipart` with `file` part in prod, file name only in the prototype |
+| Match buckets (fixed, shared with the backend): `0-39 | 40-59 | 60-79 | 80-100 | unscored`. A candidate with no resolved profile lands in `unscored`.
+| Reminder rule (the same rule the backend scheduler will run): an active mission not reminded in the last 24h, outside the configured quiet window, and `missionReminders === true` produces a `type: "mission-reminder"` notification row plus a `lastRemindedAt` stamp on the progress row. Quiet hours are 24h windows, so overnight (e.g. `22:00 – 07:00`) is supported.
+| MOCKED where not yet live:
+| - `GET /organizations/:id/analytics`
+| - `GET /organizations/:id/overview`
+| - `GET /users/me/notification-preferences`
+| - `PUT /users/me/notification-preferences`
+| - `POST /organizations/:id/logo`
+| - `POST /missions/:id/reminded`
+
+Each service in `src/services/*.js` already carries the real `apiClient` call as its second branch, so enabling the backend only requires flipping the mock/archive flag — no component changes.
+
