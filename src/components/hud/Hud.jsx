@@ -9,6 +9,7 @@ import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import { getLocation } from '../../game/world/locations.js';
 import { getApartmentObject } from '../../game/world/apartment.js';
+import { useCareerPath } from '../../hooks/useCareerPath.js';
 import { initials } from '../../utils/format.js';
 
 /**
@@ -28,6 +29,7 @@ export function Hud({ scene = 'city', action = null }) {
   const unreadCount = useNotificationStore((s) => s.items.filter((n) => !n.read).length);
   const loadNotifications = useNotificationStore((s) => s.load);
   const notificationStatus = useNotificationStore((s) => s.status);
+  const homePath = useCareerPath();
 
   useEffect(() => {
     if (notificationStatus === 'idle') loadNotifications();
@@ -39,6 +41,7 @@ export function Hud({ scene = 'city', action = null }) {
       : getLocation(currentLocationId);
 
   const locationName = scene === 'apartment' ? 'Your Apartment' : location?.name ?? 'Grooveli City';
+  const homeDistrictName = homePath ? getLocation(homePath.districtId)?.name ?? null : null;
   const locationAccent = location?.accent ?? 'var(--g-accent)';
 
   return (
@@ -90,6 +93,14 @@ export function Hud({ scene = 'city', action = null }) {
           <IconMapPin size={13} />
           {locationName}
         </span>
+        {homePath ? (
+          <span className="hud-path" title={homeDistrictName ? `Home district: ${homeDistrictName}` : undefined}>
+            {homePath.title}
+            {scene === 'city' && currentLocationId === homePath.districtId ? (
+              <span className="hud-path__home">Home district</span>
+            ) : null}
+          </span>
+        ) : null}
         {action}
       </div>
 

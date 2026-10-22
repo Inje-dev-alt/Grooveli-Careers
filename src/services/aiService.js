@@ -17,7 +17,8 @@ import { delay } from '../utils/delay.js';
 import { formatSalaryRange } from '../utils/format.js';
 import { jobSkills } from './jobService.js';
 import { scoreJobsForProfile } from './matchingService.js';
-import { CAREER_PATHS } from '../data/careerPaths.js';
+import { CAREER_PATHS, resolvePathForProfile } from '../data/careerPaths.js';
+import { cityLocations } from '../game/world/locations.js';
 
 /** Intents the Career Center can route. Free text falls back to `general`. */
 export const AI_INTENTS = {
@@ -67,6 +68,9 @@ function context() {
     topMatches: [...scored].sort((a, b) => b.matchScore - a.matchScore).slice(0, 3),
     strongMatches: scored.filter((j) => j.matchScore >= 75),
     achievements: db.achievements[me] ?? [],
+    // The candidate's home path: explicit first, then inference. Null for
+    // accounts without a candidate profile - the AI has no path to brand on.
+    path: profile ? resolvePathForProfile(profile) : null,
   };
 }
 
@@ -99,7 +103,9 @@ export function getBriefing() {
       const firstName = (ctx.account?.displayName || 'there').split(' ')[0];
 
       return {
-        greeting: `Welcome back, ${firstName}.`,
+        greeting: ctx.path
+          ? `Welcome back, ${firstName}. Your ${ctx.path.title} track starts at ${cityLocations.find((l) => l.id === ctx.path.districtId)?.name ?? 'its home district'}.`
+          : `Welcome back, ${firstName}.`,
         question: 'What would you like to work on?',
         highlights: [
           { id: 'hl-matches', label: 'jobs match your profile', value: ctx.strongMatches.length, route: '/jobs' },
@@ -268,7 +274,9 @@ function buildReply(intent, content) {
           '',
           ...lines,
           '',
-          'The common thread is people operations with a systems edge — that is where your experience prices highest.',
+          ctx.path
+            ? `The common thread is your home path: ${ctx.path.title} - ${ctx.path.core.join(', ')}.`
+            : 'The common thread is where your profile and the open roles overlap.',
         ].join('\n'),
         {
           references: { jobIds: ctx.topMatches.map((j) => j.id) },
@@ -315,7 +323,9 @@ function buildReply(intent, content) {
           : [
               'Nothing is scheduled, which makes this the right time to practise.',
               '',
-              'I will run a six-question simulation for a role in your match range and score structure, specificity and recovery.',
+              ctx.path
+                ? `I will run a six-question simulation from the ${ctx.path.title} question bank and score structure, specificity and recovery.`
+                : 'I will run a six-question simulation for a role in your match range and score structure, specificity and recovery.',
             ].join('\n'),
         { actions: [{ id: 'act-sim', label: 'Start interview simulation', intent: AI_INTENTS.INTERVIEW_SIM }] },
       );

@@ -147,12 +147,23 @@ export function getCareerPath(pathId) {
 }
 
 /**
- * The path a profile is closest to, by career interest then by held skills.
- * Used to pick an interview question bank without asking - the simulation
- * should meet the candidate where they are.
+ * The career path an interest title belongs to, or null when the title is not
+ * in the catalog. Onboarding pins the first interest to this as the home path.
+ */
+export function pathIdForInterest(title) {
+  return CAREER_PATHS.find((path) => path.title === title)?.id ?? null;
+}
+
+/**
+ * The path a profile is closest to: the explicit home path when there is one,
+ * then career interest, then held skills. Profiles saved before the explicit
+ * field existed fall through to inference, so old accounts keep resolving.
  */
 export function resolvePathForProfile(profile) {
   if (!profile) return CAREER_PATHS[0];
+
+  const explicit = getCareerPath(profile.careerPathId);
+  if (explicit) return explicit;
 
   const interest = (profile.careerInterests ?? [])[0];
   const byInterest = CAREER_PATHS.find((path) => path.title === interest);

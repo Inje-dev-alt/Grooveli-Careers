@@ -112,6 +112,7 @@
  * @property {number} yearsExperience
  * @property {string} careerGoal
  * @property {string[]} careerInterests
+ * @property {string} [careerPathId]    explicit home path (a career_paths id), pinned at onboarding; absent means inferred
  * @property {WorkType[]} workTypes
  * @property {EmploymentType[]} openTo
  * @property {{ min: number, max: number, currency: string }} salaryExpectation
@@ -249,6 +250,7 @@
  * @property {MissionDifficulty} difficulty
  * @property {number} xpReward
  * @property {string} [locationId]
+ * @property {string} [pathId]           when set, this mission belongs to that career path's chain and is only served to matching accounts
  * @property {MissionObjective[]} objectives
  * @property {string} [reward]
  */

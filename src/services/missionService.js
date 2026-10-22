@@ -9,15 +9,20 @@
 import { apiClient, withMock } from './apiClient.js';
 import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+import { signedInCareerPathId } from './candidateService.js';
 
 /** @returns {Promise<import('../models/index.js').Mission[]>} */
 export function listMissions(filters = {}) {
   return withMock(
     async () => {
       await delay();
+      // Core missions serve everyone. A mission with a pathId belongs to that
+      // path's chain and only serves accounts resolved to it.
+      const myPathId = filters.pathId ?? signedInCareerPathId();
       return db.missions.filter((mission) => {
         if (filters.type && mission.type !== filters.type) return false;
         if (filters.locationId && mission.locationId !== filters.locationId) return false;
+        if (mission.pathId && mission.pathId !== myPathId) return false;
         return true;
       });
     },

@@ -149,6 +149,38 @@
 
 .hud-location__dot { width: 7px; height: 7px; border-radius: 50%; }
 
+/* ---------- Career path chip ---------- */
+.hud-path {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin-left: var(--g-space-2);
+  padding: 8px 16px;
+  border-radius: var(--g-radius-pill);
+  background: var(--g-glass-strong);
+  border: 1px solid var(--g-glass-border);
+  backdrop-filter: blur(var(--g-blur));
+  -webkit-backdrop-filter: blur(var(--g-blur));
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--g-text-muted);
+  animation: g-fade-in var(--g-dur) var(--g-ease) both;
+  box-shadow: var(--g-shadow-sm);
+}
+
+.hud-path__home {
+  padding: 2px 8px;
+  border-radius: var(--g-radius-pill);
+  background: rgba(91, 227, 200, 0.14);
+  border: 1px solid rgba(91, 227, 200, 0.45);
+  color: var(--g-accent);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .hud-exit {
   background: var(--g-glass-strong);
   border-color: var(--g-glass-border);

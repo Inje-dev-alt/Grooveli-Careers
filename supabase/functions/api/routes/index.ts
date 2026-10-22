@@ -1,0 +1,14 @@
+/**
+ * Route registry. Every route module imports `route` and registers itself;
+ * this file imports them for their side effects so index.ts stays a list.
+ *
+ * Batches add one line each: auth (§11.1), jobs (§11.2), candidates (§11.3),
+ * applications (§11.4), then organizations, missions, social and ai later.
+ */
+import './health.ts';
+import './auth.ts';
+import './users.ts';
+import './onboarding.ts';
+import './jobs.ts';
+import './candidates.ts';
+import './applications.ts';

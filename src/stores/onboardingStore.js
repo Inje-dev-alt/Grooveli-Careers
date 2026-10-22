@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { pathIdForInterest } from '../data/careerPaths.js';
+
 /**
  * The onboarding draft.
  *
@@ -13,6 +15,7 @@ const CANDIDATE_DRAFT = {
   location: '',
   gender: '',
   careerInterests: [],
+  careerPathId: null,
   yearsExperience: '',
   headline: '',
   summary: '',
@@ -66,6 +69,22 @@ export const useOnboardingStore = create((set, get) => ({
           [field]: current.includes(value)
             ? current.filter((v) => v !== value)
             : [...current, value],
+        },
+      };
+    }),
+
+  /** Toggle one career interest. The first interest is the home path. */
+  toggleInterest: (title) =>
+    set((state) => {
+      const current = state.candidate.careerInterests ?? [];
+      const next = current.includes(title)
+        ? current.filter((v) => v !== title)
+        : [...current, title];
+      return {
+        candidate: {
+          ...state.candidate,
+          careerInterests: next,
+          careerPathId: pathIdForInterest(next[0]),
         },
       };
     }),

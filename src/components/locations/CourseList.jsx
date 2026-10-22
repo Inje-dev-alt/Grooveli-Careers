@@ -15,12 +15,14 @@ import { useUiStore } from '../../stores/uiStore.js';
 import * as learningService from '../../services/learningService.js';
 import { recordCareerEvent } from '../../stores/progression.js';
 import { CAREER_EVENTS } from '../../utils/careerEvents.js';
+import { useCareerPath } from '../../hooks/useCareerPath.js';
 
 /** Courses at the Training Center. Completing one is worth a certification and 200 XP. */
 export function CourseList() {
   const [completing, setCompleting] = useState(null);
   const [completed, setCompleted] = useState([]);
   const pushToast = useUiStore((s) => s.pushToast);
+  const homePath = useCareerPath();
   const query = useAsync(() => learningService.listCourses(), []);
 
   const complete = async (course) => {
@@ -77,6 +79,9 @@ export function CourseList() {
                     <Badge>{course.weeks} weeks</Badge>
                     <Badge>{course.level}</Badge>
                     <Badge>Builds {course.skill}</Badge>
+                    {homePath && course.pathIds?.includes(homePath.id) ? (
+                      <Badge tone="accent">For your {homePath.title} path</Badge>
+                    ) : null}
                   </div>
 
                   <Button

@@ -55,8 +55,10 @@ both are enforceable with a grep and currently hold.
 
 ## 2. Identity
 
-**MOCKED** in `src/services/authService.js`. Passwords are compared in the
-browser. This is not authentication and is labelled as such in the UI.
+**LIVE on Supabase** (Edge Function `api`, Supabase Auth) since Phase 2 — still
+**MOCKED** when `VITE_USE_MOCKS` is on, in `src/services/authService.js`.
+Passwords were compared in the browser in the prototype; the live path never
+does.
 
 ### The account model
 
@@ -159,6 +161,7 @@ These mirror `src/models/index.js`, which is the frontend's source of truth.
   "yearsExperience": 5,
   "careerGoal": "Move into a people systems role…",
   "careerInterests": ["People Operations", "HR Technology"],
+  "careerPathId": "path-hr",
   "workTypes": ["hybrid", "remote"],
   "openTo": ["full-time", "contract"],
   "salaryExpectation": { "min": 450000, "max": 750000, "currency": "NGN" },
@@ -204,6 +207,12 @@ private. It personalises the candidate's experience only — it must never be
 returned on employer-facing reads, included in matching, or used in analytics.
 `careerInterests` values come from the ten-row `career_paths` catalog (§4.6);
 reject anything not in it.
+
+`careerPathId` is the candidate's explicit home path — the `career_paths.id`
+(§4.6) of the interest they picked first at onboarding. Nullable: profiles saved
+before this field existed resolve by inference instead (first interest, then
+held-skill overlap), and the backend must mirror that same inference when the
+field is absent so both sides resolve identically.
 
 ### 4.2 Organization
 
@@ -330,6 +339,13 @@ A mission objective names the **career event** that advances it:
   "actionRoute": "/jobs"
 }
 ```
+
+Missions can belong to a career path. A mission carrying `pathId` (a
+`career_paths.id`, §4.6) is part of that path's chain and must only be served
+to accounts whose resolved path matches — the backend filters `GET /missions`
+by the caller's `careerPathId` (explicit first, inference second, §4.1).
+Missions without `pathId` are core and serve everyone. One interview-and-apply
+loop mission per path exists today (`msn-path-*`).
 
 The event vocabulary is fixed, in `src/utils/careerEvents.js`:
 
@@ -608,7 +624,10 @@ the 200 XP and the certification increment are not repeatable.
 
 ## 5. Endpoints
 
-All **MOCKED** today. "Mocked in" names the file to delete the branch from.
+Identity (`/auth/*`, `/users/me`), jobs (`/jobs*`), candidates
+(`/candidates/me*`) and applications (`/jobs/:id/apply`, `/applications*`)
+are **LIVE** on the Supabase `api` Edge Function (Phase 2, steps 1–4). The
+rest are **MOCKED**. "Mocked in" names the file to delete the branch from.
 
 ### Jobs
 | Method | Path | Mocked in |
@@ -799,6 +818,10 @@ a reload — otherwise the prototype cannot be demonstrated in one sitting. The
 snapshot is written by an observer registered on `withMock`, so no service has
 to remember to save.
 
+As of Phase 2 the live surfaces (identity, jobs, candidates, applications) no
+longer read `grooveli:mock-db` when mocks are off; every not-yet-migrated
+surface still does, so the snapshot stays until §11 step 8.
+
 ---
 
 ## 8. UI states the API must make possible
@@ -846,6 +869,16 @@ no longer out of scope - they have contracts above and interfaces in the
 prototype. Messaging stays out deliberately: a feed plus referrals covers
 the hypothesis without becoming an inbox the team has to moderate.
 ## 11. Suggested order of integration
+
+**Status, Phase 2 (cloud-first, Supabase):** steps 1–4 are **live** — 8
+migrations and the `api` Edge Function router (`supabase/functions/api/`)
+implement identity, jobs (with the §4.3 matching port), candidates and
+applications against Postgres, verified end to end. Mocks remain the repo
+default; flip `VITE_USE_MOCKS=false` with `VITE_API_BASE_URL` pointed at
+`https://<ref>.supabase.co/functions/v1/api`. Known gaps until later phases:
+the mock/partner application pipeline simulation is browser-side only (real
+rows do not auto-advance), and employer, missions, social and `/ai/*`
+endpoints do not exist yet — those screens stay on mocks.
 
 Each step is independently shippable; the UI keeps working with the rest mocked.
 

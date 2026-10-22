@@ -13,7 +13,7 @@ import {
 import { useOnboardingStore } from '../stores/onboardingStore.js';
 import { useAuthStore } from '../stores/authStore.js';
 import { useCareerStore } from '../stores/careerStore.js';
-import { CAREER_PATH_TITLES } from '../data/careerPaths.js';
+import { CAREER_PATH_TITLES, getCareerPath } from '../data/careerPaths.js';
 
 /* Career interests come from the canonical ten-path catalog — one source of
    truth, so Discovery, matching and interview banks speak the same titles. */
@@ -60,6 +60,7 @@ export default function CandidateOnboarding() {
   const draft = useOnboardingStore((s) => s.candidate);
   const update = useOnboardingStore((s) => s.updateCandidate);
   const toggle = useOnboardingStore((s) => s.toggleCandidateValue);
+  const toggleInterest = useOnboardingStore((s) => s.toggleInterest);
   const next = useOnboardingStore((s) => s.next);
   const back = useOnboardingStore((s) => s.back);
   const setStep = useOnboardingStore((s) => s.setStep);
@@ -181,13 +182,20 @@ export default function CandidateOnboarding() {
           title="What kind of work are you after?"
           hint="Your match scores are calculated from this, so be honest rather than broad."
         >
-          <Field label="Career interests" hint="Pick up to four.">
+          <Field
+            label="Career interests"
+            hint={
+              draft.careerPathId
+                ? `Pick up to four. ${getCareerPath(draft.careerPathId)?.title} is your home path - it decides your starting district.`
+                : 'Pick up to four. Your first pick becomes your home path and starting district.'
+            }
+          >
             <div className="onboarding__chips">
               {CAREER_PATH_TITLES.map((interest) => (
                 <Chip
                   key={interest}
                   active={draft.careerInterests.includes(interest)}
-                  onClick={() => toggle('careerInterests', interest)}
+                  onClick={() => toggleInterest(interest)}
                 >
                   {interest}
                 </Chip>

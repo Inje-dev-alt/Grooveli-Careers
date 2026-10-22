@@ -13,6 +13,7 @@
 import { apiClient, withMock, setAuthToken, getAuthToken } from './apiClient.js';
 import { db, nextId, currentAccount, toPublicUser } from './mockDb.js';
 import { emptyCandidateProfile } from '../mock/users.js';
+import { pathIdForInterest } from '../data/careerPaths.js';
 import { delay } from '../utils/delay.js';
 
 const TOKEN_PREFIX = 'mock-session:';
@@ -155,6 +156,7 @@ export function completeCandidateOnboarding(draft) {
         yearsExperience: Number(draft.yearsExperience) || 0,
         careerGoal: draft.careerGoal || '',
         careerInterests: draft.careerInterests ?? [],
+        careerPathId: draft.careerPathId ?? pathIdForInterest((draft.careerInterests ?? [])[0]),
         workTypes: draft.workTypes ?? [],
         openTo: draft.openTo ?? [],
         salaryExpectation: {

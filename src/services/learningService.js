@@ -12,6 +12,7 @@ import { apiClient, withMock } from './apiClient.js';
 import { delay } from '../utils/delay.js';
 import { courses as seedCourses } from '../mock/courses.js';
 import { db, currentAccount, nextId } from './mockDb.js';
+import { signedInCareerPathId } from './candidateService.js';
 
 function enrollmentsForUser() {
   const id = currentAccount()?.id;
@@ -24,12 +25,17 @@ export function listCourses(filters = {}) {
     async () => {
       await delay();
       const enrolled = enrollmentsForUser();
+      const myPathId = filters.pathId ?? signedInCareerPathId();
       return seedCourses
         .filter((course) => !filters.skill || course.skill === filters.skill)
         .map((course) => {
           const enrolment = enrolled.find((e) => e.courseId === course.id);
           return { ...course, enrolled: Boolean(enrolment), completed: enrolment?.status === 'completed' };
-        });
+        })
+        // The Training Center recommends from the catalogue; the path a
+        // candidate is on decides what they see first. Sort is stable, so
+        // everything else keeps its catalogue order.
+        .sort((a, b) => Number(b.pathIds?.includes(myPathId)) - Number(a.pathIds?.includes(myPathId)));
     },
     () => apiClient.get('/learning/courses', { params: filters }),
   );

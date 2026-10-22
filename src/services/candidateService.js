@@ -7,6 +7,7 @@ import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { resolveProgression } from '../utils/progression.js';
 import { achievementCatalog } from '../mock/users.js';
+import { resolvePathForProfile } from '../data/careerPaths.js';
 
 /** What a complete career identity contains, and what each part is worth. */
 const COMPLETENESS_FIELDS = [
@@ -38,6 +39,19 @@ function resolveProfile() {
   const profile = account?.candidateProfileId ? db.profiles[account.candidateProfileId] : null;
   if (!profile) throw new Error('No career profile on this account yet.');
   return profile;
+}
+
+/**
+ * The signed-in candidate's career path id: the explicit `careerPathId` when
+ * the profile has one, otherwise the path inferred from interests and skills.
+ * Null for accounts with no candidate profile - employers are not on a path.
+ *
+ * @returns {string | null}
+ */
+export function signedInCareerPathId() {
+  const account = currentAccount();
+  const profile = account?.candidateProfileId ? db.profiles[account.candidateProfileId] : null;
+  return profile ? resolvePathForProfile(profile).id : null;
 }
 
 /** @returns {Promise<import('../models/index.js').CandidateProfile>} */

@@ -216,6 +216,21 @@ function districtScope(location) {
   return location.type === 'career-district' ? location.id : '';
 }
 
+/**
+ * The interview action shown at the player's own home district, branded with
+ * their path. Built rather than listed: whether a district offers it depends
+ * on who is standing there, so the panel asks for it explicitly.
+ */
+export function homePathInterviewAction(path) {
+  return {
+    id: 'path-interview',
+    label: `${path.title} Interview`,
+    description: 'Practise with your home path question bank, then get scored',
+    icon: IconKey,
+    open: ({ replaceModal }) => replaceModal('ai', { initialIntent: AI_INTENTS.INTERVIEW_SIM }),
+  };
+}
+
 /** @returns {{ id: string } & typeof INTERACTIONS[string] | null} */
 export function getInteraction(id) {
   const entry = INTERACTIONS[id];
