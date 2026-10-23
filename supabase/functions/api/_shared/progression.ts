@@ -53,8 +53,14 @@ export const isCareerEvent = (value: string): value is CareerEvent => EVENT_SET.
  * to a role that does not suit the candidate are all worth nothing. Volume
  * alone can never raise a career level.
  *
- * `mission.completed` is 0 here because a mission pays its own `xp_reward`,
- * which the caller adds on top — see `POST /career/events`.
+ * `mission.completed` is 0 here because a mission's XP is its own `xp_reward`,
+ * which lives on the `missions` table (Batch 3.2) — it is the one event whose
+ * value is a property of the row rather than of the event, so no entry in this
+ * table could be right. It is paid by `POST /missions/:id/complete`, which
+ * reads the column after verifying the objectives against the account's
+ * recorded events; `POST /career/events` refuses the event outright rather
+ * than award it for the 0 above. Neither path accepts a reward from the
+ * browser, which is the hole these endpoints exist to close.
  */
 export const XP_REWARDS: Record<CareerEvent, number> = {
   'profile.completed': 50,

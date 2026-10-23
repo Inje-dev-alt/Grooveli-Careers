@@ -882,15 +882,39 @@ endpoints do not exist yet — those screens stay on mocks.
 
 Each step is independently shippable; the UI keeps working with the rest mocked.
 
-1. `/auth/*` and `/users/me` — everything needs an identity.
-2. `GET /jobs`, `GET /jobs/:id` — the largest surface, easiest to verify.
-3. `/candidates/me` and CV upload.
-4. `POST /jobs/:id/apply`, `GET /applications`.
-5. `/organizations/*` — employer side becomes real, and `source:
-   "grooveli_employer"` jobs start flowing into the same marketplace.
-6. `GET /missions` and `POST /career/events` — XP stops being browser-local.
-7. `/social/*`.
-8. `/ai/*`.
+1. `/auth/*` and `/users/me` — everything needs an identity. **Live.**
+2. `GET /jobs`, `GET /jobs/:id` — the largest surface, easiest to verify. **Live.**
+3. `/candidates/me` and CV upload. **Live.**
+4. `POST /jobs/:id/apply`, `GET /applications`. **Live.**
+5. `/career/*` — XP stops being browser-local. **Batch 3.1, in progress.**
+6. `GET /missions` and mission progress. **Batch 3.2.**
+7. Frontend progression refactor — no new endpoints. **Batch 3.3.**
+8. `/organizations/*` + candidate discovery — employer side becomes real, and
+   `source: "grooveli_employer"` jobs start flowing into the same marketplace.
+   **Batch 3.4.**
+9. `/social/*`. **Batch 3.5.**
+10. `/learning/*`. **Batch 3.6.**
+11. `/interviews/*`. **Batch 3.7.**
+12. `/leaderboard/*` and `/notifications/*`. **Batch 3.8.**
+13. `/ai/*` — blocked on an AI provider key. **Batch 3.9.**
+
+**Why the order changed from the original 1–8.** Three things the prototype
+grew were missing from this list and existed only as mocked service calls:
+`learningService` (4 calls), `interviewService` plus the two interview calls in
+`applicationService` (6), and `leaderboardService` + `notificationService` (6).
+That is ~14 endpoints and 3–4 tables of work, now steps 10–12.
+
+Career progression moved ahead of the employer side because of a failure mode
+rather than a preference. `careerStore.hydrate()` swallows its fetch error in a
+`catch {}`, so with `VITE_USE_MOCKS=false` and no `/career/*` routes a signed-in
+user sees level 0, 0 XP and XP that silently vanishes on reload — no error
+message at all. Silent data loss costs more trust than a visible outage, so
+steps 5–7 are the minimum gate before any real cohort, candidate-only included.
+
+Steps 5–7 together are what make a candidate-only launch defensible, with
+social, learning, leaderboard and interviews labelled "coming soon" rather
+than failing quietly. Step 8 is what lets employers onboard at all — until it
+lands the marketplace has only one side and no one can post a job.
 
 # Batch 2 — Employer HQ, analytics and reminders (continuation)
 

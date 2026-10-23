@@ -3,7 +3,8 @@
  * this file imports them for their side effects so index.ts stays a list.
  *
  * Batches add one line each: auth (§11.1), jobs (§11.2), candidates (§11.3),
- * applications (§11.4), then organizations, missions, social and ai later.
+ * applications (§11.4), career (§11.5), missions (§11.6), then organizations,
+ * social and ai later.
  */
 import './health.ts';
 import './auth.ts';
@@ -12,3 +13,5 @@ import './onboarding.ts';
 import './jobs.ts';
 import './candidates.ts';
 import './applications.ts';
+import './career.ts';
+import './missions.ts';
