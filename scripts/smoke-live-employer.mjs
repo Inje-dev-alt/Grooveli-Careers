@@ -95,8 +95,14 @@ ok('  with the membership role', r.body?.membership?.role === 'owner', JSON.stri
 ok('  and `size` reads the same as on create', r.body?.organization?.size === '11-50',
   `size=${JSON.stringify(r.body?.organization?.size)}`);
 
+/* 204, not 200: index.ts answers a null body with No Content, and apiClient
+   maps 204 straight back to null — which is what getActiveOrganization is
+   written to expect. What matters is that an account with no membership gets an
+   empty answer rather than an error, so both are accepted. */
 r = await call('GET', '/organizations/active', { token: C.token });
-ok('a candidate gets null, not an error', r.status === 200 && r.body === null, `status=${r.status} body=${JSON.stringify(r.body)}`);
+ok('a candidate gets an empty answer, not an error',
+  (r.status === 204 || r.status === 200) && r.body === null,
+  `status=${r.status} body=${JSON.stringify(r.body)}`);
 
 /* ------------------------------------------------------ publishing --- */
 
