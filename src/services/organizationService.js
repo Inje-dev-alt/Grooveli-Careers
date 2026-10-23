@@ -8,7 +8,7 @@
  * a real candidate appears here immediately, which is the whole point of the
  * marketplace the product is built on.
  */
-import { apiClient, withMock } from './apiClient.js';
+import { apiClient, withMock, ApiError } from './apiClient.js';
 import { db, nextId, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { resolveCandidateForEmployer } from './candidateService.js';
@@ -187,10 +187,20 @@ export function setApplicationStatus(applicationId, status, options = {}) {
       application.updatedAt = new Date().toISOString();
       application.stageEnteredAt = application.updatedAt;
 
-      let note = options.feedback ?? null;
+      let note = options.feedback?.trim() || null;
       if (status === 'rejected') {
-        note = note || 'The panel went with a candidate who had already done this exact role. Strong profile - apply again next cycle.';
+        // The API refuses a rejection with no reason, so this does too. It used
+        // to substitute canned text, which made the prototype more permissive
+        // than production and put words in an employer's mouth.
+        if (!note) {
+          throw new ApiError('A rejection needs a reason the candidate can act on.', {
+            status: 400,
+            code: 'bad_request',
+            details: { field: 'feedback' },
+          });
+        }
         application.feedback = note;
+        // A new rejection is unread, even if an earlier one on this row was read.
         application.rejectionAcknowledged = false;
       }
       recordStageChange(application, from, status, 'employer', note);

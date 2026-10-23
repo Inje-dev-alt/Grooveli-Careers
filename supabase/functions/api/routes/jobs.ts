@@ -1,9 +1,13 @@
 import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
-import { notFound } from '../_shared/errors.ts';
+import { badRequest, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { scoreJobForProfile, type MatchProfile } from '../_shared/matching.ts';
 import { toJob, toMatchProfile, type JobRow, type CandidateProfileRow } from '../_shared/jobs.ts';
+import { requireMembership } from '../_shared/organizations.ts';
+
+/** Mirrors the `jobs.status` check constraint (§4.3). */
+const JOB_STATUSES = new Set(['draft', 'published', 'paused', 'closed']);
 
 type Scored = ReturnType<typeof toJob> & {
   matchScore?: number;
@@ -159,4 +163,50 @@ route('GET', '/jobs/:id', async (req, params) => {
     .from('jobs').select('*').eq('id', params.id).eq('status', 'published').maybeSingle();
   if (!data) throw notFound('That role is not available.');
   return { body: withMatch(data as JobRow, matchProfile) };
+});
+
+/**
+ * PATCH /jobs/:id — pause, close, publish or return a role to draft.
+ *
+ * The employer's counterpart to `POST /organizations/:id/jobs`. Status is the
+ * only field it takes: the rest of a role is edited through the publish form,
+ * and a partial edit endpoint that could rewrite salary or skills under live
+ * applications is a bigger decision than this batch.
+ *
+ * Membership is resolved from the job's own organization, so the caller never
+ * names one — the thing being changed decides who is allowed to change it.
+ */
+route('PATCH', '/jobs/:id', async (req, params) => {
+  const body = (await req.json().catch(() => null)) as { status?: string } | null;
+  const status = String(body?.status ?? '').trim();
+  if (!JOB_STATUSES.has(status)) {
+    throw badRequest('That is not a status a role can be in.', {
+      field: 'status',
+      allowed: [...JOB_STATUSES],
+    });
+  }
+
+  const admin = adminClient();
+  const authUser = await requireUser(req);
+
+  const { data: existing } = await admin
+    .from('jobs')
+    .select('organization_id')
+    .eq('id', params.id)
+    .maybeSingle();
+  if (!existing) throw notFound('That role no longer exists.');
+
+  await requireMembership(admin, String((existing as { organization_id: string }).organization_id), authUser.id);
+
+  const { data, error } = await admin
+    .from('jobs')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', params.id)
+    .select('*')
+    .single();
+  if (error || !data) {
+    console.error('[jobs] status change failed:', error?.message);
+    throw serverError();
+  }
+  return { body: toJob(data as JobRow) };
 });

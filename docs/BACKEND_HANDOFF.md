@@ -625,12 +625,13 @@ the 200 XP and the certification increment are not repeatable.
 ## 5. Endpoints
 
 **LIVE** on the Supabase `api` Edge Function: identity (`/auth/*`,
-`/users/me`), jobs (`/jobs*`), candidates (`/candidates/me*`), applications
-(`/jobs/:id/apply`, `/applications*`), career progression (`/career/*`) and
-missions (`/missions*`) — steps 1–7 below.
+`/users/me`), jobs (`/jobs*`), candidates (`/candidates*`, own profile and
+employer discovery), applications (`/jobs/:id/apply`, `/applications*`), career
+progression (`/career/*`), missions (`/missions*`) and organizations
+(`/organizations*`) — steps 1–8 below.
 
-**MOCKED**: organizations, social, learning, interviews, leaderboard,
-notifications and AI. "Mocked in" names the file to delete the branch from.
+**MOCKED**: social, learning, interviews, leaderboard, notifications and AI.
+"Mocked in" names the file to delete the branch from.
 
 Progression is the one surface where the frontend was changed as well as
 pointed at new endpoints, because the browser had been deciding what it earned.
@@ -705,17 +706,105 @@ is uploaded and the file never leaves the browser. The real endpoint should take
 `cv.hasCv`, `cv.fileName` and `cv.updatedAt` set, plus a signed download URL if
 candidates should be able to retrieve it.
 
-### Organizations
-| Method | Path | Mocked in |
+### Organizations — **LIVE** (Batch 3.4)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/organizations`, `/organizations/:id` | `organizationService.js` |
-| GET | `/organizations/active` | `organizationService.js` |
-| PATCH | `/organizations/:id` | `organizationService.js` |
-| GET / POST | `/organizations/:id/jobs` | `organizationService.js` |
-| GET | `/organizations/:id/applications` | `organizationService.js` |
-| GET | `/organizations/:id/overview` | `organizationService.js` |
-| PATCH | `/applications/:id` (status) | `organizationService.js` |
-| GET | `/organizations/:id/analytics` (hiring numbers) | `organizationService.js` |
+| GET | `/organizations`, `/organizations/:id` | Live — public |
+| GET | `/organizations/active` | Live — `null` for a non-member |
+| PATCH | `/organizations/:id` | Live — membership required |
+| GET / POST | `/organizations/:id/jobs` | Live — membership required |
+| GET | `/organizations/:id/applications` | Live — membership required |
+| GET | `/organizations/:id/overview` | Live — membership required |
+| GET | `/organizations/:id/analytics` | Live — membership required |
+| POST | `/organizations/:id/logo` | Live — file name only, see below |
+| PATCH | `/jobs/:id` (status) | Live — membership resolved from the job |
+| PATCH | `/applications/:id` (status) | Live — see **two authorities** below |
+| GET | `/candidates`, `/candidates/:id` | Live — employers only |
+
+**Membership is now enforced.** Every write, and every read of an
+organization's private data, resolves `organization_memberships` first. The
+prototype took `organizationId` from the browser and trusted it, so publishing
+a job into another company, or reading and moving its pipeline, was a matter of
+editing one string in a request. A non-member gets 403; a company that does not
+exist gets 404.
+
+Permission *levels* are deliberately **not** enforced. `role` is stored and
+returned (`owner` | `admin` | `recruiter` | `hiring-manager`) so the UI can show
+it, but every member may take every employer action. Organization permission
+enforcement stays out of scope (§10), and a half-built permission model reads as
+a guarantee while being none.
+
+**`PATCH /applications/:id` has two authorities on one path**, because the same
+row means different things to the two sides of the marketplace:
+
+| Caller | May set |
+| --- | --- |
+| the candidate who applied | `withdrawn`, and nothing else |
+| a member of the hiring organization | `under-review`, `shortlisted`, `interview`, `assessment`, `offer`, `rejected` |
+| anyone else | **404**, never 403 |
+
+`applied` is how a row begins. `declined` and `hired` are reached through
+`POST /applications/:id/respond`: an employer who could set `hired` directly
+would be recording somebody else's decision. The 404 for a stranger is the §3
+rule — a 403 would confirm both that the application exists and that somebody
+is in that pipeline.
+
+**A rejection requires `feedback`.** Blank or whitespace is a 400 naming the
+field. The mock used to substitute canned text when the employer left it empty,
+which made the prototype more permissive than production and put words in an
+employer's mouth; both now refuse, and `EmployerCandidates` disables the button
+until a reason is written.
+
+**A published role is a `jobs` row like any other** — `source:
+"grooveli_employer"`, immediately visible to `GET /jobs`. `industry` and
+`districtId` come from the organization rather than the draft, as the mock did:
+a role belongs to its company's district, and letting the form choose would put
+a company's jobs somewhere its own profile contradicts.
+
+`GET /organizations/:id/analytics` returns `{ applications, byStage,
+avgDaysInStage, sourceMix, matchBuckets }`, computed from the organization's own
+rows — no sample data. `matchBuckets` uses fixed boundaries `0-39 | 40-59 |
+60-79 | 80-100 | unscored`, where `unscored` is an applicant with no resolvable
+card: a candidate whose profile says nothing is an unknown match, not a bad one,
+and folding them into `0-39` would invent a judgement. An empty pipeline returns
+zeros and the panel renders honest empty states.
+
+**`POST /organizations/:id/logo` stores a file name only**, and nothing is
+uploaded — the same open decision as the CV above. The column `logo_url` exists
+so the endpoint is not implying it stored something. Every screen renders
+`logoColor` today; this is for when there is a real mark.
+
+> **Divergence while notifications are mocked.** The mock writes an in-app
+> notification on every stage change; the server writes the
+> `application_events` row (which is the durable history the candidate's
+> timeline reads) but **no notification**, because there is no notifications
+> table until step 12. With `VITE_USE_MOCKS=false` a candidate therefore sees
+> the new stage and its feedback on their applications list, but gets no notice
+> drawing them to it. Wiring it is part of that batch.
+
+#### The employer's view of a candidate
+
+`GET /candidates`, `GET /candidates/:id` and the `candidate` attached to each
+inbound application all serve one shape, built in `_shared/candidates.ts`:
+`{ id, name, headline, location, careerLevel, reputation, color, skills,
+experience, achievements, activity, openTo, workTypes, matchScore }`.
+
+It is deliberately **not** the candidate's own profile. No summary, salary
+expectation, education, CV, contact details or career goal. An employer
+discovering talent sees evidence of work and nothing a candidate did not put
+forward as evidence.
+
+`matchScore` here is `reputation + min(20, careerLevel)` — a ranking of proven
+strength, and **not** the candidate-facing job match score, which is a
+`(job, profile)` function and means something else entirely. Two different
+numbers have shared this name since the prototype; they are still two numbers.
+
+Discovery requires organization membership. In the prototype it was open to
+anyone signed in, so a candidate could list every other candidate. Membership is
+the honest test of "is an employer": `activeRole` is a preference the account
+sets for itself, so it decides which experience to render, never what may be
+read. An account with no candidate profile is absent from discovery rather than
+rendered as an empty card.
 
 `GET /organizations/:id/analytics` returns `{ applications, byStage,
 avgDaysInStage, sourceMix, matchBuckets }`, computed from the organization's
@@ -1028,7 +1117,7 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
 7. Frontend progression refactor — no new endpoints. **Done** (§7).
 8. `/organizations/*` + candidate discovery — employer side becomes real, and
    `source: "grooveli_employer"` jobs start flowing into the same marketplace.
-   **Batch 3.4.**
+   **Live.**
 9. `/social/*`. **Batch 3.5.**
 10. `/learning/*`. **Batch 3.6.**
 11. `/interviews/*`. **Batch 3.7.**
@@ -1052,8 +1141,14 @@ and there is a live endpoint behind every progression read.
 
 Steps 1–7 are what make a candidate-only launch defensible, with social,
 learning, leaderboard and interviews labelled "coming soon" rather than failing
-quietly. **Step 8 is now the gate**: until `/organizations/*` lands the
-marketplace has only one side and no one can post a job.
+quietly. Step 8 made the marketplace two-sided: an employer can onboard, publish
+a role, and see real applications arrive against it.
+
+**What now gates a launch is step 12, notifications.** The pipeline moves and
+records itself, but nothing tells the candidate it moved — see the divergence
+note under Organizations. Everything else outstanding is a feature labelled
+"coming soon"; this one is a product that quietly stops talking to the person
+waiting on it.
 
 # Batch 2 — Employer HQ, analytics and reminders (continuation)
 

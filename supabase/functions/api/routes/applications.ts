@@ -2,6 +2,7 @@ import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
 import { badRequest, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { isMember } from '../_shared/organizations.ts';
 
 type AppRow = Record<string, unknown>;
 
@@ -125,27 +126,100 @@ route('POST', '/jobs/:id/apply', async (req, params) => {
   return { status: 201, body: toApplication(created as AppRow) };
 });
 
-// PATCH /applications/:id — the only transition the candidate drives alone:
-// withdraw. Anything else needs the employer or the simulation.
+/**
+ * The stage moves an employer drives.
+ *
+ * `applied` is absent because it is how a row begins. `withdrawn` and
+ * `declined` belong to the candidate, and `hired` is reached by accepting an
+ * offer through `POST /applications/:id/respond` — an employer who could set
+ * `hired` directly would be recording somebody else's decision.
+ */
+const EMPLOYER_STATUSES = new Set([
+  'under-review', 'shortlisted', 'interview', 'assessment', 'offer', 'rejected',
+]);
+
+/**
+ * PATCH /applications/:id — one path, two authorities.
+ *
+ * The same row means different things to the two sides of the marketplace, so
+ * what the caller may do is decided by their relationship to it rather than by
+ * a flag in the request:
+ *
+ *   the candidate who applied  → `withdrawn`, and nothing else
+ *   a member of the hiring org → the stage moves in EMPLOYER_STATUSES
+ *   anyone else                → 404, never 403
+ *
+ * The 404 for a stranger is the §3 rule: a 403 would confirm that this
+ * application exists and that somebody is in that pipeline.
+ *
+ * This route previously refused anything but `withdrawn` before it even looked
+ * at the row, which is why the employer pipeline was mocked — `setApplicationStatus`
+ * had no endpoint that would accept it.
+ */
 route('PATCH', '/applications/:id', async (req, params) => {
-  const body = await req.json().catch(() => null);
-  if (String((body as { status?: string })?.status ?? '') !== 'withdrawn') {
+  const body = (await req.json().catch(() => null)) as { status?: string; feedback?: string } | null;
+  const status = String(body?.status ?? '').trim();
+  if (!status) throw badRequest('Which status?', { field: 'status' });
+
+  const admin = adminClient();
+  const authUser = await requireUser(req);
+
+  const { data: existing } = await admin
+    .from('applications').select(APP_SELECT).eq('id', params.id).maybeSingle();
+  if (!existing) throw notFound('That application no longer exists.');
+
+  const row = existing as AppRow;
+  const job = row.job as Record<string, unknown> | null;
+  const isCandidate = row.candidate_id === authUser.id;
+  const isEmployer = job?.organization_id
+    ? await isMember(admin, String(job.organization_id), authUser.id)
+    : false;
+
+  if (!isCandidate && !isEmployer) throw notFound('That application no longer exists.');
+
+  const from = String(row.status);
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { status, updated_at: now };
+  let actor: 'candidate' | 'employer';
+  let note: string | null = null;
+
+  if (isEmployer && EMPLOYER_STATUSES.has(status)) {
+    actor = 'employer';
+    note = String(body?.feedback ?? '').trim() || null;
+
+    // A no with no reason teaches nothing, and the candidate-side Bounce Back
+    // mission turns the reason into the next move. The mock filled this in with
+    // canned text when the employer left it blank; the server will not author
+    // feedback on an employer's behalf and sends them back to write it.
+    if (status === 'rejected' && !note) {
+      throw badRequest('A rejection needs a reason the candidate can act on.', {
+        field: 'feedback',
+      });
+    }
+    if (status === 'rejected') {
+      patch.feedback = note;
+      // A new rejection is unread, even if an earlier one on this row was read.
+      patch.rejection_acknowledged = false;
+    }
+    patch.stage_entered_at = now;
+  } else if (isCandidate && status === 'withdrawn') {
+    actor = 'candidate';
+  } else {
     throw badRequest('That status change is not yours to make.', { field: 'status' });
   }
-  const admin = adminClient();
-  const { row } = await myApplication(admin, req, params.id);
-  const from = row.status as string;
+
   const { data, error } = await admin
     .from('applications')
-    .update({ status: 'withdrawn', updated_at: new Date().toISOString() })
+    .update(patch)
     .eq('id', params.id)
     .select(APP_SELECT)
     .single();
   if (error || !data) {
-    console.error('[applications] withdraw failed:', error?.message);
+    console.error('[applications] status change failed:', error?.message);
     throw serverError();
   }
-  await appendEvent(admin, params.id, from, 'withdrawn', 'candidate', null);
+
+  await appendEvent(admin, params.id, from, status, actor, note);
   return { body: toApplication(data as AppRow) };
 });
 

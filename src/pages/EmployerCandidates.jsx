@@ -160,10 +160,25 @@ export default function EmployerCandidates() {
                               placeholder="Why? One sentence is enough - the candidate reads this and it shapes their next move."
                               onChange={(e) => setFeedbackDraft(e.target.value)}
                             />
-                            <div className="g-row" style={{ gap: 8 }}>
-                              <Button size="sm" variant="primary" onClick={() => confirmReject(application)}>
+                            <div className="g-row" style={{ gap: 8, alignItems: 'center' }}>
+                              {/* The reason is required, not encouraged: a no with
+                                  nothing to act on teaches the candidate nothing,
+                                  and the API refuses it. Saying so here beats
+                                  letting someone write the decision and then
+                                  bounce off an error. */}
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={!feedbackDraft.trim()}
+                                onClick={() => confirmReject(application)}
+                              >
                                 Send decision and feedback
                               </Button>
+                              {!feedbackDraft.trim() ? (
+                                <span className="g-muted" style={{ fontSize: 12 }}>
+                                  A reason is required.
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                         ) : null}

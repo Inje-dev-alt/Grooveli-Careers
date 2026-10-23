@@ -1,8 +1,10 @@
 import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
-import { badRequest, serverError } from '../_shared/errors.ts';
+import { badRequest, forbidden, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { calculateCompleteness, loadProfile } from '../_shared/users.ts';
+import { candidateCard, candidateCards } from '../_shared/candidates.ts';
+import { membershipIds } from '../_shared/organizations.ts';
 
 type ProfileRow = Record<string, unknown>;
 
@@ -201,3 +203,87 @@ route('POST', '/candidates/me/experience', async (req) => {
   return { body: toProfile(await saveRow(admin, authUser.id, { experience })) };
 });
 
+
+/* ------------------------------------------- employer discovery (§3.4) --- */
+
+/**
+ * The two reads below are the employer's, not the candidate's, and they serve
+ * the `candidateCards` shape rather than `toProfile`: evidence of work, with no
+ * summary, salary expectation, education, CV or contact details. See
+ * `_shared/candidates.ts` for what is deliberately left out.
+ *
+ * Both require the caller to belong to an organization. Discovery is an
+ * employer capability, and in the prototype it was open to anyone signed in —
+ * a candidate could list every other candidate. Membership is the closest
+ * honest test of "is an employer": `activeRole` is a UI preference the account
+ * sets for itself, so it decides which experience to render, never what may be
+ * read.
+ */
+async function requireEmployer(admin: ReturnType<typeof adminClient>, req: Request) {
+  const authUser = await requireUser(req);
+  const ids = await membershipIds(admin, authUser.id);
+  if (!ids.length) throw forbidden('Candidate discovery is for employers.');
+  return authUser;
+}
+
+// GET /candidates — discovery, strongest first.
+route('GET', '/candidates', async (req) => {
+  const url = new URL(req.url);
+  const search = String(url.searchParams.get('search') ?? '').trim().toLowerCase();
+  const skill = String(url.searchParams.get('skill') ?? '').trim().toLowerCase();
+
+  const admin = adminClient();
+  const authUser = await requireEmployer(admin, req);
+
+  const { data, error } = await admin.from('candidate_profiles').select('user_id');
+  if (error) {
+    console.error('[candidates] discovery failed:', error.message);
+    throw serverError();
+  }
+
+  // The caller is excluded: an employer who also job-hunts should not meet
+  // themselves in their own shortlist, which is what the mock does too.
+  const ids = ((data ?? []) as { user_id: string }[])
+    .map((r) => r.user_id)
+    .filter((id) => id !== authUser.id);
+
+  const cards = [...(await candidateCards(admin, ids)).values()];
+
+  // Filtered here rather than in the query: `search` spans a name from another
+  // table and a jsonb array of skills, so one SQL predicate could not express
+  // it without a view. The pool is small; when it is not, this becomes a
+  // text-search column and a `skills` GIN index.
+  const matches = cards.filter((card) => {
+    if (skill) {
+      const held = (card.skills as { name: string }[]).some(
+        (s) => String(s.name).toLowerCase() === skill,
+      );
+      if (!held) return false;
+    }
+    if (search) {
+      const haystack = [
+        card.name,
+        card.headline,
+        card.location,
+        ...(card.skills as { name: string }[]).map((s) => s.name),
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  matches.sort((a, b) => Number(b.matchScore) - Number(a.matchScore));
+  return { body: matches };
+});
+
+// GET /candidates/:id — one card. Registered after /candidates/me, which is
+// also two segments and has to match first.
+route('GET', '/candidates/:id', async (req, params) => {
+  const admin = adminClient();
+  await requireEmployer(admin, req);
+  const card = await candidateCard(admin, params.id);
+  if (!card) throw notFound('That candidate is no longer listed.');
+  return { body: card };
+});
