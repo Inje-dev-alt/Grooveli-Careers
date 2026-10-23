@@ -33,6 +33,24 @@ import { resolveProgression, careerTitleForLevel } from '../utils/progression.js
 const EMPTY = { xp: 0, reputation: 0 };
 const LEDGER_LIMIT = 60;
 
+/**
+ * What a progression reply actually awarded, which is nothing unless it applied.
+ *
+ * `status` is the only trustworthy signal here, so it is read rather than the
+ * amounts. An early version of `apply_career_event` reported the *original*
+ * award on a replay — meaning a repeated skill challenge came back as
+ * `xpAwarded: 100` having paid nothing, and the toast said "+100 XP" for XP
+ * nobody earned. The server was fixed, but deriving the award from the status
+ * costs nothing and means this store cannot be lied to by a deployment that
+ * predates the fix, or by whatever the next such field turns out to mean.
+ *
+ * Totals were never at risk: they come from `progress` in the same reply.
+ */
+function awardOf(result) {
+  if (result?.status !== 'applied') return { xp: 0, reputation: 0 };
+  return { xp: result.xpAwarded ?? 0, reputation: result.reputationAwarded ?? 0 };
+}
+
 export const useCareerStore = create((set, get) => ({
   xp: 0,
   reputation: 0,
@@ -123,9 +141,10 @@ export const useCareerStore = create((set, get) => ({
     get().absorb(result, { event, label: options.label });
 
     const after = resolveProgression(get().xp);
+    const awarded = awardOf(result);
     return {
-      xp: result.xpAwarded ?? 0,
-      reputation: result.reputationAwarded ?? 0,
+      xp: awarded.xp,
+      reputation: awarded.reputation,
       levelledUp: after.level > before.level,
       level: after.level,
       status: result.status,
@@ -134,7 +153,7 @@ export const useCareerStore = create((set, get) => ({
       reason:
         result.status !== 'applied'
           ? 'already-counted'
-          : (result.xpAwarded ?? 0) === 0
+          : awarded.xp === 0
             ? 'no-xp-for-event'
             : undefined,
     };
@@ -162,7 +181,7 @@ export const useCareerStore = create((set, get) => ({
    */
   absorb: (result, meta) => {
     const progress = result?.progress;
-    const xpAwarded = result?.xpAwarded ?? 0;
+    const xpAwarded = awardOf(result).xp;
     const applied = result?.status === 'applied';
 
     set((state) => {

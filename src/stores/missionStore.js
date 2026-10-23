@@ -143,10 +143,15 @@ export const useMissionStore = create((set, get) => ({
             event: CAREER_EVENTS.MISSION_COMPLETED,
             label: `Mission complete - ${entry.mission.title}`,
           });
+          const applied = result.status === 'applied';
           return {
             ...entry,
-            justCompleted: result.status === 'applied',
-            xpAwarded: result.xpAwarded ?? 0,
+            justCompleted: applied,
+            // Read from the status, not the amount: a replay reports what the
+            // mission was once worth on some server versions, and a toast
+            // claiming XP nobody just earned is worse than no toast. See
+            // `awardOf` in careerStore.js.
+            xpAwarded: applied ? result.xpAwarded ?? 0 : 0,
             awardedAchievements: result.awardedAchievements ?? [],
           };
         } catch (error) {
