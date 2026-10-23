@@ -236,6 +236,11 @@
  * @property {string} [hint]
  * @property {string} event           the career event that completes this objective
  * @property {number} target
+ * @property {{ key: string, value: string } | null} [context]
+ *           which event of that type counts. Null or absent means any one does.
+ *           Four skill missions listen for `skill.challenge` and each names its
+ *           own skill this way; shaped and matched exactly like an
+ *           Achievement's `context`.
  * @property {string} [actionLabel]
  * @property {string} [actionRoute]
  */

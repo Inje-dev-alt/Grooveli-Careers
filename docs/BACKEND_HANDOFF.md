@@ -780,6 +780,51 @@ and `completed` cannot be asserted through it. **Completion** is re-derived —
 was not done. The reply carries `progress`, the same shape `/career/events`
 returns, so the client sets totals from it rather than doing arithmetic.
 
+#### An objective can name *which* event satisfies it
+
+`mission_objectives` carries a nullable `context_key`/`context_value` pair,
+shaped and matched exactly like the one on `achievements`:
+
+```json
+{ "id": "obj-excel-challenge", "label": "Complete the Excel challenge",
+  "event": "skill.challenge", "target": 1,
+  "context": { "key": "skill", "value": "Excel" } }
+```
+
+Completion counts **per objective, not per event name**. An objective with a
+key counts only events whose recorded `context` matches it; a null key counts
+every event of that type, which is what a deliberately generic objective asks
+for ("Pass a skill mission", "Apply to three suitable jobs").
+
+This exists because four skill missions each ask for `skill.challenge` × 1 and
+nothing named the skill, so one passed challenge satisfied all four and paid
+400 XP. The live smoke test claimed 4 of 4 from 2 challenges. The *achievement*
+for Excel was always correct because `achievements` already had these columns;
+the mission was not because `mission_objectives` did not.
+
+**One known gap, deliberately left open.** The ten `msn-path-*` interview
+objectives each name a career path ("Complete a Human Resources interview
+simulation") and share `interview.simulated` the same way, and are **not**
+keyed. Keying them would bind `/interviews/*`, which does not exist yet, so:
+
+> **Contract for whoever builds `/interviews/*` (step 11).** A passed
+> simulation must record `interview.simulated` with `context.pathId` set to the
+> candidate's **explicit** `candidate_profiles.career_path_id` — the same value
+> that gates which path missions the account is served, not a path inferred
+> from interests or skills, and not a path the client nominated. Once that
+> holds, key the ten objectives on `pathId` and the gap closes. Keying them
+> before it holds makes ten objectives quietly impossible, which is a worse
+> failure than the one being fixed.
+
+The exposure meanwhile is small: an account is only served a path's mission if
+it is already on that path, so the most that can be gained is satisfying your
+own path's interview objective with a simulation nominated for another, which
+the interface offers no way to do.
+
+`scripts/verify-missions-seed.mjs` prints every event shared by objectives that
+are not all discriminated, so a new ambiguity shows up as a line in its output
+rather than as XP nobody earned.
+
 `POST /missions/:id/attempt` is the one gap: grading a skill challenge is the AI
 service's job (§6), and a stub that invented a score would be worse than a 404.
 

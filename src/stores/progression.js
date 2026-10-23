@@ -85,7 +85,9 @@ export async function recordCareerEvent(event, options = {}) {
   // Nothing was recorded, so nothing downstream can have advanced either.
   if (result.status === 'failed') return { ...result, missions: [] };
 
-  const touched = await useMissionStore.getState().advanceByEvent(event);
+  // The context goes with the event: it decides which objectives listening for
+  // it actually advance, the same way it decides what the award is keyed on.
+  const touched = await useMissionStore.getState().advanceByEvent(event, 1, options.context ?? {});
 
   touched
     .filter((t) => t.justCompleted)

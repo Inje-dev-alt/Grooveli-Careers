@@ -15,8 +15,16 @@ const sqlPath = new URL(
   '../supabase/migrations/20261023120000_missions.sql',
   import.meta.url,
 );
+// Objective context arrived in a later migration, as an ALTER plus four
+// UPDATEs, so the discriminators are not in the seed INSERT and have to be
+// checked against that file instead.
+const contextSqlPath = new URL(
+  '../supabase/migrations/20261023140000_mission_objective_context.sql',
+  import.meta.url,
+);
 const { missions } = await import(mockPath.href);
 const sql = readFileSync(sqlPath, 'utf8');
+const contextSql = readFileSync(contextSqlPath, 'utf8');
 
 const problems = [];
 const note = (m) => problems.push(m);
@@ -119,6 +127,27 @@ for (const m of missions) {
         note(`${o.id}: mock has no hint; SQL tuple should pass null`);
       }
     }
+
+    /* The discriminator, from the later migration. Both directions: a mock
+       objective that names a skill must be keyed in SQL, and an objective keyed
+       in SQL must say so in the mock - a drift either way is a mission that
+       counts the wrong work. */
+    const update = new RegExp(
+      `set context_key = '([^']*)', context_value = '([^']*)'\\s*\\n\\s*where id = ${lit(o.id)};`,
+    ).exec(contextSql);
+
+    if (o.context && !update) {
+      note(`${o.id}: mock keys on ${o.context.key}=${o.context.value}; no UPDATE in SQL`);
+    } else if (!o.context && update) {
+      note(`${o.id}: SQL keys on ${update[1]}=${update[2]}; mock has no context`);
+    } else if (o.context && update) {
+      if (update[1] !== o.context.key || update[2] !== o.context.value) {
+        note(
+          `${o.id}: context mismatch - mock ${o.context.key}=${o.context.value}, ` +
+            `SQL ${update[1]}=${update[2]}`,
+        );
+      }
+    }
   }
 }
 
@@ -135,6 +164,26 @@ const noReward = missions.filter((m) => !m.reward).map((m) => m.id);
 const noHint = missions.flatMap((m) => m.objectives.filter((o) => !o.hint).map((o) => o.id));
 console.log(`missions with no reward: ${noReward.join(', ') || 'none'}`);
 console.log(`objectives with no hint: ${noHint.join(', ') || 'none'}`);
+
+const keyed = missions.flatMap((m) =>
+  m.objectives.filter((o) => o.context).map((o) => `${o.id}=${o.context.value}`),
+);
+console.log(`objectives keyed to a context: ${keyed.join(', ') || 'none'}`);
+
+/* Any event shared by objectives that are not all discriminated is a mission
+   that can be satisfied by another mission's work. Reported rather than failed:
+   plenty of shared events are deliberate ("Apply to three suitable jobs"), so
+   this is a list to read, not a rule to enforce. */
+const byEvent = {};
+missions.forEach((m) =>
+  m.objectives.forEach((o) => {
+    (byEvent[o.event] = byEvent[o.event] ?? []).push(o);
+  }),
+);
+const ambiguous = Object.entries(byEvent)
+  .filter(([, list]) => list.length > 1 && list.some((o) => !o.context))
+  .map(([event, list]) => `${event} (${list.filter((o) => !o.context).length}/${list.length} unkeyed)`);
+console.log(`shared events with undiscriminated objectives: ${ambiguous.join(', ') || 'none'}`);
 
 if (problems.length) {
   console.log(`\n${problems.length} PROBLEM(S):`);

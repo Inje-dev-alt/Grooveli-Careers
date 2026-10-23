@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as missionService from '../services/missionService.js';
 import { useCareerStore } from './careerStore.js';
-import { CAREER_EVENTS } from '../utils/careerEvents.js';
+import { CAREER_EVENTS, contextSatisfies } from '../utils/careerEvents.js';
 
 /**
  * Mission state.
@@ -78,19 +78,28 @@ export const useMissionStore = create((set, get) => ({
    * checked against the events the backend holds, so a mission asked for before
    * its event has landed is refused.
    *
+   * `context` is the event's own context, and it decides *which* objectives
+   * listening for that event advance. Four skill missions listen for
+   * `skill.challenge` and each names its own skill, so without it one pass
+   * would draw a full bar on all four and the server would then refuse three —
+   * visible as three missions completing and un-completing.
+   *
    * @param {string} event
    * @param {number} [amount]
+   * @param {Record<string, unknown>} [context]
    * @returns {Promise<{ mission: import('../models/index.js').Mission,
    *   justCompleted: boolean, xpAwarded?: number, awardedAchievements?: object[],
    *   outstanding?: object[] }[]>}
    */
-  advanceByEvent: async (event, amount = 1) => {
+  advanceByEvent: async (event, amount = 1, context = {}) => {
     const { missions, progress } = get();
     const touched = [];
     const nextProgress = { ...progress };
 
     missions.forEach((mission) => {
-      const listening = mission.objectives.filter((o) => o.event === event);
+      const listening = mission.objectives.filter(
+        (o) => o.event === event && contextSatisfies(o.context, context),
+      );
       if (listening.length === 0) return;
 
       const current = nextProgress[mission.id] ?? {
@@ -220,7 +229,10 @@ export const useMissionStore = create((set, get) => ({
     const mission = get().missions.find((m) => m.id === missionId);
     const objective = mission?.objectives.find((o) => o.id === objectiveId);
     if (!objective) return Promise.resolve([]);
-    return get().advanceByEvent(objective.event, objective.target);
+    // Its own context, or an objective carrying a discriminator would filter
+    // itself out of the advance it just asked for.
+    const context = objective.context ? { [objective.context.key]: objective.context.value } : {};
+    return get().advanceByEvent(objective.event, objective.target, context);
   },
 }));
 

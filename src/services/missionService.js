@@ -20,7 +20,7 @@ import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { signedInCareerPathId } from './candidateService.js';
 import { mockApplyEvent, mockRecordedEvents } from './careerService.js';
-import { CAREER_EVENTS } from '../utils/careerEvents.js';
+import { CAREER_EVENTS, contextSatisfies } from '../utils/careerEvents.js';
 
 /** @returns {Promise<import('../models/index.js').Mission[]>} */
 export function listMissions(filters = {}) {
@@ -167,22 +167,29 @@ async function mockCompleteMission(missionId) {
   }
 
   // Count the events the backend itself recorded, not the progress the browser
-  // reported. Counting rows per event name gives "three *distinct* suitable
-  // applications" rather than three clicks, because each one was keyed on the
-  // application it was about.
-  const counts = new Map();
-  mockRecordedEvents().forEach((row) => {
-    counts.set(row.event, (counts.get(row.event) ?? 0) + 1);
-  });
-
+  // reported. Counting rows gives "three *distinct* suitable applications"
+  // rather than three clicks, because each one was keyed on the application it
+  // was about.
+  //
+  // Counted per objective, not per event name: two objectives can listen for
+  // the same event and want different things, so an objective carrying a
+  // `context` only counts events whose recorded context matches it.
+  const recorded = mockRecordedEvents();
   const outstanding = mission.objectives
-    .map((objective) => ({
-      id: objective.id,
-      label: objective.label,
-      event: objective.event,
-      target: objective.target,
-      done: Math.min(objective.target, counts.get(objective.event) ?? 0),
-    }))
+    .map((objective) => {
+      const done = recorded.filter(
+        (row) =>
+          row.event === objective.event &&
+          contextSatisfies(objective.context, row.context),
+      ).length;
+      return {
+        id: objective.id,
+        label: objective.label,
+        event: objective.event,
+        target: objective.target,
+        done: Math.min(objective.target, done),
+      };
+    })
     .filter((objective) => objective.done < objective.target);
 
   if (outstanding.length) {

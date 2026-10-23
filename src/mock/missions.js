@@ -120,6 +120,9 @@ export const missions = [
         hint: 'Three tasks, roughly fifteen minutes.',
         event: CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
         target: 1,
+        // Which challenge this is. Four skill missions listen for the same
+        // event, so without this one pass would satisfy all four.
+        context: { key: 'skill', value: 'Excel' },
         actionLabel: 'Start challenge',
       },
     ],
@@ -141,6 +144,9 @@ export const missions = [
         label: 'Complete the AI communication exercise',
         event: CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
         target: 1,
+        // Which challenge this is. Four skill missions listen for the same
+        // event, so without this one pass would satisfy all four.
+        context: { key: 'skill', value: 'Communication' },
         actionLabel: 'Start exercise',
       },
     ],
@@ -185,6 +191,9 @@ export const missions = [
         label: 'Evaluate the candidate shortlist',
         event: CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
         target: 1,
+        // Which challenge this is. Four skill missions listen for the same
+        // event, so without this one pass would satisfy all four.
+        context: { key: 'skill', value: 'Recruitment' },
         actionLabel: 'Start evaluation',
       },
     ],
@@ -206,6 +215,9 @@ export const missions = [
         label: 'Handle the simulated customer conversation',
         event: CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
         target: 1,
+        // Which challenge this is. Four skill missions listen for the same
+        // event, so without this one pass would satisfy all four.
+        context: { key: 'skill', value: 'Sales' },
         actionLabel: 'Start simulation',
       },
     ],

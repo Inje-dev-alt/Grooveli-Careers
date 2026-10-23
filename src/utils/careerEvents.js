@@ -201,6 +201,26 @@ export const STAT_FOR_EVENT = {
 };
 
 /**
+ * Does a career event's context satisfy the `{ key, value }` an objective or an
+ * achievement demands?
+ *
+ * Mirrors `contextMatches` in `_shared/progression.ts`, including the
+ * trim-and-lowercase comparison, so the browser's projection advances exactly
+ * the objectives the server will agree advanced. A null requirement matches
+ * anything, which is how a deliberately generic objective ("Pass a skill
+ * mission") stays generic.
+ *
+ * @param {{ key: string, value: string } | null | undefined} wanted
+ * @param {Record<string, unknown> | null | undefined} context
+ */
+export function contextSatisfies(wanted, context) {
+  if (!wanted?.key) return true;
+  if (!context) return false;
+  const normalise = (value) => String(value ?? '').trim().toLowerCase();
+  return normalise(context[wanted.key]) === normalise(wanted.value);
+}
+
+/**
  * A job has to be a plausible fit before an application counts as career
  * progress. The backend's matching service owns the real threshold; the
  * frontend mirrors it so the UI can explain itself before the user applies.

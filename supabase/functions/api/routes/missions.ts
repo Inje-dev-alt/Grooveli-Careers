@@ -43,7 +43,15 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0
 
 /* ----------------------------------------------------------- shaping --- */
 
-/** `mission_objectives` row to the MissionObjective the detail panel renders. */
+/**
+ * `mission_objectives` row to the MissionObjective the detail panel renders.
+ *
+ * `context` is shaped like the one on an achievement (`{ key, value }` or null)
+ * because it means the same thing and is matched by the same function. The
+ * client needs it so its local projection advances the objective the event was
+ * actually about — without it, one skill challenge would draw a full bar on all
+ * four skill missions before the server refused three of them.
+ */
 function toObjective(row: Row) {
   return {
     id: row.id,
@@ -51,6 +59,9 @@ function toObjective(row: Row) {
     hint: row.hint ?? undefined,
     event: row.event,
     target: num(row.target) || 1,
+    context: row.context_key
+      ? { key: String(row.context_key), value: String(row.context_value) }
+      : null,
     actionLabel: row.action_label ?? undefined,
     actionRoute: row.action_route ?? undefined,
   };
@@ -144,31 +155,48 @@ async function objectivesFor(admin: Admin, missionIds: string[]) {
 }
 
 /**
- * How many times each of `events` has been recorded for this account.
+ * How many times this account has done the thing each objective names.
  *
  * This is what makes completion unforgeable: the counts come from
  * `career_events`, which only `POST /career/events` writes and which is keyed
  * so that one application, one course or one district counts once (see
- * NATURAL_KEY in routes/career.ts). Counting rows per event name therefore
- * gives "three *distinct* suitable applications", not three clicks.
+ * NATURAL_KEY in routes/career.ts). Counting rows therefore gives "three
+ * *distinct* suitable applications", not three clicks.
+ *
+ * Counted per objective rather than per event name, because two objectives can
+ * listen for the same event and want different things — four skill missions
+ * share `skill.challenge` and each names its own skill. An objective with a
+ * `context_key` only counts events whose recorded context matches it, which is
+ * what stops one passed challenge from satisfying all four. A null key counts
+ * every event of that type, which is what `obj-sharpen` ("Pass a skill
+ * mission") and `obj-apply` ("Apply to three suitable jobs") ask for.
  *
  * The count spans the account's whole history on purpose. An objective asks
  * "have you done this?", and the honest answer does not depend on whether the
  * mission happened to be on screen at the time.
  */
-async function eventCounts(admin: Admin, userId: string, events: string[]) {
+async function objectiveCounts(admin: Admin, userId: string, objectives: Row[]) {
   const counts = new Map<string, number>();
-  if (!events.length) return counts;
+  if (!objectives.length) return counts;
 
+  const events = [...new Set(objectives.map((o) => String(o.event)))];
   const { data } = await admin
     .from('career_events')
-    .select('event')
+    .select('event, context')
     .eq('user_id', userId)
     .in('event', events);
 
-  for (const row of (data ?? []) as Row[]) {
-    const key = String(row.event);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+  const rows = (data ?? []) as Row[];
+  for (const objective of objectives) {
+    const event = String(objective.event);
+    const key = objective.context_key ? String(objective.context_key) : null;
+    const value = objective.context_value ? String(objective.context_value) : null;
+    const n = rows.filter(
+      (row) =>
+        String(row.event) === event &&
+        contextMatches(key, value, (row.context ?? {}) as Record<string, unknown>),
+    ).length;
+    counts.set(String(objective.id), n);
   }
   return counts;
 }
@@ -409,11 +437,7 @@ route('POST', '/missions/:id/complete', async (req, params) => {
   }
 
   // Re-derive the objectives from the events the server recorded.
-  const counts = await eventCounts(
-    admin,
-    authUser.id,
-    [...new Set(objectives.map((o) => String(o.event)))],
-  );
+  const counts = await objectiveCounts(admin, authUser.id, objectives);
 
   const outstanding = objectives
     .map((o) => ({
@@ -421,7 +445,7 @@ route('POST', '/missions/:id/complete', async (req, params) => {
       label: String(o.label),
       event: String(o.event),
       target: num(o.target) || 1,
-      done: Math.min(num(o.target) || 1, counts.get(String(o.event)) ?? 0),
+      done: Math.min(num(o.target) || 1, counts.get(String(o.id)) ?? 0),
     }))
     .filter((o) => o.done < o.target);
 
