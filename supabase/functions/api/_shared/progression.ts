@@ -215,6 +215,35 @@ export function careerTitleForLevel(level: number): string {
   return 'Newcomer';
 }
 
+/**
+ * A `career_progress` row as the CareerProgress JSON the HUD renders.
+ *
+ * Shared rather than private to routes/career.ts because two endpoints return
+ * a progress total — `POST /career/events` and `POST /missions/:id/complete` —
+ * and they must return the same shape. The client sets its XP from whichever
+ * replies, so a field present in one and absent from the other would read as
+ * progression that moved on one path and not the other.
+ *
+ * A missing row is not an error: progression is created on the first event,
+ * never handed out at registration, so a new account reads as a clean level 1.
+ */
+export function toProgress(row: Record<string, unknown> | null) {
+  const xp = typeof row?.xp === 'number' && Number.isFinite(row.xp) ? row.xp : 0;
+  const reputation =
+    typeof row?.reputation === 'number' && Number.isFinite(row.reputation) ? row.reputation : 0;
+  const { level, xpIntoLevel, xpForNextLevel, progress } = resolveProgression(xp);
+  return {
+    xp,
+    level,
+    reputation,
+    title: careerTitleForLevel(level),
+    xpIntoLevel,
+    xpForNextLevel,
+    progress,
+    updatedAt: row?.updated_at ?? null,
+  };
+}
+
 /** Does this event carry the context an achievement demands? */
 export function contextMatches(
   key: string | null,

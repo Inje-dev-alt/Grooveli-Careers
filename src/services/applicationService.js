@@ -161,6 +161,15 @@ function simulateStep(application) {
   }
 }
 
+/**
+ * The two career statistics no career event advances.
+ *
+ * `interviews` and `offers` move on application *stage* transitions, which the
+ * pipeline drives — not on anything a candidate's browser can fire. They are
+ * therefore deliberately absent from `STAT_FOR_EVENT`, and written here, where
+ * the stage changes. On the real backend the pipeline does the same thing in
+ * the same place; this is not a client-side counter standing in for one.
+ */
 function bumpStatQuiet(key) {
   const id = currentUserId();
   if (!id) return;

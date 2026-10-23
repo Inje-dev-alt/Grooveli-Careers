@@ -51,10 +51,11 @@ export default function Network() {
   const visible = tab === 'all' ? posts : posts.filter((p) => p.type === tab);
 
   const handleConnect = async (person) => {
-    await connect(person.id);
+    const connection = await connect(person.id);
     recordCareerEvent(CAREER_EVENTS.CONNECTION_MADE, {
       label: `Connected with ${person.name}`,
       silent: true,
+      context: { connectionId: connection.id },
     });
     pushToast({ title: `Connection request sent to ${person.name}`, tone: 'success' });
   };

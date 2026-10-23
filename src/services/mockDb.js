@@ -46,8 +46,17 @@ export const db = {
   achievements: { 'usr-001': clone(seededAchievementIds) },
   /** How many times each achievement's trigger has fired, by user id. */
   achievementProgress: clone(seededAchievementProgress),
-  /** Events that may only ever count once, by user id. Guards XP across reloads. */
-  oneTimeEvents: {},
+  /**
+   * Every career event ever recorded, by user id.
+   *
+   * The ledger of record, and what makes the mock behave like the endpoint it
+   * stands in for. Each row carries the idempotency key the event was awarded
+   * under, so a repeat is recognised rather than paid, and mission completion
+   * can be re-derived from events instead of trusted from the browser. It
+   * replaces the `oneTimeEvents` array, which was a second source of truth for
+   * a question these rows already answer.
+   */
+  careerEvents: {},
   /** The XP ledger - every award with its reason, by user id. */
   xpLedger: {},
   /** Career activity stream by user id. */
@@ -138,7 +147,7 @@ export function toPublicUser(account) {
  * with this file when the real API lands.
  */
 const SNAPSHOT_KEY = 'grooveli:mock-db';
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
 
 /**
  * `currentUserId` is deliberately excluded: who is signed in belongs to the
@@ -155,8 +164,12 @@ function restore() {
     const raw = window.localStorage.getItem(SNAPSHOT_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    // Version bump: the v1 shape keyed saves globally and split applications
-    // into two tables. Stale snapshots start clean rather than hydrate wrong.
+    // Version bump: v1 keyed saves globally and split applications into two
+    // tables; v2 tracked one-shot events in their own array and stored a career
+    // `level` alongside the XP it is derived from. A v2 snapshot has XP totals
+    // with no events behind them, so restoring one would let every one-shot
+    // award be claimed a second time. Stale snapshots start clean rather than
+    // hydrate wrong.
     if (parsed?.version !== SNAPSHOT_VERSION) return;
     const { currentUserId, ...data } = parsed.data ?? {};
     Object.assign(db, data);

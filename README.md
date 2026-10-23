@@ -12,10 +12,13 @@ AI. Every mechanic connects to a career outcome — walking into the Technology
 Hub opens the roles actually open there, and XP comes from finishing a profile or
 passing a skill assessment, never from time spent in the product.
 
-This is the **frontend prototype**. There is no backend. Every data path runs
-through a service layer backed by realistic mock data, written so the mocks can
-be swapped for real endpoints without touching a component. See
-[`docs/BACKEND_HANDOFF.md`](docs/BACKEND_HANDOFF.md).
+Every data path runs through a service layer written as "the real endpoint, or
+the mock", so a surface can be switched on without touching a component.
+Identity, jobs, candidates, applications, career progression and missions are
+**live** on Supabase; organizations, social, learning, interviews, the
+leaderboard, notifications and AI are still **mocked**. The defaults run
+entirely on mocks, so the whole product can be demonstrated with no backend at
+all. See [`docs/BACKEND_HANDOFF.md`](docs/BACKEND_HANDOFF.md).
 
 ---
 
@@ -91,8 +94,9 @@ career activity stream.
 **Career progression.** XP, levels, missions whose objectives listen for career
 events, achievements **counted** against their stated conditions (five district
 visits, the *Excel* challenge specifically), and reputation as a separate
-number. One-shot awards are persisted per account, so a reload cannot replay
-them, and every award lands in a stored XP ledger with its reason.
+number. Every award lands in an XP ledger with its reason. **The server decides
+what everything is worth** — the browser sends what happened and reads back the
+consequences, so no code path in the interface can increase XP.
 
 **The living pipeline.** Applications on mock jobs advance on their own —
 review, then shortlist or rejection-with-feedback, then interview, then an
@@ -216,6 +220,15 @@ Everything that matters calls one function, `recordCareerEvent`, which fans the
 event out to XP, reputation, missions, achievements, the activity stream and
 notices. No screen awards XP directly.
 
+It is also the only thing that *can*. `recordCareerEvent` sends the event and
+the thing it was about — `{ event: 'skill.challenge', context: { skill: 'Excel' } }` —
+and copies the totals out of the reply. The award is keyed on that context, so
+the database enforces one per application, per course, per skill, per district
+rather than one per click, and a mission's reward is read from its own row only
+after the server has recounted the objectives against the events it recorded.
+The tables in `src/utils/careerEvents.js` are a mirror of the server's, kept so
+the interface can say what something is worth before you do it.
+
 ### XP is earned; reputation is proved
 
 | Activity | XP |
@@ -246,7 +259,7 @@ progression; reputation is credibility.
 | `authStore` | Session, roles, active role, onboarding gates |
 | `onboardingStore` | The onboarding draft (a form, not career data) |
 | `playerStore` | Position, facing, animation, nearby/active location |
-| `careerStore` | XP, reputation, the XP ledger |
+| `careerStore` | XP, reputation, the XP ledger — all as the server last reported them |
 | `missionStore` | Mission definitions and objective progress |
 | `jobStore` | The search query, saved jobs, applications |
 | `socialStore` | Feed, likes, connections, follows |

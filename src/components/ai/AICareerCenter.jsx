@@ -165,7 +165,13 @@ export function AICareerCenter({ initialIntent, embedded = false }) {
           // earns nothing but the feedback - attempts are not held against you.
           recordCareerEvent(CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED, {
             label: `Interview simulation passed - ${result.score}%`,
-            context: { score: result.score, pathId: interview.attempt.pathId, attemptId: interview.attempt.id },
+            // `simulationId` is what the 100 XP is keyed on: one award per
+            // attempt, so re-reading a passed attempt cannot pay again.
+            context: {
+              simulationId: interview.attempt.id,
+              score: result.score,
+              pathId: interview.attempt.pathId,
+            },
           });
           applicationService
             .recordInterviewSimulation({

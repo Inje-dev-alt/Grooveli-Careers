@@ -42,6 +42,9 @@ export function LocationPanel({ location }) {
       recordCareerEvent(CAREER_EVENTS.LOCATION_VISITED, {
         label: `Visited ${location.name}`,
         silent: true,
+        // Keyed on the district, which is what makes Career Explorer "visit
+        // five districts" rather than "visit one district five times".
+        context: { location: location.id },
       });
     }
 

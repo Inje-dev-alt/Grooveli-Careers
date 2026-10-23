@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as missionService from '../services/missionService.js';
 import { useCareerStore } from './careerStore.js';
+import { CAREER_EVENTS } from '../utils/careerEvents.js';
 
 /**
  * Mission state.
@@ -13,6 +14,21 @@ import { useCareerStore } from './careerStore.js';
  * Progress comes from the service too, so it belongs to the account rather than
  * to the browser: switching accounts must not inherit a stranger's half-finished
  * missions.
+ *
+ * ## What this store no longer does
+ *
+ * `advanceByEvent` used to award the mission's XP itself — it read
+ * `mission.xpReward` from the catalog it had been served and passed it to
+ * `careerStore.awardMissionXp`. Both halves of that were wrong: the number came
+ * from data the browser was holding, and the award happened whether or not the
+ * backend agreed the mission was finished.
+ *
+ * Now the local counts are a **projection**, kept so a part-finished mission
+ * draws correctly and survives a reload, and completion is a request. The
+ * backend recounts the objectives against the career events it recorded, pays
+ * the reward from its own catalog row, and answers with the new totals. If it
+ * disagrees — the projection ran ahead, or the events were never recorded — it
+ * answers 409 and the mission is put back the way the backend sees it.
  */
 export const useMissionStore = create((set, get) => ({
   /** @type {import('../models/index.js').Mission[]} */
@@ -55,13 +71,20 @@ export const useMissionStore = create((set, get) => ({
     get().completedObjectiveCount(mission) === mission.objectives.length,
 
   /**
-   * Advance every objective across every mission that listens for `event`.
+   * Advance every objective across every mission that listens for `event`, and
+   * ask the backend to pay anything that finished.
+   *
+   * Call this *after* the career event itself has been recorded: completion is
+   * checked against the events the backend holds, so a mission asked for before
+   * its event has landed is refused.
    *
    * @param {string} event
    * @param {number} [amount]
-   * @returns {{ mission: import('../models/index.js').Mission, justCompleted: boolean }[]}
+   * @returns {Promise<{ mission: import('../models/index.js').Mission,
+   *   justCompleted: boolean, xpAwarded?: number, awardedAchievements?: object[],
+   *   outstanding?: object[] }[]>}
    */
-  advanceByEvent: (event, amount = 1) => {
+  advanceByEvent: async (event, amount = 1) => {
     const { missions, progress } = get();
     const touched = [];
     const nextProgress = { ...progress };
@@ -104,24 +127,94 @@ export const useMissionStore = create((set, get) => ({
     set({ progress: nextProgress });
     missionService.saveMissionProgress(nextProgress).catch(() => {});
 
-    // Completion is both an XP award and a write the backend needs to know about.
-    touched
-      .filter((t) => t.justCompleted)
-      .forEach(({ mission }) => {
-        useCareerStore.getState().awardMissionXp(mission.title, mission.xpReward);
-        missionService.completeMission(mission.id).catch(() => {
-          /* the local award stands; the backend reconciles on next load */
-        });
-      });
+    const finished = touched.filter((t) => t.justCompleted);
+    if (finished.length === 0) return touched;
 
-    return touched;
+    // One request per finished mission, because each is paid from its own
+    // catalog row. Settled rather than awaited in turn so one refusal does not
+    // hide another mission's award.
+    const paid = await Promise.all(
+      finished.map(async (entry) => {
+        try {
+          const result = await missionService.completeMission(entry.mission.id);
+          // The reward reaches the career store as the backend's own totals,
+          // through the same path a career event takes.
+          useCareerStore.getState().absorb(result, {
+            event: CAREER_EVENTS.MISSION_COMPLETED,
+            label: `Mission complete - ${entry.mission.title}`,
+          });
+          return {
+            ...entry,
+            justCompleted: result.status === 'applied',
+            xpAwarded: result.xpAwarded ?? 0,
+            awardedAchievements: result.awardedAchievements ?? [],
+          };
+        } catch (error) {
+          get().reconcile(entry.mission, error);
+          return { ...entry, justCompleted: false, outstanding: error.details?.outstanding };
+        }
+      }),
+    );
+
+    const byId = new Map(paid.map((entry) => [entry.mission.id, entry]));
+    return touched.map((entry) => byId.get(entry.mission.id) ?? entry);
   },
 
-  /** Directly mark one objective done — used by in-panel activities. */
+  /**
+   * Put a mission back the way the backend sees it after a refused completion.
+   *
+   * A 409 means the projection was ahead of the record — the objectives are not
+   * met by the events the backend holds. Leaving the mission marked complete
+   * would show a finished mission that was never paid, which is the one state
+   * worse than showing it unfinished. Any other failure (offline, 500) leaves
+   * the counts alone: the work was done, and the next load will reconcile.
+   */
+  reconcile: (mission, error) => {
+    if (error?.status !== 409) return;
+
+    const outstanding = error.details?.outstanding ?? [];
+    const byObjective = new Map(outstanding.map((o) => [o.id, o]));
+
+    set((state) => {
+      const current = state.progress[mission.id];
+      if (!current) return state;
+
+      const counts = { ...current.objectiveCounts };
+      mission.objectives.forEach((objective) => {
+        const told = byObjective.get(objective.id);
+        if (told) counts[objective.id] = told.done;
+      });
+
+      return {
+        progress: {
+          ...state.progress,
+          [mission.id]: {
+            ...current,
+            status: 'active',
+            objectiveCounts: counts,
+            completedAt: undefined,
+          },
+        },
+      };
+    });
+
+    missionService.saveMissionProgress(get().progress).catch(() => {});
+  },
+
+  /**
+   * Advance one objective to its target.
+   *
+   * It cannot *grant* an objective, whatever the name suggests, and has no
+   * callers today. All it moves is the local projection; the backend still
+   * recounts the objective against the career events it recorded, so calling
+   * this for work that was never done ends in a 409 and a rollback. Use it only
+   * to catch the projection up with an event that has already been recorded —
+   * and prefer `recordCareerEvent`, which does both in the right order.
+   */
   completeObjective: (missionId, objectiveId) => {
     const mission = get().missions.find((m) => m.id === missionId);
     const objective = mission?.objectives.find((o) => o.id === objectiveId);
-    if (!objective) return [];
+    if (!objective) return Promise.resolve([]);
     return get().advanceByEvent(objective.event, objective.target);
   },
 }));

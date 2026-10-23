@@ -35,7 +35,9 @@ export function CourseList() {
       if (!result.alreadyCompleted) {
         recordCareerEvent(CAREER_EVENTS.COURSE_COMPLETED, {
           label: `${course.title} completed`,
-          context: { course: course.id, skill: course.skill },
+          // `courseId` is what the award is keyed on, so the 200 XP lands once
+          // per course. It was `course` here, which the backend does not read.
+          context: { courseId: course.id, skill: course.skill },
         });
       }
     } catch (error) {

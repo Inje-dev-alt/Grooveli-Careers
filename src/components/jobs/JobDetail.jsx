@@ -52,8 +52,10 @@ export function JobDetail({ job, onBack }) {
 
   const handleApply = async () => {
     try {
-      await apply(job.id);
-      recordApplication(job);
+      // The application row is what the award is keyed on, so applying twice
+      // cannot earn twice. `apply` already returns it.
+      const application = await apply(job.id);
+      recordApplication(job, application.id);
       setConfirming(false);
       if (!suitable) {
         pushToast({

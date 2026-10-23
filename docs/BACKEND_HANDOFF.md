@@ -624,10 +624,17 @@ the 200 XP and the certification increment are not repeatable.
 
 ## 5. Endpoints
 
-Identity (`/auth/*`, `/users/me`), jobs (`/jobs*`), candidates
-(`/candidates/me*`) and applications (`/jobs/:id/apply`, `/applications*`)
-are **LIVE** on the Supabase `api` Edge Function (Phase 2, steps 1–4). The
-rest are **MOCKED**. "Mocked in" names the file to delete the branch from.
+**LIVE** on the Supabase `api` Edge Function: identity (`/auth/*`,
+`/users/me`), jobs (`/jobs*`), candidates (`/candidates/me*`), applications
+(`/jobs/:id/apply`, `/applications*`), career progression (`/career/*`) and
+missions (`/missions*`) — steps 1–7 below.
+
+**MOCKED**: organizations, social, learning, interviews, leaderboard,
+notifications and AI. "Mocked in" names the file to delete the branch from.
+
+Progression is the one surface where the frontend was changed as well as
+pointed at new endpoints, because the browser had been deciding what it earned.
+That work is described under **Career** and **Missions** and in §7.
 
 ### Jobs
 | Method | Path | Mocked in |
@@ -719,22 +726,66 @@ application status; `avgDaysInStage` averages days since `stageEnteredAt`
 60-79 | 80-100 | unscored` (unscored = no resolvable profile score). An empty
 pipeline returns zeros and the panel renders honest empty states.
 
-### Career
+### Career — **LIVE** (Batch 3.1)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/career/progress` | Live |
+| GET | `/career/stats` | Live |
+| GET | `/career/achievements` | Live |
+| GET | `/career/activity?limit=` | Live |
+| GET | `/career/ledger` | Live |
+| GET | `/career/one-time-events` | Live |
+| POST | `/career/events` | Live — the only progression write |
+
+**Six writes were removed, not migrated.** `PUT /career/progress`,
+`POST /career/ledger`, `POST /career/stats/increment`,
+`POST /career/achievements/evaluate`, `POST /career/one-time-events` and
+`POST /career/activity` each accepted a number from the browser, so a console
+could award itself any level and the ledger would corroborate it. They answer
+**410 `endpoint_retired`** with `details.replacedBy`, deliberately not 404,
+which would read as "not built yet".
+
+`POST /career/events` takes `{ event, context }` and nothing else. It replies
+with `status` (`applied` | `replayed` | `already_counted`), `xpAwarded`,
+`reputationAwarded`, `progress`, `stats` and `awardedAchievements` — everything
+a caller needs, so no screen makes a second request to find out what happened.
+
+**`context` is mandatory, and it is the anti-farming mechanism.** Each event is
+keyed on the thing it is *about*, so the unique index enforces one award per
+application, per course, per skill, per district rather than one per click. The
+field per event is `NATURAL_KEY` in `routes/career.ts`, mirrored as
+`EVENT_CONTEXT_KEY` in `src/utils/careerEvents.js`. An XP-bearing event that
+arrives without its field is a **400** naming the field — without that guard the
+key falls back to a fresh UUID and the award repeats on every request.
+
+`mission.completed` is refused here (400, `replacedBy`): a mission's reward is a
+property of its row, so it is paid by the mission endpoint, which checks the
+objectives first. Both paths derive the same key, so firing it twice awards once.
+
+### Missions — **LIVE** (Batch 3.2)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/missions`, `/missions/:id` | Live |
+| GET / PUT | `/missions/progress` | Live |
+| POST | `/missions/:id/complete` | Live |
+| POST | `/missions/:id/reminded` | Live |
+| POST | `/missions/:id/attempt` | **MOCKED** — `missionService.js`, needs the AI service |
+
+Three levels of trust, and the split is the point. The **catalog** is
+authoritative and owns `xp_reward`. **Progress** is advisory: written from the
+browser so part-finished objectives survive a reload, clamped to real targets,
+and `completed` cannot be asserted through it. **Completion** is re-derived —
+`POST /missions/:id/complete` recounts every objective against the account's own
+`career_events` rows and answers **409** with `details.outstanding` if the work
+was not done. The reply carries `progress`, the same shape `/career/events`
+returns, so the client sets totals from it rather than doing arithmetic.
+
+`POST /missions/:id/attempt` is the one gap: grading a skill challenge is the AI
+service's job (§6), and a stub that invented a score would be worse than a 404.
+
+### Learning
 | Method | Path | Mocked in |
 | --- | --- | --- |
-| GET | PUT | `/career/progress` | `careerService.js` |
-| GET | `/career/stats`, `POST /career/stats/increment` | `careerService.js` |
-| GET | `/career/achievements`, `POST /career/achievements/evaluate` | `careerService.js` |
-| GET | POST | `/career/activity` | `careerService.js` |
-| GET | POST | `/career/ledger` | `careerService.js` |
-| GET | POST | `/career/one-time-events` | `careerService.js` |
-| POST | `/career/events` (idempotent) | designed above, not yet mocked |
-### Missions and learning
-| Method | Path | Mocked in |
-| --- | --- | --- |
-| GET | `/missions`, `/missions/:id` | `missionService.js` |
-| GET / PUT | `/missions/progress` | `missionService.js` |
-| POST | `/missions/:id/complete`, `/missions/:id/attempt` | `missionService.js` |
 | GET | `/learning/courses`, `POST /learning/courses/:id/complete` | `learningService.js` |
 | GET | `/learning/enrollments`, `POST /learning/courses/:id/enrol` | `learningService.js` |
 | GET | `/users/me/notification-preferences`, `PUT /users/me/notification-preferences` | `missionService.js` |
@@ -818,9 +869,50 @@ a reload — otherwise the prototype cannot be demonstrated in one sitting. The
 snapshot is written by an observer registered on `withMock`, so no service has
 to remember to save.
 
-As of Phase 2 the live surfaces (identity, jobs, candidates, applications) no
-longer read `grooveli:mock-db` when mocks are off; every not-yet-migrated
-surface still does, so the snapshot stays until §11 step 8.
+As of Phase 2 the live surfaces (identity, jobs, candidates, applications,
+career, missions) no longer read `grooveli:mock-db` when mocks are off; every
+not-yet-migrated surface still does, so the snapshot stays until the last step
+of §11.
+
+### What the browser no longer decides (Batch 3.3)
+
+Progression used to be computed client-side and reported upward. `careerStore`
+held the XP table, added the reward to its own total, wrote the ledger row and
+sent the result to `PUT /career/progress`; `missionStore` read `xpReward` out of
+the mission catalog it had been served and paid it. The server wrote down
+whatever it was told, so a console could mint a career level and every number
+downstream — the badge, the ledger, the leaderboard — would agree with it.
+
+There is now no code path in the browser that increases XP. `careerStore.absorb`
+is the single place progression changes, and it only ever copies the totals out
+of a server reply. Three things follow that are worth knowing when reading the
+frontend:
+
+- **`recordCareerEvent` is async** and awaits the event before advancing
+  missions, because completion is re-derived from recorded events — a mission
+  asked for before its event has landed is refused. A toast therefore waits for
+  the round trip. That is deliberate: XP is a credential, and an optimistic
+  figure that gets corrected means sometimes showing one that was never earned.
+- **Zero-XP events moved from the ledger to the activity stream.** The browser
+  used to force a ledger row with `ledger: true` for things worth nothing that
+  the candidate still needs to see — an application below the match range, a
+  rejection, a declined offer. `apply_career_event` writes a ledger row only for
+  a non-zero award and an activity row for every event, so those now appear in
+  career activity. The ledger stays an answer to "why did my level move" rather
+  than a click log.
+- **One known cosmetic divergence.** A ledger row shows the screen's contextual
+  label for the rest of the session ("Applied for Senior Developer") but the
+  server stores the generic `EVENT_LABELS[event]`, so after a reload it reads
+  "Applied to a suitable role". Closing it means either accepting a display
+  string from the browser into a record of awards, or resolving the label from
+  the event's stored `context` server-side. The second is the better fix if the
+  ledger is ever shown to anyone but the candidate.
+
+`src/utils/careerEvents.js` still holds copies of the XP, reputation, one-shot,
+statistic and context-key tables. They are a **mirror**, kept so the interface
+can explain an award before it happens and so the mock can stand in for the
+server — not an authority. The server's copies are in
+`supabase/functions/api/_shared/progression.ts` and the two must not drift.
 
 ---
 
@@ -886,9 +978,9 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
 2. `GET /jobs`, `GET /jobs/:id` — the largest surface, easiest to verify. **Live.**
 3. `/candidates/me` and CV upload. **Live.**
 4. `POST /jobs/:id/apply`, `GET /applications`. **Live.**
-5. `/career/*` — XP stops being browser-local. **Batch 3.1, in progress.**
-6. `GET /missions` and mission progress. **Batch 3.2.**
-7. Frontend progression refactor — no new endpoints. **Batch 3.3.**
+5. `/career/*` — XP stops being browser-local. **Live.**
+6. `GET /missions` and mission progress. **Live.**
+7. Frontend progression refactor — no new endpoints. **Done** (§7).
 8. `/organizations/*` + candidate discovery — employer side becomes real, and
    `source: "grooveli_employer"` jobs start flowing into the same marketplace.
    **Batch 3.4.**
@@ -905,16 +997,18 @@ grew were missing from this list and existed only as mocked service calls:
 That is ~14 endpoints and 3–4 tables of work, now steps 10–12.
 
 Career progression moved ahead of the employer side because of a failure mode
-rather than a preference. `careerStore.hydrate()` swallows its fetch error in a
+rather than a preference. `careerStore.hydrate()` swallowed its fetch error in a
 `catch {}`, so with `VITE_USE_MOCKS=false` and no `/career/*` routes a signed-in
-user sees level 0, 0 XP and XP that silently vanishes on reload — no error
-message at all. Silent data loss costs more trust than a visible outage, so
-steps 5–7 are the minimum gate before any real cohort, candidate-only included.
+user saw level 0, 0 XP and XP that silently vanished on reload — no error
+message anywhere. Silent data loss costs more trust than a visible outage, so
+steps 5–7 were the gate before any real cohort, candidate-only included. They
+are done: the store now records the failure in `error` instead of swallowing it,
+and there is a live endpoint behind every progression read.
 
-Steps 5–7 together are what make a candidate-only launch defensible, with
-social, learning, leaderboard and interviews labelled "coming soon" rather
-than failing quietly. Step 8 is what lets employers onboard at all — until it
-lands the marketplace has only one side and no one can post a job.
+Steps 1–7 are what make a candidate-only launch defensible, with social,
+learning, leaderboard and interviews labelled "coming soon" rather than failing
+quietly. **Step 8 is now the gate**: until `/organizations/*` lands the
+marketplace has only one side and no one can post a job.
 
 # Batch 2 — Employer HQ, analytics and reminders (continuation)
 

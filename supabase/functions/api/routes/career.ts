@@ -31,10 +31,9 @@ import {
   STAT_FOR_EVENT,
   XP_REWARDS,
   type CareerEvent,
-  careerTitleForLevel,
   contextMatches,
   isCareerEvent,
-  resolveProgression,
+  toProgress,
 } from '../_shared/progression.ts';
 
 type Row = Record<string, unknown>;
@@ -46,26 +45,7 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0
 
 /* ----------------------------------------------------------- shaping --- */
 
-/**
- * `career_progress` row to the CareerProgress JSON the HUD renders.
- *
- * A missing row is not an error: progression is created on the first event,
- * never handed out at registration, so a new account reads as a clean level 1.
- */
-function toProgress(row: Row | null) {
-  const xp = num(row?.xp);
-  const { level, xpIntoLevel, xpForNextLevel, progress } = resolveProgression(xp);
-  return {
-    xp,
-    level,
-    reputation: num(row?.reputation),
-    title: careerTitleForLevel(level),
-    xpIntoLevel,
-    xpForNextLevel,
-    progress,
-    updatedAt: row?.updated_at ?? null,
-  };
-}
+// `toProgress` is shared with routes/missions.ts — see _shared/progression.ts.
 
 function toStats(row: Row | null) {
   return {
@@ -345,6 +325,23 @@ route('POST', '/career/events', async (req) => {
   // with nothing to key on — all of which are worth 0 XP.
   const naturalField = NATURAL_KEY[event];
   const naturalValue = naturalField ? slug(context[naturalField]) : '';
+
+  // An XP-bearing event must identify what it is about, or it is farmable.
+  //
+  // The fallback below ends in `crypto.randomUUID()`, which is correct for the
+  // events with nothing to key on — all of which are worth 0 XP — but would be
+  // a hole for one that pays: a caller who omitted `context.skill` would get a
+  // fresh key, and therefore 100 XP, on every request. Refusing here means the
+  // rule does not depend on the browser remembering to send the field. It
+  // covers `skill.challenge`, `interview.simulated` and `course.completed`;
+  // the application-shaped events are already required above, and the one-shot
+  // events are keyed by their own name.
+  if (xp > 0 && !oneShot && naturalField && !naturalValue) {
+    throw badRequest('That event needs to say what it was about before it can be counted.', {
+      field: `context.${naturalField}`,
+    });
+  }
+
   const idempotencyKey = oneShot
     ? event
     : naturalValue

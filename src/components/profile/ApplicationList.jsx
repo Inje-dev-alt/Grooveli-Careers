@@ -59,8 +59,7 @@ export function ApplicationList({ limit }) {
         recordCareerEvent(CAREER_EVENTS.APPLICATION_REJECTED, {
           label: `Not progressing - ${a.jobTitle}`,
           silent: true,
-          ledger: true,
-          context: { companyName: a.companyName, feedback: a.feedback },
+          context: { applicationId: a.id, companyName: a.companyName, feedback: a.feedback },
         });
         applicationService
           .acknowledgeRejection(a.id)
@@ -78,8 +77,11 @@ export function ApplicationList({ limit }) {
       if (decision === 'accept') {
         recordCareerEvent(CAREER_EVENTS.OFFER_ACCEPTED, {
           label: `Accepted ${application.jobTitle} at ${application.companyName}`,
-          shareable: true,
-          context: { jobId: application.jobId, companyName: application.companyName },
+          context: {
+            applicationId: application.id,
+            jobId: application.jobId,
+            companyName: application.companyName,
+          },
         });
         // The job joins the career story - the profile timeline now shows it.
         candidateService
@@ -100,7 +102,7 @@ export function ApplicationList({ limit }) {
         recordCareerEvent(CAREER_EVENTS.OFFER_DECLINED, {
           label: `Declined ${application.jobTitle}`,
           silent: true,
-          ledger: true,
+          context: { applicationId: application.id },
         });
         pushToast({ title: 'Offer declined', body: 'The search continues.', tone: 'info' });
       }
@@ -165,7 +167,7 @@ export function ApplicationList({ limit }) {
     if (!application || !connection) return;
     setBusyId(application.id);
     try {
-      await socialService.requestReferral({
+      const referral = await socialService.requestReferral({
         connectionId: connection.userId,
         applicationId: application.id,
         jobTitle: application.jobTitle,
@@ -174,8 +176,7 @@ export function ApplicationList({ limit }) {
       recordCareerEvent(CAREER_EVENTS.REFERRAL_REQUESTED, {
         label: `Asked ${connection.name} for a referral`,
         silent: true,
-        ledger: true,
-        shareable: true,
+        context: { referralId: referral.id },
       });
       pushToast({
         title: `Referral requested`,

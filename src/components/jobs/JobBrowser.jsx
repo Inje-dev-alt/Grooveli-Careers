@@ -43,7 +43,9 @@ export function JobBrowser({ districtId, wide = false, onOpenJob, compactFilters
   }, [loadSavedJobs, loadApplications]);
 
   const handleOpen = (job) => {
-    recordCareerEvent(CAREER_EVENTS.JOB_VIEWED, { silent: true });
+    // Worth no XP, but keyed on the job all the same: `jobsViewed` should count
+    // the roles looked at, not the number of times one card was clicked.
+    recordCareerEvent(CAREER_EVENTS.JOB_VIEWED, { silent: true, context: { jobId: job.id } });
     onOpenJob(job);
   };
 

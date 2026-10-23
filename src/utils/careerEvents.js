@@ -7,9 +7,17 @@
  * a single action can advance progression, a mission and an achievement without
  * any of them knowing about each other.
  *
- * The backend owns this vocabulary permanently: `POST /career/events` receives
- * one of these strings and replays the same tables server-side, keyed by an
- * idempotency token so a retried request can never double-award.
+ * The backend owns this vocabulary. `POST /career/events` receives one of these
+ * strings and decides for itself what it is worth, keyed so a retried request
+ * can never double-award.
+ *
+ * **The tables below are a mirror, not the authority.** They exist so the
+ * interface can explain an award *before* it happens - "applying to this role
+ * earns 25 XP", "below your match range, no XP" - and so the mock backend can
+ * stand in for the real one. Nothing in the browser may add XP to a total: the
+ * only number that reaches the store is the one the server replied with. The
+ * server's copies live in `supabase/functions/api/_shared/progression.ts` and
+ * the two must not drift; if you change a number here, change it there too.
  */
 export const CAREER_EVENTS = {
   PROFILE_COMPLETED: 'profile.completed',
@@ -36,7 +44,8 @@ export const CAREER_EVENTS = {
 };
 
 /**
- * XP is attached to meaningful career activity only.
+ * XP is attached to meaningful career activity only. Mirror of the server's
+ * table, for explaining an award in advance - never for making one.
  *
  * Note the deliberate zeros: viewing a job, saving a job, walking into a
  * district, posting, being rejected, and applying to a role that does not suit
@@ -123,6 +132,72 @@ export const EVENT_LABELS = {
   [CAREER_EVENTS.OFFER_RECEIVED]: 'Offer received',
   [CAREER_EVENTS.OFFER_ACCEPTED]: 'Offer accepted',
   [CAREER_EVENTS.OFFER_DECLINED]: 'Offer declined',
+};
+
+/**
+ * Events that may only ever be counted once per account, however often the
+ * screen that fires them re-renders.
+ *
+ * Mirrored from the server so the interface can skip a request it knows will be
+ * refused, and so the mock can enforce the same rule. The guarantee itself is
+ * the server's: a partial unique index on `career_events`.
+ */
+export const ONE_SHOT_EVENTS = new Set([
+  CAREER_EVENTS.PROFILE_COMPLETED,
+  CAREER_EVENTS.CV_UPLOADED,
+  CAREER_EVENTS.ASSESSMENT_COMPLETED,
+]);
+
+/**
+ * The context field that makes each event unique, and therefore the field a
+ * call site has to send.
+ *
+ * This is the anti-farming rule, and it is worth understanding before adding a
+ * `recordCareerEvent` call. The server keys each event on the thing it is
+ * *about* - this application, this course, this skill, this district - so the
+ * database enforces one award per thing rather than one per click. An event
+ * that arrives without its field cannot be keyed, so an XP-bearing one is
+ * refused with a 400 naming the field (`routes/career.ts`), and a zero-XP one
+ * is counted but stops being distinct - "visit five districts" would collapse
+ * into "visit one district five times".
+ *
+ * `recordCareerEvent` warns in development when a field listed here is
+ * missing, which is cheaper than finding out from a 400 in production.
+ */
+export const EVENT_CONTEXT_KEY = {
+  [CAREER_EVENTS.SUITABLE_JOB_APPLIED]: 'applicationId',
+  [CAREER_EVENTS.UNSUITABLE_JOB_APPLIED]: 'applicationId',
+  [CAREER_EVENTS.APPLICATION_REJECTED]: 'applicationId',
+  [CAREER_EVENTS.OFFER_RECEIVED]: 'applicationId',
+  [CAREER_EVENTS.OFFER_ACCEPTED]: 'applicationId',
+  [CAREER_EVENTS.OFFER_DECLINED]: 'applicationId',
+  [CAREER_EVENTS.EXPERIENCE_ADDED]: 'experienceId',
+  [CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED]: 'simulationId',
+  [CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED]: 'skill',
+  [CAREER_EVENTS.COURSE_COMPLETED]: 'courseId',
+  [CAREER_EVENTS.MISSION_COMPLETED]: 'missionId',
+  [CAREER_EVENTS.JOB_VIEWED]: 'jobId',
+  [CAREER_EVENTS.JOB_SAVED]: 'jobId',
+  [CAREER_EVENTS.LOCATION_VISITED]: 'location',
+  [CAREER_EVENTS.POST_PUBLISHED]: 'postId',
+  [CAREER_EVENTS.CONNECTION_MADE]: 'connectionId',
+  [CAREER_EVENTS.REFERRAL_REQUESTED]: 'referralId',
+};
+
+/**
+ * Which career statistic an event advances, in the camelCase the API serves.
+ *
+ * `interviews` and `offers` are deliberately absent: they move on application
+ * *stage* transitions, which the pipeline drives, not on anything a candidate's
+ * browser can fire.
+ */
+export const STAT_FOR_EVENT = {
+  [CAREER_EVENTS.MISSION_COMPLETED]: 'completedMissions',
+  [CAREER_EVENTS.SUITABLE_JOB_APPLIED]: 'applications',
+  [CAREER_EVENTS.UNSUITABLE_JOB_APPLIED]: 'applications',
+  [CAREER_EVENTS.COURSE_COMPLETED]: 'certifications',
+  [CAREER_EVENTS.JOB_VIEWED]: 'jobsViewed',
+  [CAREER_EVENTS.LOCATION_VISITED]: 'locationsVisited',
 };
 
 /**

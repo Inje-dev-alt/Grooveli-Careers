@@ -30,7 +30,7 @@ import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
 import { badRequest, conflict, forbidden, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
-import { contextMatches } from '../_shared/progression.ts';
+import { contextMatches, toProgress } from '../_shared/progression.ts';
 
 type Row = Record<string, unknown>;
 
@@ -80,8 +80,14 @@ function toMission(row: Row, objectives: Row[]) {
   };
 }
 
-/** `mission_progress` row to the MissionProgress the store keeps. */
-function toProgress(row: Row) {
+/**
+ * `mission_progress` row to the MissionProgress the store keeps.
+ *
+ * Named apart from the imported `toProgress`, which shapes *career* progress:
+ * two different things called progress in one file is how the wrong one gets
+ * returned.
+ */
+function toMissionProgress(row: Row) {
   return {
     missionId: row.mission_id,
     status: row.status,
@@ -187,7 +193,7 @@ route('GET', '/missions/progress', async (req) => {
 
   const progress: Record<string, unknown> = {};
   for (const row of (data ?? []) as Row[]) {
-    progress[String(row.mission_id)] = toProgress(row);
+    progress[String(row.mission_id)] = toMissionProgress(row);
   }
   // Wrapped in `{ progress }` because that is what missionService reads.
   return { body: { progress } };
@@ -356,7 +362,7 @@ route('PUT', '/missions/progress', async (req) => {
     .eq('user_id', authUser.id);
 
   const progress: Record<string, unknown> = {};
-  for (const row of (fresh ?? []) as Row[]) progress[String(row.mission_id)] = toProgress(row);
+  for (const row of (fresh ?? []) as Row[]) progress[String(row.mission_id)] = toMissionProgress(row);
   return { body: { progress } };
 });
 
@@ -516,6 +522,15 @@ route('POST', '/missions/:id/complete', async (req, params) => {
       missionId: mission.id,
       completedAt,
       xpAwarded: num(result.xp_awarded),
+      // The new totals, in the same shape `POST /career/events` returns. The
+      // client sets its XP from whichever endpoint replied, so a mission that
+      // answered only with its own `xpAwarded` would leave the browser adding
+      // the reward to a total it had not re-read — which is the client-side
+      // arithmetic this batch exists to remove.
+      progress: toProgress({
+        xp: num(result.xp_total),
+        reputation: num(result.reputation),
+      }),
       awardedAchievements: awarded,
     },
   };

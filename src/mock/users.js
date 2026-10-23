@@ -139,7 +139,10 @@ export function emptyCandidateProfile(userId, profileId) {
  * @type {Record<string, import('../models/index.js').CareerProgress>}
  */
 export const careerProgress = {
-  'usr-001': { xp: 1240, level: 8, reputation: 61 },
+  // No `level`: it is derived from the XP on every read, server-side and in the
+  // mock, so a stored one could only ever be a second answer to the same
+  // question. 1240 XP resolves to level 7 on the curve in utils/progression.js.
+  'usr-001': { xp: 1240, reputation: 61 },
 };
 
 /** @type {Record<string, import('../models/index.js').CareerStats>} */
