@@ -179,23 +179,37 @@ const sales = r.body?.progress?.['msn-sales'];
 ok('a forged "completed" is not stored as completed', sales?.status !== 'completed', `status=${sales?.status}`);
 ok('  and counts are clamped to the real target', Object.values(sales?.objectiveCounts ?? {}).every((v) => v <= 1), JSON.stringify(sales?.objectiveCounts));
 
-/* The earlier version of this script expected a 409 here. That was wrong: this
-   account has genuinely recorded two `skill.challenge` events, and msn-sales
-   asks for one. 201 is the correct answer to the question the objective asks.
-   What it exposes is the objective itself — see below. */
-r = await call('POST', '/missions/msn-sales/complete');
-ok('forged progress is ignored; the real events decide', r.status === 201 || r.status === 200, `status=${r.status}`);
+/* --- an objective counts only the event it names --- */
 
-/* --- the finding: skill missions do not discriminate by skill --- */
-const skillMissions = ['msn-excel', 'msn-communication', 'msn-recruitment', 'msn-sales'];
-const claimed = [];
-for (const id of skillMissions) {
-  const res = await call('POST', `/missions/${id}/complete`);
-  if (res.status === 201 || (res.status === 200 && res.body?.status === 'replayed')) claimed.push(id);
-}
-ok('NOTE: one skill challenge satisfies every skill mission',
-  claimed.length === skillMissions.length,
-  `claimed ${claimed.length}/4 from 2 challenges: ${claimed.join(', ')}`);
+/* This account has passed Excel and Communication, and nothing else. Before
+   mission_objectives carried a context, any one skill.challenge satisfied all
+   four skill missions and paid 400 XP; this script recorded that as a finding
+   ("claimed 4/4 from 2 challenges") before it was fixed. */
+const objectives = (missions.find((m) => m.id === 'msn-sales')?.objectives ?? []);
+ok('objectives carry their discriminator', objectives[0]?.context?.value === 'Sales',
+  JSON.stringify(objectives.map((o) => o.context)));
+
+r = await call('POST', '/missions/msn-sales/complete');
+ok('a Sales mission is not satisfied by an Excel challenge', r.status === 409, `status=${r.status}`);
+ok('  and forged progress did not help', Array.isArray(r.body?.details?.outstanding),
+  JSON.stringify(r.body?.details?.outstanding?.map((o) => `${o.event} ${o.done}/${o.target}`)));
+
+r = await call('POST', '/missions/msn-recruitment/complete');
+ok('nor is a Recruitment mission', r.status === 409, `status=${r.status}`);
+
+r = await call('POST', '/missions/msn-communication/complete');
+ok('the Communication mission IS satisfied by its own challenge',
+  r.status === 201 && r.body?.xpAwarded === 100, `status=${r.status} xp=${r.body?.xpAwarded}`);
+
+/* The generic objective stays generic: msn-bounce-back asks to "Pass a skill
+   mission" with no skill named, so any challenge advances it. It needs a
+   rejection and two applications too, so it stays unfinished here — what
+   matters is that the skill objective is counted as done. */
+r = await call('POST', '/missions/msn-bounce-back/complete');
+const stillOutstanding = (r.body?.details?.outstanding ?? []).map((o) => o.event);
+ok('a generic skill objective is advanced by any challenge',
+  r.status === 409 && !stillOutstanding.includes('skill.challenge'),
+  `outstanding: ${stillOutstanding.join(', ') || 'none'}`);
 
 const finalXp = (await call('GET', '/career/progress')).body;
 console.log(`\n      final: ${finalXp.xp} XP, level ${finalXp.level} (${finalXp.title}), reputation ${finalXp.reputation}`);
