@@ -335,6 +335,9 @@ export const missions = [
         label: 'Complete a Human Resources interview simulation',
         hint: 'Your question bank is drawn from the HR path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-hr' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -368,6 +371,9 @@ export const missions = [
         label: 'Complete a Software Development interview simulation',
         hint: 'Your question bank is drawn from the engineering path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-software' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -401,6 +407,9 @@ export const missions = [
         label: 'Complete an AI Engineering interview simulation',
         hint: 'Your question bank is drawn from the AI path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-ai' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -434,6 +443,9 @@ export const missions = [
         label: 'Complete a Social Media Management interview simulation',
         hint: 'Your question bank is drawn from the social path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-social-media' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -467,6 +479,9 @@ export const missions = [
         label: 'Complete a Digital Marketing interview simulation',
         hint: 'Your question bank is drawn from the marketing path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-digital-marketing' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -500,6 +515,9 @@ export const missions = [
         label: 'Complete a Product Design interview simulation',
         hint: 'Your question bank is drawn from the design path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-product-design' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -533,6 +551,9 @@ export const missions = [
         label: 'Complete a Motion Design interview simulation',
         hint: 'Your question bank is drawn from the motion path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-motion-design' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -566,6 +587,9 @@ export const missions = [
         label: 'Complete a Video Editing interview simulation',
         hint: 'Your question bank is drawn from the video path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-video-editing' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -599,6 +623,9 @@ export const missions = [
         label: 'Complete a Customer Support interview simulation',
         hint: 'Your question bank is drawn from the support path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-customer-support' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',
@@ -632,6 +659,9 @@ export const missions = [
         label: 'Complete a Virtual Assistance interview simulation',
         hint: 'Your question bank is drawn from the VA path.',
         event: CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED,
+        // Which path's interview. Ten path missions listen for the same
+        // event; without this, any simulation finishes all of them.
+        context: { key: 'pathId', value: 'path-virtual-assistant' },
         target: 1,
         actionLabel: 'Practise interview',
         actionRoute: '/ai',

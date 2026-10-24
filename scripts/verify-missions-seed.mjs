@@ -22,15 +22,38 @@ const contextSqlPath = new URL(
   '../supabase/migrations/20261023140000_mission_objective_context.sql',
   import.meta.url,
 );
+// The path interview objectives are keyed by a derived UPDATE in a third
+// migration — see `derivedPathKey`.
+const pathSqlPath = new URL(
+  '../supabase/migrations/20261024150000_path_interview_objectives.sql',
+  import.meta.url,
+);
 const { missions } = await import(mockPath.href);
 const sql = readFileSync(sqlPath, 'utf8');
 const contextSql = readFileSync(contextSqlPath, 'utf8');
+const pathSql = readFileSync(pathSqlPath, 'utf8');
 
 const problems = [];
 const note = (m) => problems.push(m);
 
 /** JS string -> SQL single-quoted literal. */
 const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
+
+/**
+ * Is this objective keyed by the derived rule rather than by its own UPDATE?
+ *
+ * 20261024150000 keys every `interview.simulated` objective whose mission has
+ * a `path_id`, by copying that path from the missions table. The SQL names no
+ * objective, so there is nothing to quote — what is checked instead is that
+ * the migration really does carry that join, and that the mock agrees the
+ * value is the mission's own path.
+ */
+const pathKeyRule = /update public\.mission_objectives o[\s\S]*?set context_key\s*=\s*'pathId',\s*\n\s*context_value\s*=\s*m\.path_id[\s\S]*?and o\.event = 'interview\.simulated'/;
+
+const derivedPathKey = (mission, objective) =>
+  pathKeyRule.test(pathSql) &&
+  Boolean(mission.pathId) &&
+  objective.event === 'interview.simulated';
 
 /**
  * The text of the one INSERT tuple that starts at `start`. A tuple ends where
@@ -128,13 +151,23 @@ for (const m of missions) {
       }
     }
 
-    /* The discriminator, from the later migration. Both directions: a mock
+    /* The discriminator, from the later migrations. Both directions: a mock
        objective that names a skill must be keyed in SQL, and an objective keyed
        in SQL must say so in the mock - a drift either way is a mission that
-       counts the wrong work. */
-    const update = new RegExp(
-      `set context_key = '([^']*)', context_value = '([^']*)'\\s*\\n\\s*where id = ${lit(o.id)};`,
-    ).exec(contextSql);
+       counts the wrong work.
+
+       Two shapes to recognise. The skill objectives are keyed one UPDATE each,
+       by id. The ten path interview objectives are keyed by a single derived
+       UPDATE that joins `missions` and copies `path_id`, because ten hand-typed
+       pairings are ten chances to pair an objective with the wrong path. A
+       derived rule cannot be matched by quoting it, so it is checked as the
+       rule it is: this objective is covered when the migration carries that
+       join, the mission has a path, and the event matches. */
+    const update = derivedPathKey(m, o)
+      ? [null, 'pathId', m.pathId]
+      : new RegExp(
+        `set context_key = '([^']*)', context_value = '([^']*)'\\s*\\n\\s*where id = ${lit(o.id)};`,
+      ).exec(contextSql);
 
     if (o.context && !update) {
       note(`${o.id}: mock keys on ${o.context.key}=${o.context.value}; no UPDATE in SQL`);

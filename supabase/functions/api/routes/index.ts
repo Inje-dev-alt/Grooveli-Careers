@@ -18,3 +18,4 @@ import './missions.ts';
 import './organizations.ts';
 import './notifications.ts';
 import './social.ts';
+import './interviews.ts';

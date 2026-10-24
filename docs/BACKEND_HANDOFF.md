@@ -679,17 +679,45 @@ Accepting an offer moves the application to `hired` and the backend should
 also append an experience entry to the candidate profile - the role joins
 the career story at the moment it is signed.
 
-### Career paths and interviews
-| Method | Path | Mocked in |
+### Career paths and interviews — **LIVE** (Batch 3.7)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/career-paths`, `/career-paths/:id` (the ten-row catalog) | `data/careerPaths.js` (static mirror) |
-| POST | `/interviews/start` (`{ pathId?, jobTitle? }`) | `interviewService.js` |
-| POST | `/interviews/:id/answer` (`{ questionId, optionIndex }`) | `interviewService.js` |
-| GET | `/interviews/attempts` (this account, newest first) | `interviewService.js` |
-| GET | `/interviews/pass-rate` (profile surface) | `interviewService.js` |
+| GET | `/career-paths`, `/career-paths/:id` | **MOCKED** — `data/careerPaths.js` (static mirror) |
+| POST | `/interviews/start` (`{ pathId?, jobTitle? }`) | Live |
+| POST | `/interviews/:id/answer` (`{ questionId, optionIndex }`) | Live |
+| GET | `/interviews/attempts` | Live |
+| GET | `/interviews/pass-rate` | Live |
+| GET | `/interviews` (scheduled and completed) | Live |
+| POST | `/interviews/simulations` | Live |
 
-Questions are served without answer indexes or rationales; the rationale rides
-with the grade. The first-to-2 pass rule is enforced server-side (§4.7).
+**The exam is no longer open-book.** The prototype shipped
+`src/data/interviewQuestions.js` with every `answerIndex` and rationale in the
+bundle, so the badge it awarded was worth whatever devtools said. The 55
+questions now live in `interview_questions`; a question is served with its
+options and nothing else, and the rationale rides back with the grade because
+the point of a practice interview is the feedback.
+
+**The paper is drawn once.** `question_ids` is fixed when the attempt starts,
+and an answer must name the next unanswered slot of that paper — so a
+candidate cannot reroll into easier questions, answer the same one four times,
+or answer one they were never served.
+
+**`POST /interviews/simulations` does not take a score.** It reads the caller's
+most recent passed attempt. The frontend reports that a simulation finished;
+what it was worth is already in `interview_attempts`, and accepting a number
+would be a second, softer way to claim a result.
+
+`pathId` defaults to the account's **explicit** `career_path_id` — the same
+value that gates which path missions it is served. A caller may name another
+path and that is honoured, because practising another field is legitimate; the
+attempt records which one, so a path mission counts only simulations sat for
+it. That contract is what let the ten path objectives finally be keyed — see
+below.
+
+The question bank is generated: edit `src/data/interviewQuestions.js` and run
+`node scripts/generate-interview-seed.mjs` rather than editing the SQL. A
+mistyped answer index tells a candidate they failed a question they answered
+correctly.
 ### Candidates
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -887,24 +915,22 @@ nothing named the skill, so one passed challenge satisfied all four and paid
 for Excel was always correct because `achievements` already had these columns;
 the mission was not because `mission_objectives` did not.
 
-**One known gap, deliberately left open.** The ten `msn-path-*` interview
-objectives each name a career path ("Complete a Human Resources interview
-simulation") and share `interview.simulated` the same way, and are **not**
-keyed. Keying them would bind `/interviews/*`, which does not exist yet, so:
+**Closed in Batch 3.7.** The ten `msn-path-*` interview objectives each name a
+career path and shared `interview.simulated` the same way. They were left
+unkeyed because keying them would have bound an endpoint that did not exist:
+if `/interviews/*` had sent an inferred path or none at all, ten objectives
+would have become quietly impossible.
 
-> **Contract for whoever builds `/interviews/*` (step 11).** A passed
-> simulation must record `interview.simulated` with `context.pathId` set to the
-> candidate's **explicit** `candidate_profiles.career_path_id` — the same value
-> that gates which path missions the account is served, not a path inferred
-> from interests or skills, and not a path the client nominated. Once that
-> holds, key the ten objectives on `pathId` and the gap closes. Keying them
-> before it holds makes ten objectives quietly impossible, which is a worse
-> failure than the one being fixed.
+`interview_attempts.path_id` settled it — it defaults to the explicit
+`career_path_id`, so the default simulation is always the one its own path
+mission is asking for. `20261024150000` keys all ten by **deriving** the value
+from `missions.path_id` rather than naming them, because ten hand-typed
+pairings are ten chances to pair an objective with the wrong path.
 
-The exposure meanwhile is small: an account is only served a path's mission if
-it is already on that path, so the most that can be gained is satisfying your
-own path's interview objective with a simulation nominated for another, which
-the interface offers no way to do.
+Two objectives stay generic on purpose, which is why that migration scopes by
+`missions.path_id` rather than by event: `msn-first-job / obj-interview`
+("Complete an interview simulation") and `msn-interview / obj-interview-sim`
+("Complete an AI interview") name no path and belong to none.
 
 `scripts/verify-missions-seed.mjs` prints every event shared by objectives that
 are not all discriminated, so a new ambiguity shows up as a line in its output
@@ -1199,7 +1225,7 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
    **Live.**
 9. `/social/*`. **Live.** (Batch 3.6.)
 10. `/learning/*`. **Batch 3.6.**
-11. `/interviews/*`. **Batch 3.7.**
+11. `/interviews/*`. **Live.**
 12. `/leaderboard/*`. **Batch 3.8.** (`/notifications/*` landed early, in
     Batch 3.5, because it was the launch gate.)
 13. `/ai/*` — blocked on an AI provider key. **Batch 3.9.**

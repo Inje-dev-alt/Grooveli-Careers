@@ -16,7 +16,7 @@
 import { apiClient, withMock } from './apiClient.js';
 import { db, nextId, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
-import { resolvePathForProfile } from '../data/careerPaths.js';
+import { resolvePathForProfile, getCareerPath } from '../data/careerPaths.js';
 import { INTERVIEW_BANKS, QUESTIONS_PER_ATTEMPT, PASS_AT, FAIL_AT } from '../data/interviewQuestions.js';
 
 function profileForUser() {
@@ -58,9 +58,11 @@ export function startInterviewSimulation(options = {}) {
       if (!account) throw new Error('Your session has expired. Sign in again.');
 
       const profile = profileForUser();
-      const path = options.pathId
-        ? { id: options.pathId, title: options.pathId, interviewBankId: `bank-${options.pathId}` }
-        : resolvePathForProfile(profile);
+      // A named path is looked up, not guessed at: bank ids are not
+      // `bank-<pathId>` (path-social-media draws bank-social), so building one
+      // by hand fell through to the general bank every time.
+      const path = (options.pathId ? getCareerPath(options.pathId) : null)
+        ?? resolvePathForProfile(profile);
       const bank = INTERVIEW_BANKS[path.interviewBankId] ?? INTERVIEW_BANKS['bank-general'];
       const drawn = shuffle(bank).slice(0, QUESTIONS_PER_ATTEMPT);
 
@@ -110,12 +112,15 @@ export function answerQuestion(attemptId, questionId, optionIndex) {
       if (!attempt) throw new Error('That interview no longer exists.');
       if (attempt.status !== 'in-progress') throw new Error('This interview is already finished.');
 
-      const path = { interviewBankId: `bank-${attempt.pathId}` };
-      const bank =
-        Object.values(INTERVIEW_BANKS).find((b) => b.some((q) => q.id === questionId)) ??
-        INTERVIEW_BANKS[path.interviewBankId] ??
-        INTERVIEW_BANKS['bank-general'];
-      const question = bank.find((q) => q.id === questionId);
+      // The question has to be the one in front of the candidate: its id must
+      // match the next unanswered slot of this attempt's own paper. Without
+      // that, the easiest question in the paper could be answered four times,
+      // or one that was never served. The API enforces the same thing.
+      const expected = attempt.questionIds[attempt.answers.length];
+      if (questionId !== expected) throw new Error('That is not the question in front of you.');
+
+      const bank = Object.values(INTERVIEW_BANKS).find((b) => b.some((q) => q.id === questionId));
+      const question = bank?.find((q) => q.id === questionId);
       if (!question) throw new Error('That question is not in your paper.');
 
       const correct = optionIndex === question.answerIndex;
@@ -133,10 +138,9 @@ export function answerQuestion(attemptId, questionId, optionIndex) {
         attempt.score = Math.round((attempt.correctCount / attempt.answers.length) * 100);
       }
 
-      const nextIdInPaper = attempt.answers.length;
-      const nextQuestionId = finished ? null : attempt.questionIds[nextIdInPaper];
+      const nextQuestionId = finished ? null : attempt.questionIds[attempt.answers.length];
       const nextQuestion = nextQuestionId
-        ? (bank.find((q) => q.id === nextQuestionId) ?? null)
+        ? (Object.values(INTERVIEW_BANKS).flat().find((q) => q.id === nextQuestionId) ?? null)
         : null;
 
       return {
