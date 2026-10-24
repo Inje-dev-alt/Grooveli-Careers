@@ -34,7 +34,19 @@ Turning the backend on is:
 
 1. Set `VITE_API_BASE_URL` to the API root.
 2. Set `VITE_USE_MOCKS=false`.
-3. Delete the mock branch of each service as its endpoint goes live.
+3. Leave surfaces that are not ready in `VITE_MOCK_SURFACES`.
+4. Delete the mock branch of each service as its endpoint goes live.
+
+**Going live is not all-or-nothing.** `VITE_MOCK_SURFACES` is a comma list of
+surfaces that stay on mocks with the global switch off, so one surface that is
+blocked does not hold the rest back. Today it is `ai`: the career centre needs
+a provider, a server-side key and a budget decision rather than engineering,
+and six screens on good mock data beats six error states.
+
+A service tags itself once — `const withMock = surface('ai')` — and every call
+in it reads as before. A single call can be tagged instead, which is how
+`missionService.runSkillChallenge` stays mocked while every other mission
+endpoint is live: grading an attempt needs the same model.
 
 No component changes. Components never call `fetch` and never import mock data —
 both are enforceable with a grep and currently hold.
@@ -996,11 +1008,12 @@ the requester's side only, which is why `countConnections` — filtering on
 `c.from` and `c.to` — could never return anything but 0: no row had either
 field.
 
-> **Frontend gap, not a backend one.** `POST /social/connections/:id/respond`
-> exists and works, but nothing in the interface calls it. The network offers
-> "Connect" and no way to answer, so every connection stays `pending` and the
-> profile's connection tile reads 0 for everyone. That is a screen to build;
-> the schema and the endpoint are ready for it.
+**Closed.** The network now renders incoming requests with Accept and Decline,
+so a connection can reach `accepted` and the profile's connection tile counts
+something. Only incoming requests are offered — the person who asked does not
+get to accept on the other's behalf, and the endpoint refuses it besides. The
+panel is hidden when there is nothing to answer: an empty "Requests" box on
+every visit is furniture, not information.
 
 **A report is a row, never a takedown**, and reporting the same post twice is
 one report rather than two signals. **A block is one account's wall** — it

@@ -11,7 +11,15 @@
  * agent talks about this candidate's actual matches, gaps and applications
  * rather than producing generic chatbot filler.
  */
-import { apiClient, withMock } from './apiClient.js';
+import { apiClient, surface } from './apiClient.js';
+
+/**
+ * Every call here belongs to the `ai` surface, so it can stay on mocks
+ * while the rest of the product is live. The AI centre is blocked on a
+ * provider decision rather than on engineering, and six screens erroring is
+ * a worse answer than six screens running on good mock data.
+ */
+const withMock = surface('ai');
 import { db, nextId, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { formatSalaryRange } from '../utils/format.js';

@@ -42,6 +42,9 @@ export default function Network() {
   const error = useSocialStore((s) => s.error);
   const load = useSocialStore((s) => s.load);
   const connect = useSocialStore((s) => s.connect);
+  const connections = useSocialStore((s) => s.connections);
+  const respond = useSocialStore((s) => s.respond);
+  const respondingTo = useSocialStore((s) => s.respondingTo);
   const pushToast = useUiStore((s) => s.pushToast);
 
   useEffect(() => {
@@ -49,6 +52,25 @@ export default function Network() {
   }, [load]);
 
   const visible = tab === 'all' ? posts : posts.filter((p) => p.type === tab);
+
+  // Only incoming requests can be answered: the person who asked does not get
+  // to accept on the other's behalf, and the API refuses it besides.
+  const requests = connections.filter((c) => c.incoming && c.status === 'pending');
+
+  const handleRespond = async (request, decision) => {
+    try {
+      await respond(request.id, decision);
+      pushToast({
+        title: decision === 'accept'
+          ? `You and ${request.name} are connected`
+          : `Request from ${request.name} declined`,
+        body: decision === 'accept' ? 'You can now ask them for a referral.' : undefined,
+        tone: decision === 'accept' ? 'success' : 'info',
+      });
+    } catch (caught) {
+      pushToast({ title: 'Could not answer that request', body: caught.message, tone: 'danger' });
+    }
+  };
 
   const handleConnect = async (person) => {
     const connection = await connect(person.id);
@@ -93,6 +115,48 @@ export default function Network() {
           </div>
 
           <aside className="network__aside">
+            {/* Only rendered when there is something to answer: an empty
+                "Requests" panel on every visit is furniture, not information. */}
+            {requests.length > 0 ? (
+              <Panel pad="sm">
+                <PanelHeader
+                  title={requests.length === 1 ? '1 connection request' : `${requests.length} connection requests`}
+                  subtitle="They asked to connect with you."
+                />
+                <div>
+                  {requests.map((request) => (
+                    <div key={request.id} className="person">
+                      <span className="person__avatar" style={{ background: request.color }}>
+                        {initials(request.name)}
+                      </span>
+                      <div className="person__body">
+                        <p className="person__name g-truncate">{request.name}</p>
+                        <p className="person__headline g-clamp-2">{request.headline}</p>
+                      </div>
+                      <div className="g-row" style={{ gap: 6 }}>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          loading={respondingTo === request.id}
+                          onClick={() => handleRespond(request, 'accept')}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={respondingTo === request.id}
+                          onClick={() => handleRespond(request, 'decline')}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            ) : null}
+
             <Panel pad="sm">
               <PanelHeader title="People to connect with" subtitle="Working in the same part of the market." />
               {people.length === 0 ? (

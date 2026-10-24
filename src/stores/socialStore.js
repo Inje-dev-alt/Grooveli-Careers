@@ -13,26 +13,60 @@ export const useSocialStore = create((set, get) => ({
   /** @type {import('../models/index.js').Post[]} */
   posts: [],
   people: [],
+  /** @type {{ id: string, userId: string, status: string, incoming: boolean }[]} */
+  connections: [],
   followedOrganizationIds: [],
   status: 'idle',
   error: null,
   posting: false,
+  respondingTo: null,
 
   load: async (filters = {}) => {
     set({ status: 'loading', error: null });
     try {
-      const [posts, people, followedOrganizationIds] = await Promise.all([
+      const [posts, people, connections, followedOrganizationIds] = await Promise.all([
         socialService.listFeed(filters),
         socialService.listSuggestedPeople().catch(() => []),
+        socialService.listConnections().catch(() => []),
         socialService.listFollowedOrganizations().catch(() => []),
       ]);
-      set({ posts, people, followedOrganizationIds, status: 'ready' });
+      set({ posts, people, connections, followedOrganizationIds, status: 'ready' });
     } catch (error) {
       set({ status: 'error', error: error.message || 'Could not load the network.' });
     }
   },
 
-  reset: () => set({ posts: [], people: [], followedOrganizationIds: [], status: 'idle', error: null }),
+  reset: () =>
+    set({
+      posts: [], people: [], connections: [], followedOrganizationIds: [],
+      status: 'idle', error: null, respondingTo: null,
+    }),
+
+  /** Requests waiting on this account — the ones it can actually answer. */
+  pendingRequests: () => get().connections.filter((c) => c.incoming && c.status === 'pending'),
+
+  /**
+   * Accept or decline a request.
+   *
+   * Not optimistic. A like is cheap and reversible, so the feed does not wait
+   * for it; agreeing to be connected to someone is neither, and showing it as
+   * done before the server agrees would be claiming a relationship that might
+   * not exist.
+   */
+  respond: async (connectionId, decision) => {
+    set({ respondingTo: connectionId });
+    try {
+      const updated = await socialService.respondToConnection(connectionId, decision);
+      set((state) => ({
+        connections: state.connections.map((c) =>
+          c.id === connectionId ? { ...c, status: updated.status } : c,
+        ),
+      }));
+      return updated;
+    } finally {
+      set({ respondingTo: null });
+    }
+  },
 
   publish: async (draft) => {
     set({ posting: true });

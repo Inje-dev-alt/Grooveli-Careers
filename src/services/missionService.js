@@ -261,8 +261,12 @@ export function runSkillChallenge(mission) {
       };
     },
     () => apiClient.post(`/missions/${mission.id}/attempt`),
+    // Tagged `ai`: grading an attempt needs the model and a rubric, so this one
+    // call stays on mocks while every other mission endpoint is live.
+    'ai',
   );
 }
+
 /* ----------------------------------------- mission reminders --- */
 
 /**

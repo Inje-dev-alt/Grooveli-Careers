@@ -15,12 +15,31 @@ import { readStorage, writeStorage, removeStorage } from '../utils/storage.js';
 
 const TOKEN_KEY = 'auth-token';
 
+/** `"a, b"` -> `Set { 'a', 'b' }`. */
+const surfaceSet = (value) =>
+  new Set(
+    String(value ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
+
 export const apiConfig = {
   baseUrl: import.meta.env?.VITE_API_BASE_URL || '',
   /** Mocks stay on unless an API base URL is configured and mocks are disabled. */
   useMocks:
     String(import.meta.env?.VITE_USE_MOCKS ?? 'true') !== 'false' ||
     !import.meta.env?.VITE_API_BASE_URL,
+  /**
+   * Surfaces that stay on mocks even when mocks are globally off.
+   *
+   * Going live used to be all or nothing, which meant waiting for the slowest
+   * surface before any of them could be real. The AI centre needs a provider,
+   * a server-side key and a budget decision — none of which are engineering —
+   * so a single switch would have kept the other twelve surfaces mocked behind
+   * it, or shipped six screens that error.
+   */
+  mockedSurfaces: surfaceSet(import.meta.env?.VITE_MOCK_SURFACES),
 };
 
 /**
@@ -133,17 +152,44 @@ export function registerMockObserver(observer) {
  * Service bodies read as "the real call, or the mock". Keeping the branch in one
  * helper makes the remaining mock surface greppable: search for `withMock`.
  *
+ * `surfaceName` names the surface this call belongs to, so one that is not
+ * ready yet can stay on mocks while the rest go live — see
+ * `apiConfig.mockedSurfaces`. Calls without one follow the global switch,
+ * which is almost all of them.
+ *
  * @template T
  * @param {() => Promise<T>} mockFn
  * @param {() => Promise<T>} realFn
+ * @param {string} [surfaceName]
  * @returns {Promise<T>}
  */
-export function withMock(mockFn, realFn) {
-  if (!apiConfig.useMocks) return realFn();
+export function withMock(mockFn, realFn, surfaceName) {
+  const mocked =
+    apiConfig.useMocks || (surfaceName ? apiConfig.mockedSurfaces.has(surfaceName) : false);
+  if (!mocked) return realFn();
   return Promise.resolve()
     .then(mockFn)
     .then((result) => {
       mockObserver?.();
       return result;
     });
+}
+
+/**
+ * A `withMock` bound to one surface.
+ *
+ * A service tags itself once at the top — `const withMock = surface('ai')` —
+ * and every call in it reads exactly as before. That keeps the tagging to one
+ * line per service rather than threading an argument through ninety-four call
+ * sites.
+ *
+ * @param {string} surfaceName
+ */
+export function surface(surfaceName) {
+  return (mockFn, realFn) => withMock(mockFn, realFn, surfaceName);
+}
+
+/** Is this surface still being served by the mock layer? */
+export function isMocked(surfaceName) {
+  return apiConfig.useMocks || apiConfig.mockedSurfaces.has(surfaceName);
 }
