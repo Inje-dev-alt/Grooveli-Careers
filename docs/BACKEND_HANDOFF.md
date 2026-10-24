@@ -928,16 +928,62 @@ notices; the backend runs the same rule on a scheduler and writes
 `POST /notifications` rows with `type: 'mission-reminder'`. Auth (email
 sign-up, session token) already exists — reminders build on it.
 
-### Social
-| Method | Path | Mocked in |
+### Social — **LIVE** (Batch 3.6)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | POST | `/social/posts` | `socialService.js` |
-| POST | `/social/posts/:id/like`, `/social/posts/:id/comments` | `socialService.js` |
-| GET | `/social/connections`, `/social/connections/suggestions`, `POST /social/connections` | `socialService.js` |
-| GET | POST | `/social/follows` | `socialService.js` |
-| GET | POST | `/social/referrals` | `socialService.js` |
-| POST | `/social/posts/:id/report` | `socialService.js` |
-| POST | `/social/blocks` | `socialService.js` |
+| GET / POST | `/social/posts` | Live — `?type=`, `?authorId=` |
+| POST | `/social/posts/:id/like` | Live — toggle |
+| POST | `/social/posts/:id/comments` | Live |
+| GET | `/social/connections` | Live |
+| GET | `/social/connections/count?userId=` | Live |
+| GET | `/social/connections/suggestions` | Live |
+| POST | `/social/connections` | Live |
+| POST | `/social/connections/:id/respond` | Live — **no UI calls it yet** |
+| GET / POST | `/social/follows` | Live — toggle |
+| GET / POST | `/social/referrals` | Live |
+| POST | `/social/posts/:id/report` | Live |
+| POST | `/social/blocks` | Live |
+| POST | `/users/me/avatar` | Live — file name only |
+
+**An attachment is verified, not declared.** A post may only carry an
+achievement its author has been awarded, checked against
+`achievement_progress`; `label` and `verified` are written from the award row
+rather than copied from the request. An attachable achievement that was not
+earned turns the feed from social proof into noise.
+
+**A connection is two-sided.** `connections` holds `requester_id`,
+`addressee_id` and a status, with the pair ordered-unique so the same two
+people cannot hold two rows. The prototype stored `{ userId, status }` from
+the requester's side only, which is why `countConnections` — filtering on
+`c.from` and `c.to` — could never return anything but 0: no row had either
+field.
+
+> **Frontend gap, not a backend one.** `POST /social/connections/:id/respond`
+> exists and works, but nothing in the interface calls it. The network offers
+> "Connect" and no way to answer, so every connection stays `pending` and the
+> profile's connection tile reads 0 for everyone. That is a screen to build;
+> the schema and the endpoint are ready for it.
+
+**A report is a row, never a takedown**, and reporting the same post twice is
+one report rather than two signals. **A block is one account's wall** — it
+hides an author from the blocker's feed and nobody else's. Both are the
+minimum a network cannot launch without.
+
+**A referral is checked twice**: the application must be the caller's own, and
+the person asked must actually be connected to them. A referral puts somebody's
+name on the record, so neither is taken on trust.
+
+Like counts are **derived**, not stored — a counter column drifts the first
+time a delete misses it. `organizations.follower_count` is the deliberate
+exception: it is seeded with figures no row accounts for, so deriving it would
+reset every company to its real followers, which today is nearly none.
+
+> **A fresh deployment has an empty feed.** `profiles.id` references
+> `auth.users`, so the prototype's fixture people (`cand-001` and friends) are
+> not accounts and their four posts cannot be seeded. The two company posts
+> are, because their organizations are real rows — and they arrive with no
+> likes, since a like names an account and inventing 58 of them would be
+> inventing 58 people.
 ### AI
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -1151,7 +1197,7 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
 8. `/organizations/*` + candidate discovery — employer side becomes real, and
    `source: "grooveli_employer"` jobs start flowing into the same marketplace.
    **Live.**
-9. `/social/*`. **Batch 3.5.**
+9. `/social/*`. **Live.** (Batch 3.6.)
 10. `/learning/*`. **Batch 3.6.**
 11. `/interviews/*`. **Batch 3.7.**
 12. `/leaderboard/*`. **Batch 3.8.** (`/notifications/*` landed early, in

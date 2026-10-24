@@ -34,6 +34,17 @@ function blockedIds() {
   return (db.blockedAuthorIds[id] = db.blockedAuthorIds[id] ?? []);
 }
 
+/**
+ * The other person in a connection row.
+ *
+ * A connection is stored once, from whoever asked, so both sides read it as
+ * "my connection to them": the id that is not yours is the one that matters.
+ * Mirrors `otherSide` in `_shared/social.ts`.
+ */
+function otherSide(connection, me) {
+  return connection.requesterId === me ? connection.addresseeId : connection.requesterId;
+}
+
 /** @returns {Promise<import('../models/index.js').Post[]>} */
 export function listFeed(filters = {}) {
   return withMock(
@@ -140,18 +151,46 @@ export function connect(userId) {
   return withMock(
     async () => {
       await delay(320);
-      const existing = db.connections.find((c) => c.userId === userId);
-      if (existing) return { ...existing };
+      const me = currentUserId();
+      const existing = db.connections.find((c) => otherSide(c, me) === userId);
+      if (existing) {
+        return { id: existing.id, userId, status: existing.status, createdAt: existing.createdAt };
+      }
       const connection = {
         id: nextId('con'),
-        userId,
+        requesterId: me,
+        addresseeId: userId,
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
       db.connections.push(connection);
-      return connection;
+      return { id: connection.id, userId, status: connection.status, createdAt: connection.createdAt };
     },
     () => apiClient.post('/social/connections', { userId }),
+  );
+}
+
+/**
+ * Answer a connection request.
+ *
+ * **Nothing in the interface calls this yet.** The network offers "Connect"
+ * and no way to answer, so every connection stays `pending` and the profile's
+ * connection tile reads 0 for everyone. The endpoint and this branch exist so
+ * that gap is a screen to build rather than a schema to change.
+ */
+export function respondToConnection(connectionId, decision) {
+  return withMock(
+    async () => {
+      await delay(240);
+      const connection = db.connections.find((c) => c.id === connectionId);
+      if (!connection) throw new Error('That request is no longer there.');
+      if (connection.addresseeId !== currentUserId()) {
+        throw new Error('That request is not yours to answer.');
+      }
+      connection.status = decision === 'accept' ? 'accepted' : 'declined';
+      return { ...connection, userId: connection.requesterId };
+    },
+    () => apiClient.post(`/social/connections/${connectionId}/respond`, { decision }),
   );
 }
 
@@ -163,17 +202,23 @@ export function listConnections() {
   return withMock(
     async () => {
       await delay(180);
-      return db.connections.map((connection) => {
-        const person = suggestedPeople.find((p) => p.id === connection.userId);
-        return {
-          id: connection.id,
-          userId: connection.userId,
-          status: connection.status,
-          name: person?.name ?? 'Connection',
-          headline: person?.headline ?? 'Professional',
-          color: person?.color ?? '#5be3c8',
-        };
-      });
+      const me = currentUserId();
+      return db.connections
+        .filter((c) => c.requesterId === me || c.addresseeId === me)
+        .map((connection) => {
+          const userId = otherSide(connection, me);
+          const person = suggestedPeople.find((p) => p.id === userId);
+          return {
+            id: connection.id,
+            userId,
+            status: connection.status,
+            name: person?.name ?? 'Connection',
+            headline: person?.headline ?? 'Professional',
+            color: person?.color ?? '#5be3c8',
+            incoming: connection.addresseeId === me,
+            createdAt: connection.createdAt,
+          };
+        });
     },
     () => apiClient.get('/social/connections'),
   );
@@ -192,17 +237,23 @@ export function requestReferral({ connectionId, applicationId, jobTitle, company
   return withMock(
     async () => {
       await delay(320);
-      const connection = db.connections.find((c) => c.id === connectionId || c.userId === connectionId);
+      const me = currentUserId();
+      // `connectionId` carries the other person's user id, which is what
+      // ApplicationList sends; a connection row id is accepted too.
+      const connection = db.connections.find(
+        (c) => c.id === connectionId || otherSide(c, me) === connectionId,
+      );
       if (!connection) throw new Error('That connection no longer exists.');
+      const referrerUserId = otherSide(connection, me);
       const existing = db.referrals.find(
-        (r) => r.referrerUserId === connection.userId && r.applicationId === applicationId,
+        (r) => r.referrerUserId === referrerUserId && r.applicationId === applicationId,
       );
       if (existing) return { ...existing };
 
       const referral = {
         id: nextId('ref'),
-        referrerUserId: connection.userId,
-        referrerName: suggestedPeople.find((p) => p.id === connection.userId)?.name ?? 'Connection',
+        referrerUserId,
+        referrerName: suggestedPeople.find((p) => p.id === referrerUserId)?.name ?? 'Connection',
         applicantUserId: currentUserId(),
         applicationId,
         jobTitle,
@@ -338,8 +389,11 @@ export function countConnections(userId) {
       await delay(120);
       const id = userId ?? currentUserId();
       if (!id) return 0;
+      // Either side of the row. This used to read `c.from` and `c.to`, which
+      // no connection ever had — `connect` stored a one-sided
+      // `{ userId, status }` — so the tile could only ever show 0.
       return db.connections.filter(
-        (c) => c.status === 'accepted' && (c.from === id || c.to === id),
+        (c) => c.status === 'accepted' && (c.requesterId === id || c.addresseeId === id),
       ).length;
     },
     () => apiClient.get('/social/connections/count', { params: { userId: userId ?? currentUserId() } }),

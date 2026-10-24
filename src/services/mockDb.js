@@ -147,7 +147,7 @@ export function toPublicUser(account) {
  * with this file when the real API lands.
  */
 const SNAPSHOT_KEY = 'grooveli:mock-db';
-const SNAPSHOT_VERSION = 3;
+const SNAPSHOT_VERSION = 4;
 
 /**
  * `currentUserId` is deliberately excluded: who is signed in belongs to the
@@ -168,8 +168,10 @@ function restore() {
     // tables; v2 tracked one-shot events in their own array and stored a career
     // `level` alongside the XP it is derived from. A v2 snapshot has XP totals
     // with no events behind them, so restoring one would let every one-shot
-    // award be claimed a second time. Stale snapshots start clean rather than
-    // hydrate wrong.
+    // award be claimed a second time. v3 stored connections one-sided as
+    // `{ userId, status }`, which has no `requesterId` to read, so a v3
+    // snapshot's connections would resolve to nobody. Stale snapshots start
+    // clean rather than hydrate wrong.
     if (parsed?.version !== SNAPSHOT_VERSION) return;
     const { currentUserId, ...data } = parsed.data ?? {};
     Object.assign(db, data);
