@@ -71,11 +71,15 @@ ok('  and the attempt does not leak the paper', !('questionIds' in (attempt ?? {
 
 /* ------------------------------------------------- the paper is fixed --- */
 
+// A question from another bank: the paper draws four of the five HR questions
+// in a shuffled order, so naming an HR id here would sometimes BE the served
+// question and the check would pass or fail by luck. `sw-1` can never be in an
+// HR paper.
 r = await call('POST', `/interviews/${attempt.id}/answer`, {
-  token, body: { questionId: 'hr-5', optionIndex: 0 },
+  token, body: { questionId: 'sw-1', optionIndex: 0 },
 });
 const outOfOrder = r.status === 400 || r.status === 404;
-ok('a question you were not served is refused', outOfOrder, `status=${r.status}`);
+ok('a question from another paper is refused', outOfOrder, `status=${r.status}`);
 
 r = await call('POST', `/interviews/${attempt.id}/answer`, {
   token, body: { questionId: question.id, optionIndex: 99 },
@@ -109,36 +113,60 @@ ok('a finished interview takes no more answers', r.status === 400, `status=${r.s
 
 /* --------------------------------------------------- sit one and pass --- */
 
+/* Passing needs two correct answers before two wrong, and the server will not
+   tell us which they are — which is the point. So the key is read from the
+   repo's own bank: this script runs beside the source, the deployed function
+   does not. Guessing cannot reliably pass, and the pass path is the one that
+   awards the XP and the badge, so it is worth testing properly rather than
+   hoping a run gets lucky. */
+const { INTERVIEW_BANKS } = await import('../src/data/interviewQuestions.js');
+const keyOf = new Map(
+  Object.values(INTERVIEW_BANKS).flat().map((q) => [q.id, q.answerIndex]),
+);
+
 r = await call('POST', '/interviews/start', { token });
 const second = r.body?.attempt;
 let q = r.body?.question;
-let passed = false;
-let guard = 0;
+let graded = null;
 
-// Without the key, the only way through is to try options until one lands —
-// which is itself the proof that the server is the one grading.
-while (!passed && guard < 12) {
-  guard += 1;
-  let graded = null;
-  for (let option = 0; option < (q?.options?.length ?? 0); option += 1) {
-    graded = (await call('POST', `/interviews/${second.id}/answer`, {
-      token, body: { questionId: q.id, optionIndex: option },
-    })).body;
-    if (graded?.correct) break;
-    if (graded?.finished) break;
-    // A wrong answer consumed the question; move to the next one.
-    q = graded?.nextQuestion;
-    break;
-  }
-  if (!graded) break;
-  if (graded.finished) {
-    passed = graded.passed === true;
-    ok('an attempt finishes with a verdict', typeof graded.passed === 'boolean',
-      JSON.stringify({ passed: graded.passed, score: graded.score }));
-    break;
-  }
-  q = graded.nextQuestion ?? q;
+for (let step = 0; step < 4 && q; step += 1) {
+  graded = (await call('POST', `/interviews/${second.id}/answer`, {
+    token, body: { questionId: q.id, optionIndex: keyOf.get(q.id) },
+  })).body;
+  if (!graded || graded.finished) break;
+  q = graded.nextQuestion;
 }
+
+ok('answering correctly is graded correct', graded?.correct === true, JSON.stringify(graded?.correct));
+ok('two correct answers pass', graded?.finished === true && graded?.passed === true,
+  JSON.stringify({ f: graded?.finished, p: graded?.passed }));
+ok('  a clean 2-0 scores 100', graded?.score === 100, `score=${graded?.score}`);
+
+/* ------------------------------------ a pass can be put on the record --- */
+
+r = await call('POST', '/interviews/simulations', {
+  token, body: { jobTitle: 'HR interview', companyName: 'Grooveli AI' },
+});
+ok('a passed simulation is recorded', r.status === 201 && r.body?.type === 'simulation', `status=${r.status}`);
+ok('  with the score read from the attempt, not the request', r.body?.score === 100, `score=${r.body?.score}`);
+
+r = await call('GET', '/interviews', { token });
+ok('  and it appears on the interview list', (r.body ?? []).some((i) => i.type === 'simulation'),
+  `${(r.body ?? []).length} interviews`);
+
+/* ------------------------ a pass is what the career event is keyed on --- */
+
+r = await call('POST', '/career/events', {
+  token, body: { event: 'interview.simulated', context: { simulationId: second.id, pathId: 'path-hr' } },
+});
+ok('the pass pays 100 XP', r.body?.xpAwarded === 100, `xp=${r.body?.xpAwarded}`);
+ok('  and earns Interview Ready', (r.body?.awardedAchievements ?? []).some((a) => a.id === 'ach-interview-ready'),
+  JSON.stringify((r.body?.awardedAchievements ?? []).map((a) => a.id)));
+
+r = await call('POST', '/career/events', {
+  token, body: { event: 'interview.simulated', context: { simulationId: second.id, pathId: 'path-hr' } },
+});
+ok('  the same attempt cannot be claimed twice', r.body?.xpAwarded === 0, `xp=${r.body?.xpAwarded}`);
 
 /* ---------------------------------------------------------- the record --- */
 
