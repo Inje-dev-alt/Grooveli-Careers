@@ -36,6 +36,7 @@ const Missions = lazy(() => import('./pages/Missions.jsx'));
 const Profile = lazy(() => import('./pages/Profile.jsx'));
 const AI = lazy(() => import('./pages/AI.jsx'));
 const Network = lazy(() => import('./pages/Network.jsx'));
+const CompanyOffice = lazy(() => import('./pages/CompanyOffice.jsx'));
 
 const EmployerDashboard = lazy(() => import('./pages/EmployerDashboard.jsx'));
 const EmployerJobs = lazy(() => import('./pages/EmployerJobs.jsx'));
@@ -164,6 +165,7 @@ export default function App() {
             <Route path="/missions" element={<RequireIdentity role="candidate"><Missions /></RequireIdentity>} />
             <Route path="/ai" element={<RequireIdentity role="candidate"><AI /></RequireIdentity>} />
             <Route path="/network" element={<RequireIdentity role="candidate"><Network /></RequireIdentity>} />
+            <Route path="/companies/:organizationId" element={<RequireIdentity role="candidate"><CompanyOffice /></RequireIdentity>} />
             <Route path="/profile" element={<RequireIdentity role="candidate"><Profile /></RequireIdentity>} />
 
             {/* Employer experience */}

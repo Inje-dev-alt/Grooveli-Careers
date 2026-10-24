@@ -49,6 +49,10 @@ route('GET', '/jobs', async (req) => {
 
   const search = p.get('search')?.trim().toLowerCase();
   const districtId = p.get('districtId');
+  // A company's own published roles, for the office a candidate walks into.
+  // Distinct from GET /organizations/:id/jobs, which requires membership and
+  // serves drafts and closed roles too — a visitor sees only what is open.
+  const organizationId = p.get('organizationId');
   const location = p.get('location')?.toLowerCase();
   const industry = p.get('industry');
   const employmentTypes = p.getAll('employmentTypes');
@@ -69,6 +73,7 @@ route('GET', '/jobs', async (req) => {
   let jobs = rows
     .map((row) => withMatch(row, matchProfile))
     .filter((job) => {
+      if (organizationId && job.organizationId !== organizationId) return false;
       if (districtId && job.districtId !== districtId) return false;
       if (industry && job.industry !== industry) return false;
       if (location && !job.location.toLowerCase().includes(location)) return false;

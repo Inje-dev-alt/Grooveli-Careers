@@ -14,12 +14,14 @@
 import { getLocation } from './locations.js';
 import { getApartmentObject } from './apartment.js';
 import { getCompanyObject } from './company.js';
+import { getOfficeObject } from './office.js';
 
 /** scene id -> how that scene looks a place up by id. */
 const LOOKUPS = {
   city: getLocation,
   apartment: getApartmentObject,
   company: getCompanyObject,
+  office: getOfficeObject,
 };
 
 /**
@@ -32,6 +34,7 @@ const FALLBACKS = {
   city: { name: 'Grooveli City', accent: 'var(--g-accent)' },
   apartment: { name: 'Your Apartment', accent: '#ffd9a0' },
   company: { name: 'Company HQ', accent: '#5be3c8' },
+  office: { name: 'Company Office', accent: '#6fe0ff' },
 };
 
 /**

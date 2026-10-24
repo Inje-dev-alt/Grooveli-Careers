@@ -22,18 +22,33 @@ export function GameCanvas({ scene }) {
 
     async function boot() {
       // Dynamic import keeps Phaser out of the initial bundle.
-      const [{ default: Phaser }, { createGameConfig }, { CityScene }, { ApartmentScene }, { CompanyScene }] =
-        await Promise.all([
-          import('phaser'),
-          import('../../game/config.js'),
-          import('../../game/scenes/CityScene.js'),
-          import('../../game/scenes/ApartmentScene.js'),
-          import('../../game/scenes/CompanyScene.js'),
-        ]);
+      const [
+        { default: Phaser },
+        { createGameConfig },
+        { CityScene },
+        { ApartmentScene },
+        { CompanyScene },
+        { OfficeScene },
+      ] = await Promise.all([
+        import('phaser'),
+        import('../../game/config.js'),
+        import('../../game/scenes/CityScene.js'),
+        import('../../game/scenes/ApartmentScene.js'),
+        import('../../game/scenes/CompanyScene.js'),
+        import('../../game/scenes/OfficeScene.js'),
+      ]);
 
       if (cancelled || !host) return;
 
-      const SceneClass = scene === 'apartment' ? ApartmentScene : scene === 'company' ? CompanyScene : CityScene;
+      // A map rather than a ternary chain: four rooms was where the chain
+      // stopped reading as a choice and started reading as a puzzle.
+      const SCENES = {
+        city: CityScene,
+        apartment: ApartmentScene,
+        company: CompanyScene,
+        office: OfficeScene,
+      };
+      const SceneClass = SCENES[scene] ?? CityScene;
       const config = createGameConfig({ parent: host, scenes: [SceneClass] });
       const game = new Phaser.Game(config);
       gameRef.current = game;

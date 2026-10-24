@@ -64,6 +64,7 @@ function matchesQuery(job, query) {
   const {
     search,
     districtId,
+    organizationId,
     location,
     industry,
     employmentTypes = [],
@@ -78,6 +79,9 @@ function matchesQuery(job, query) {
   // the employer who owns them.
   if (job.status !== 'published') return false;
 
+  // A company's office lists its own published roles; the API takes the same
+  // parameter.
+  if (organizationId && job.organizationId !== organizationId) return false;
   if (districtId && job.districtId !== districtId) return false;
   if (industry && job.industry !== industry) return false;
   if (location && !job.location.toLowerCase().includes(location.toLowerCase())) return false;

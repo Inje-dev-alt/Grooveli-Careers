@@ -18,7 +18,13 @@ import { CAREER_EVENTS } from '../../utils/careerEvents.js';
  *
  * @param {{ districtId?: string, wide?: boolean, onOpenJob: (job) => void, compactFilters?: boolean }} props
  */
-export function JobBrowser({ districtId, wide = false, onOpenJob, compactFilters = false }) {
+export function JobBrowser({
+  districtId,
+  organizationId,
+  wide = false,
+  onOpenJob,
+  compactFilters = false,
+}) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const query = useJobStore((s) => s.query);
   const savedJobIds = useJobStore((s) => s.savedJobIds);
@@ -28,9 +34,15 @@ export function JobBrowser({ districtId, wide = false, onOpenJob, compactFilters
   const loadApplications = useJobStore((s) => s.loadApplications);
   const resetQuery = useJobStore((s) => s.resetQuery);
 
-  // A district panel is scoped to its own district; the standalone marketplace
-  // is not. Everything else about the query is shared.
-  const effectiveQuery = districtId ? { ...query, districtId } : query;
+  // A district panel is scoped to its own district and a company office to its
+  // own company; the standalone marketplace is scoped to neither. Everything
+  // else about the query — search, facets, sort — is shared, which is why the
+  // office reuses this browser rather than growing its own job list.
+  const effectiveQuery = {
+    ...query,
+    ...(districtId ? { districtId } : null),
+    ...(organizationId ? { organizationId } : null),
+  };
 
   const jobsQuery = useAsync(
     () => jobService.listJobs(effectiveQuery),

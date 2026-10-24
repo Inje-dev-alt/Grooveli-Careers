@@ -21,6 +21,8 @@ import { HiringAnalytics } from '../employer/HiringAnalytics.jsx';
 import { getLocation } from '../../game/world/locations.js';
 import { getApartmentObject } from '../../game/world/apartment.js';
 import { getCompanyObject } from '../../game/world/company.js';
+import { OfficeReception } from '../locations/OfficeReception.jsx';
+import { OfficeNotices } from '../locations/OfficeNotices.jsx';
 
 /**
  * Renders whichever panel is on top of the modal stack.
@@ -67,6 +69,7 @@ function ModalLayer({ modal }) {
         >
           <JobBrowser
             districtId={props.districtId}
+            organizationId={props.organizationId}
             onOpenJob={(job) => openModal('job-detail', { job })}
             compactFilters
           />
@@ -238,6 +241,32 @@ function ModalLayer({ modal }) {
       return (
         <Modal eyebrow="Phone" title="Notifications" size="md" onClose={closeModal}>
           <NotificationList />
+        </Modal>
+      );
+
+    case 'office-profile':
+      return (
+        <Modal
+          eyebrow="Reception"
+          title="About this company"
+          subtitle="What a candidate reads before applying."
+          size="md"
+          onClose={closeModal}
+        >
+          <OfficeReception />
+        </Modal>
+      );
+
+    case 'office-posts':
+      return (
+        <Modal
+          eyebrow="Notice board"
+          title="From this company"
+          subtitle="What they have shared with the network."
+          size="md"
+          onClose={closeModal}
+        >
+          <OfficeNotices />
         </Modal>
       );
 

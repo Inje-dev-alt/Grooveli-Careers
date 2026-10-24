@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import './locations.css';
 import {
   Panel,
@@ -11,6 +12,7 @@ import {
 } from '../ui/index.js';
 import { useAsync } from '../../hooks/useAsync.js';
 import { useSocialStore } from '../../stores/socialStore.js';
+import { useUiStore } from '../../stores/uiStore.js';
 import * as organizationService from '../../services/organizationService.js';
 import { formatNumber } from '../../utils/format.js';
 
@@ -22,6 +24,8 @@ import { formatNumber } from '../../utils/format.js';
  * marketplace, not a one-way job board.
  */
 export function CompanyList({ districtId, onViewJobs }) {
+  const navigate = useNavigate();
+  const closeAllModals = useUiStore((state) => state.closeAllModals);
   const query = useAsync(() => organizationService.listOrganizations({ districtId }), [districtId]);
   const followed = useSocialStore((s) => s.followedOrganizationIds);
   const toggleFollow = useSocialStore((s) => s.toggleFollow);
@@ -72,11 +76,26 @@ export function CompanyList({ districtId, onViewJobs }) {
                     <Badge>{organization.size} people</Badge>
                     <Badge>{formatNumber(organization.followerCount)} followers</Badge>
                   </div>
-                  {onViewJobs ? (
-                    <Button size="sm" variant="ghost" onClick={() => onViewJobs(organization)}>
-                      View open roles
+                  <div className="g-row" style={{ gap: 6 }}>
+                    {onViewJobs ? (
+                      <Button size="sm" variant="ghost" onClick={() => onViewJobs(organization)}>
+                        View open roles
+                      </Button>
+                    ) : null}
+                    {/* A company is a place, not just a row. Walking in gets
+                        reception, the board of open roles and their notices —
+                        and is where presence will land when it does. */}
+                    <Button
+                      size="sm"
+                      variant="subtle"
+                      onClick={() => {
+                        closeAllModals();
+                        navigate(`/companies/${organization.id}`);
+                      }}
+                    >
+                      Visit office
                     </Button>
-                  ) : null}
+                  </div>
                 </div>
               </Panel>
             </li>

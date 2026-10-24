@@ -86,7 +86,14 @@ highlighting.
 
 **One interaction system.** Walk up to anything and an `[E] ENTER` prompt
 appears; pressing E opens a panel whose actions come from that location's own
-data. Buildings and apartment furniture share it — there is no per-building code.
+data. Four rooms share it — the city, your apartment, the employer's
+headquarters and any company's office — so a new room is a data file and a
+six-line subclass, never a new renderer.
+
+**Companies are places.** Walk into a district, pick a company, and visit their
+office: reception with the profile you read before applying, a board of their
+open roles with your match against each, and their notice board. Every office is
+the same room; the route decides whose it is.
 
 **Career identity.** Profile, skills with verification and assessment scores,
 experience, education, completeness checklist, CV, statistics, achievements and a

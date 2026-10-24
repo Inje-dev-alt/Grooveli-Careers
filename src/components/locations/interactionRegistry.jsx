@@ -13,6 +13,7 @@ import {
   IconKey,
 } from '../ui/index.js';
 import { AI_INTENTS } from '../../services/aiService.js';
+import { useOfficeStore } from '../../stores/officeStore.js';
 
 /**
  * The interaction registry.
@@ -145,6 +146,53 @@ export const INTERACTIONS = {
     open: ({ closeAllModals, navigate }) => {
       closeAllModals();
       navigate('/employer/company');
+    },
+  },
+
+  /* --------------------------------------------- a company's own office --- */
+
+  /*
+   * Which company you are standing in comes from the route, not from the world
+   * data — every office is the same room. The office store holds it, so these
+   * read it rather than taking it as context the registry cannot supply.
+   */
+
+  'office-profile': {
+    label: 'Reception',
+    description: 'Who this company is',
+    icon: IconGrid,
+    open: ({ replaceModal }) => replaceModal('office-profile', {}),
+  },
+
+  'office-jobs': {
+    label: 'Open Roles',
+    description: 'Every role this company has published',
+    icon: IconBriefcase,
+    // Reuses the marketplace browser scoped to one company, so an office
+    // inherits search, facets, match scores and the apply flow for free.
+    open: ({ replaceModal }) => {
+      const organization = useOfficeStore.getState().organization;
+      replaceModal('jobs', {
+        organizationId: organization?.id,
+        title: organization?.name ?? 'Open roles',
+      });
+    },
+  },
+
+  'office-posts': {
+    label: 'Notice Board',
+    description: 'What this company has shared',
+    icon: IconDoc,
+    open: ({ replaceModal }) => replaceModal('office-posts', {}),
+  },
+
+  'office-exit': {
+    label: 'Leave the office',
+    description: 'Back to the city',
+    icon: IconHome,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/city');
     },
   },
 
