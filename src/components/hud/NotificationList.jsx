@@ -6,11 +6,18 @@ import { useNotificationStore } from '../../stores/notificationStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { formatRelativeTime } from '../../utils/format.js';
 
+/**
+ * One entry per type the API can send — the `notifications.type` check
+ * constraint is the list. A missing entry is not a crash (Badge falls back to
+ * `default`) but it reads as an unstyled notice, which is how a new type
+ * arrives looking broken.
+ */
 const TYPE_TONE = {
   match: 'accent',
   application: 'info',
   interview: 'warning',
   mission: 'success',
+  'mission-reminder': 'accent',
   system: 'default',
 };
 
