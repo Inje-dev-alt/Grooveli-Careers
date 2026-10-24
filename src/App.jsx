@@ -41,6 +41,7 @@ const EmployerDashboard = lazy(() => import('./pages/EmployerDashboard.jsx'));
 const EmployerJobs = lazy(() => import('./pages/EmployerJobs.jsx'));
 const EmployerCandidates = lazy(() => import('./pages/EmployerCandidates.jsx'));
 const EmployerCompany = lazy(() => import('./pages/EmployerCompany.jsx'));
+const EmployerHQ = lazy(() => import('./pages/EmployerHQ.jsx'));
 
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
@@ -170,6 +171,7 @@ export default function App() {
             <Route path="/employer/jobs" element={<RequireIdentity role="employer"><EmployerJobs /></RequireIdentity>} />
             <Route path="/employer/candidates" element={<RequireIdentity role="employer"><EmployerCandidates /></RequireIdentity>} />
             <Route path="/employer/company" element={<RequireIdentity role="employer"><EmployerCompany /></RequireIdentity>} />
+            <Route path="/employer/hq" element={<RequireIdentity role="employer"><EmployerHQ /></RequireIdentity>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -111,7 +111,10 @@ employment type, work type, experience level, skills, salary, match), sorting,
 job detail with the match explanation, saving, and a confirm-then-apply flow.
 Reachable from the city *and* as a standalone route.
 
-**Employer space.** Dashboard with company and recruitment overview, job
+**Employer space.** A headquarters in the city — the employer's own room, the
+way the apartment is the candidate's: the hiring board, the desk that publishes
+roles, the candidate wall and the company profile, all reached by walking up and
+pressing **E**. Behind it, a dashboard with company and recruitment overview, job
 creation, published job management, candidate discovery, and a pipeline you can
 move applications through.
 

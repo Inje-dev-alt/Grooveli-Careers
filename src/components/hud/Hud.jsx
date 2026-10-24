@@ -8,7 +8,7 @@ import { usePlayerStore } from '../../stores/playerStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import { getLocation } from '../../game/world/locations.js';
-import { getApartmentObject } from '../../game/world/apartment.js';
+import { resolvePlace, placeFallback } from '../../game/world/places.js';
 import { useCareerPath } from '../../hooks/useCareerPath.js';
 import { initials } from '../../utils/format.js';
 
@@ -19,7 +19,7 @@ import { initials } from '../../utils/format.js';
  * they need, and the interaction prompt. Everything else lives behind the menu
  * so the city stays visible.
  */
-export function Hud({ scene = 'city', action = null }) {
+export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const user = useAuthStore((s) => s.user);
   const progression = useCareerStore(selectProgression);
   const reputation = useCareerStore((s) => s.reputation);
@@ -35,12 +35,16 @@ export function Hud({ scene = 'city', action = null }) {
     if (notificationStatus === 'idle') loadNotifications();
   }, [notificationStatus, loadNotifications]);
 
-  const location =
-    scene === 'apartment'
-      ? getApartmentObject(currentLocationId) ?? { name: 'Your Apartment', accent: '#ffd9a0' }
-      : getLocation(currentLocationId);
+  // Whichever room this is — the city, the apartment or a company HQ — the
+  // lookup is chosen by scene rather than branched on here. See world/places.js.
+  const fallback = placeFallback(scene);
+  const nearby = resolvePlace(scene, currentLocationId);
+  const location = nearby ?? fallback;
 
-  const locationName = scene === 'apartment' ? 'Your Apartment' : location?.name ?? 'Grooveli City';
+  // Standing next to something names itself. Otherwise `locationLabel` lets a
+  // scene say what the world data cannot know — the signed-in employer's own
+  // company — and failing that the room's own name.
+  const locationName = nearby?.name ?? locationLabel ?? fallback.name;
   const homeDistrictName = homePath ? getLocation(homePath.districtId)?.name ?? null : null;
   const locationAccent = location?.accent ?? 'var(--g-accent)';
 
