@@ -15,8 +15,8 @@ passing a skill assessment, never from time spent in the product.
 Every data path runs through a service layer written as "the real endpoint, or
 the mock", so a surface can be switched on without touching a component.
 Identity, jobs, candidates, applications, career progression, missions and the
-whole employer side are **live** on Supabase; social, learning, interviews, the
-leaderboard, notifications and AI are still **mocked**. The defaults run
+whole employer side are **live** on Supabase, as are notifications; social,
+learning, interviews, the leaderboard and AI are still **mocked**. The defaults run
 entirely on mocks, so the whole product can be demonstrated with no backend at
 all. See [`docs/BACKEND_HANDOFF.md`](docs/BACKEND_HANDOFF.md).
 

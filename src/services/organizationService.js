@@ -12,7 +12,7 @@ import { apiClient, withMock, ApiError } from './apiClient.js';
 import { db, nextId, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { resolveCandidateForEmployer } from './candidateService.js';
-import { recordStageChange, notifyUser } from './applicationService.js';
+import { recordStageChange, notifyUser, stageNotice } from './applicationService.js';
 
 export function listOrganizations(filters = {}) {
   return withMock(
@@ -205,18 +205,11 @@ export function setApplicationStatus(applicationId, status, options = {}) {
       }
       recordStageChange(application, from, status, 'employer', note);
 
-      notifyUser(application.candidateId, {
-        type: status === 'rejected' ? 'application' : 'application',
-        title:
-          status === 'rejected'
-            ? `${application.companyName} decided not to progress`
-            : `${application.jobTitle} - ${status.replace('-', ' ')}`,
-        body:
-          status === 'rejected'
-            ? `${application.jobTitle} - feedback is on your application. Rejections are data, not a verdict.`
-            : `Your application at ${application.companyName} moved to ${status.replace('-', ' ')}.`,
-        route: '/profile',
-      });
+      // The same copy the simulation uses, from one table. This branch used to
+      // write a flatter "moved to shortlisted", so a candidate got a worse
+      // message when a real employer moved them than when the timer did.
+      const notice = stageNotice(status, application.jobTitle, application.companyName);
+      if (notice) notifyUser(application.candidateId, notice);
 
       return { ...application };
     },

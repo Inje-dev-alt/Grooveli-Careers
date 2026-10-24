@@ -16,3 +16,4 @@ import './applications.ts';
 import './career.ts';
 import './missions.ts';
 import './organizations.ts';
+import './notifications.ts';

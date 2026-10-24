@@ -774,13 +774,9 @@ uploaded — the same open decision as the CV above. The column `logo_url` exist
 so the endpoint is not implying it stored something. Every screen renders
 `logoColor` today; this is for when there is a real mark.
 
-> **Divergence while notifications are mocked.** The mock writes an in-app
-> notification on every stage change; the server writes the
-> `application_events` row (which is the durable history the candidate's
-> timeline reads) but **no notification**, because there is no notifications
-> table until step 12. With `VITE_USE_MOCKS=false` a candidate therefore sees
-> the new stage and its feedback on their applications list, but gets no notice
-> drawing them to it. Wiring it is part of that batch.
+**Stage changes now raise a notice.** Since Batch 3.5 an employer's move
+writes both the `application_events` row and a notification to the candidate,
+so the pipeline no longer moves silently. See Notifications below.
 
 #### The employer's view of a candidate
 
@@ -950,12 +946,49 @@ sign-up, session token) already exists — reminders build on it.
 | GET | `/ai/career/next-action`, `/ai/career/discovery` | `aiService.js` |
 | POST | `/ai/assessment`, `/ai/interview-simulation` | `aiService.js` |
 
-### Notifications
-`GET /notifications`, `POST /notifications/:id/read`,
-`POST /notifications/read-all` - `notificationService.js`. Rows carry a
-`userId`; reads are scoped to the signed-in account. The pipeline writes
-notices here on every stage change (review, shortlist, interview, offer,
-rejection).
+### Notifications — **LIVE** (Batch 3.5)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/notifications` | Live — newest first, 50 max |
+| POST | `/notifications/:id/read` | Live |
+| POST | `/notifications/read-all` | Live — returns the feed |
+| GET / PUT | `/users/me/notification-preferences` | Live |
+
+**There is no endpoint that writes a notice.** A notice is a consequence of
+something else happening, so it is raised by the code that made it happen
+(`_shared/notify.ts`), never by a client asking for one — a browser that could
+post into an inbox could post into somebody else's.
+
+`POST /jobs/:id/apply` and the employer's `PATCH /applications/:id` are the
+two paths that raise one today. The stage copy lives in `stageNotice`, in both
+`_shared/notify.ts` and `src/services/applicationService.js`; the two must not
+drift. Only an **employer's** move notifies: `withdrawn`, `declined` and
+`hired` are the candidate's own actions, and telling someone what they just
+did themselves is noise.
+
+A failed notice never fails the thing it was about. The stage change is
+durable in `applications` and `application_events` before `notify` runs, and
+`notify` swallows and logs its own failure — answering the employer with a 500
+because the bell did not ring would turn a cosmetic failure into a move they
+would try again.
+
+Reads and the read-state write are scoped by `user_id` in the same statement
+rather than by a separate ownership check, so marking somebody else's notice
+read matches nothing and answers 404.
+
+**Still mocked: the reminder scheduler.** Preferences are stored and
+`POST /missions/:id/reminded` has been live since Batch 3.2, but nothing runs
+the 24h rule on a timer — `missionService.dueMissionReminders` still evaluates
+it in the browser on page load. The backend should run the same rule on a
+scheduler (pg_cron or a scheduled Edge Function) and write
+`type: 'mission-reminder'` rows. That is the one piece of this batch that is
+not finished.
+
+**Locally raised notices are not persisted.** `notificationStore.push` adds a
+row for a mission completing or an achievement unlocking while the player
+plays. Those are session-only and disappear on reload, which is the intended
+behaviour for something already shown as a toast — but it means the feed is
+not a complete history of everything the player was told.
 
 ### Leaderboard
 | Method | Path | Mocked in |
@@ -1121,7 +1154,8 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
 9. `/social/*`. **Batch 3.5.**
 10. `/learning/*`. **Batch 3.6.**
 11. `/interviews/*`. **Batch 3.7.**
-12. `/leaderboard/*` and `/notifications/*`. **Batch 3.8.**
+12. `/leaderboard/*`. **Batch 3.8.** (`/notifications/*` landed early, in
+    Batch 3.5, because it was the launch gate.)
 13. `/ai/*` — blocked on an AI provider key. **Batch 3.9.**
 
 **Why the order changed from the original 1–8.** Three things the prototype
@@ -1144,11 +1178,11 @@ learning, leaderboard and interviews labelled "coming soon" rather than failing
 quietly. Step 8 made the marketplace two-sided: an employer can onboard, publish
 a role, and see real applications arrive against it.
 
-**What now gates a launch is step 12, notifications.** The pipeline moves and
-records itself, but nothing tells the candidate it moved — see the divergence
-note under Organizations. Everything else outstanding is a feature labelled
-"coming soon"; this one is a product that quietly stops talking to the person
-waiting on it.
+Batch 3.5 closed the gate: an employer's move now raises a notice, so the
+pipeline no longer goes quiet on the person waiting on it. Everything still
+outstanding is a feature that can be labelled "coming soon" — with one
+exception worth tracking, the mission-reminder scheduler, which is the only
+part of notifications that is not finished.
 
 # Batch 2 — Employer HQ, analytics and reminders (continuation)
 

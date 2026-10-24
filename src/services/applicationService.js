@@ -125,39 +125,78 @@ function simulateStep(application) {
   recordStageChange(application, from, to, 'system', note);
 
   const userId = application.candidateId;
-  if (to === 'under-review') {
-    notifyUser(userId, {
-      type: 'application',
-      title: `${application.companyName} is reviewing`,
-      body: `${application.jobTitle} - your application moved from submitted to in review.`,
-    });
-  } else if (to === 'shortlisted') {
-    notifyUser(userId, {
-      type: 'application',
-      title: `Shortlisted - ${application.jobTitle}`,
-      body: `${application.companyName} shortlisted you. The next stage is an interview.`,
-    });
-  } else if (to === 'interview') {
-    notifyUser(userId, {
-      type: 'interview',
-      title: `Interview stage - ${application.jobTitle}`,
-      body: `${application.companyName} wants to interview you. Practise in the AI Career Center.`,
-      route: '/ai',
-    });
-    if (userId === currentUserId()) bumpStatQuiet('interviews');
-  } else if (to === 'offer') {
-    notifyUser(userId, {
-      type: 'application',
-      title: `Offer received - ${application.jobTitle}`,
-      body: `${application.companyName} made you an offer. Open your applications to accept or decline.`,
-    });
-    if (userId === currentUserId()) bumpStatQuiet('offers');
-  } else if (to === 'rejected') {
-    notifyUser(userId, {
-      type: 'application',
-      title: `${application.companyName} decided not to progress`,
-      body: `${application.jobTitle} - feedback is on your application. Rejections are data, not a verdict.`,
-    });
+  const notice = stageNotice(to, application.jobTitle, application.companyName);
+  if (notice) notifyUser(userId, notice);
+
+  if (userId === currentUserId()) {
+    if (to === 'interview') bumpStatQuiet('interviews');
+    else if (to === 'offer') bumpStatQuiet('offers');
+  }
+}
+
+/**
+ * What the candidate is told when their application reaches a stage.
+ *
+ * One table for both paths. The simulation had this copy per stage while
+ * `organizationService.setApplicationStatus` wrote a flatter "moved to
+ * shortlisted" for the same move made by a real employer — so a candidate got
+ * a worse message when a person was behind it than when the timer was. The
+ * server's `_shared/notify.ts` holds the same table and must not drift.
+ *
+ * `null` means no notice. `applied` is the candidate's own action, and
+ * `withdrawn`, `declined` and `hired` are decisions they just made themselves.
+ *
+ * @param {string} status
+ * @param {string} jobTitle
+ * @param {string} companyName
+ * @returns {{ type: string, title: string, body: string, route?: string } | null}
+ */
+export function stageNotice(status, jobTitle, companyName) {
+  switch (status) {
+    case 'under-review':
+      return {
+        type: 'application',
+        title: `${companyName} is reviewing`,
+        body: `${jobTitle} - your application moved from submitted to in review.`,
+        route: '/profile',
+      };
+    case 'shortlisted':
+      return {
+        type: 'application',
+        title: `Shortlisted - ${jobTitle}`,
+        body: `${companyName} shortlisted you. The next stage is an interview.`,
+        route: '/profile',
+      };
+    case 'interview':
+      return {
+        type: 'interview',
+        title: `Interview stage - ${jobTitle}`,
+        body: `${companyName} wants to interview you. Practise in the AI Career Center.`,
+        route: '/ai',
+      };
+    case 'assessment':
+      return {
+        type: 'application',
+        title: `Assessment stage - ${jobTitle}`,
+        body: `${companyName} has sent you an assessment. Open your applications to start it.`,
+        route: '/profile',
+      };
+    case 'offer':
+      return {
+        type: 'application',
+        title: `Offer received - ${jobTitle}`,
+        body: `${companyName} made you an offer. Open your applications to accept or decline.`,
+        route: '/profile',
+      };
+    case 'rejected':
+      return {
+        type: 'application',
+        title: `${companyName} decided not to progress`,
+        body: `${jobTitle} - feedback is on your application. Rejections are data, not a verdict.`,
+        route: '/profile',
+      };
+    default:
+      return null;
   }
 }
 

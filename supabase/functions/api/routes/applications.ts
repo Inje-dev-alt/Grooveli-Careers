@@ -3,6 +3,7 @@ import { adminClient } from '../_shared/supabase.ts';
 import { badRequest, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { isMember } from '../_shared/organizations.ts';
+import { notify, stageNotice } from '../_shared/notify.ts';
 
 type AppRow = Record<string, unknown>;
 
@@ -220,6 +221,23 @@ route('PATCH', '/applications/:id', async (req, params) => {
   }
 
   await appendEvent(admin, params.id, from, status, actor, note);
+
+  // The candidate is told the pipeline moved. Only for an employer's move:
+  // `withdrawn` is the candidate's own action, and telling someone what they
+  // just did themselves is noise.
+  //
+  // Raised after the update, never inside it: the stage change is already
+  // durable, and `notify` swallows its own failure so a bell that did not ring
+  // cannot report the move as failed.
+  if (actor === 'employer') {
+    const notice = stageNotice(
+      status,
+      String(job?.title ?? 'your application'),
+      String(job?.company_name ?? 'The company'),
+    );
+    if (notice) await notify(admin, String(row.candidate_id), notice);
+  }
+
   return { body: toApplication(data as AppRow) };
 });
 
