@@ -92,8 +92,10 @@ export function completeCourse(courseId) {
       const stamp = new Date().toISOString();
       enrolment.status = 'completed';
       enrolment.completedAt = stamp;
-      db.careerStats[id] = { completedMissions: 0, certifications: 0, applications: 0, interviews: 0, offers: 0, jobsViewed: 0, locationsVisited: 0, ...(db.careerStats[id] ?? {}) };
-      db.careerStats[id].certifications += 1;
+      // The `certifications` statistic is NOT bumped here. `course.completed`
+      // maps to it in STAT_FOR_EVENT, so the career event the caller fires
+      // next already counts it — doing it here as well certified you twice for
+      // one course. The API does not bump it either.
       return { courseId, alreadyCompleted: false, completedAt: stamp };
     },
     () => apiClient.post(`/learning/courses/${courseId}/complete`),

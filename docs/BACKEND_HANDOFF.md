@@ -939,12 +939,24 @@ rather than as XP nobody earned.
 `POST /missions/:id/attempt` is the one gap: grading a skill challenge is the AI
 service's job (§6), and a stub that invented a score would be worse than a 404.
 
-### Learning
-| Method | Path | Mocked in |
+### Learning — **LIVE** (Batch 3.8)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/learning/courses`, `POST /learning/courses/:id/complete` | `learningService.js` |
-| GET | `/learning/enrollments`, `POST /learning/courses/:id/enrol` | `learningService.js` |
-| GET | `/users/me/notification-preferences`, `PUT /users/me/notification-preferences` | `missionService.js` |
+| GET | `/learning/courses` (`?skill=`, `?pathId=`) | Live |
+| GET | `/learning/enrollments` | Live |
+| POST | `/learning/courses/:id/enrol` | Live — idempotent |
+| POST | `/learning/courses/:id/complete` | Live |
+
+**A course completes once.** `alreadyCompleted` is the whole contract: the
+client only fires `course.completed` when it comes back false, so the 200 XP
+and the certification are claimed once however many times the button is
+pressed. The career event is keyed on `courseId` too, so a client that ignored
+it would still be refused by the event.
+
+**Completing does not touch `certifications`.** `course.completed` maps to that
+counter in `STAT_FOR_EVENT` and is applied inside `apply_career_event`. The
+prototype's mock bumped it in `completeCourse` *as well*, so finishing one
+course certified you twice; both sides now leave it to the event.
 
 Reminder preferences are `{ missionReminders: boolean, quietHours: { start,
 end } | null }` in 24h hours, per account. A mission is due when it is
@@ -1062,14 +1074,29 @@ plays. Those are session-only and disappear on reload, which is the intended
 behaviour for something already shown as a toast — but it means the feed is
 not a complete history of everything the player was told.
 
-### Leaderboard
-| Method | Path | Mocked in |
+### Leaderboard — **LIVE** (Batch 3.8)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/leaderboard` | `leaderboardService.js` |
-| GET / POST | `/leaderboard/opt-out` | `leaderboardService.js` |
+| GET | `/leaderboard` | Live — top 50 |
+| GET / POST | `/leaderboard/opt-out` | Live |
 
-Ranked by reputation, never XP. Opt-out is respected server-side: an opted
-out account must not appear in the response, for anyone.
+**Ranked by reputation, never XP.** Reputation moves only on work someone else
+could verify; XP moves on everything. A board ranked by XP becomes a farming
+contest within a week, and the board is meant to be the one number an employer
+can read without context.
+
+**An opted-out account is absent for everyone.** The prototype filtered only
+the viewer's own row (`!e.isMe || !optedOut`), so opting out removed you from
+your own screen and left you on everybody else's — the opposite of what the
+setting promises. The exclusion now happens before ranks are assigned, so the
+board has no gap where an opted-out account used to be.
+
+Opting out is stored as **presence**: a row in `leaderboard_opt_out` means
+hidden, no row means listed. Participation is opt-out rather than opt-in, so
+the default needs no row written for every account that never thinks about it.
+
+Only accounts with a candidate profile are ranked — an employer has no career
+to compare.
 ---
 
 ## 6. AI requirements
@@ -1224,10 +1251,10 @@ Each step is independently shippable; the UI keeps working with the rest mocked.
    `source: "grooveli_employer"` jobs start flowing into the same marketplace.
    **Live.**
 9. `/social/*`. **Live.** (Batch 3.6.)
-10. `/learning/*`. **Batch 3.6.**
+10. `/learning/*`. **Live.**
 11. `/interviews/*`. **Live.**
-12. `/leaderboard/*`. **Batch 3.8.** (`/notifications/*` landed early, in
-    Batch 3.5, because it was the launch gate.)
+12. `/leaderboard/*`. **Live.** (`/notifications/*` landed early, in Batch
+    3.5, because it was the launch gate.)
 13. `/ai/*` — blocked on an AI provider key. **Batch 3.9.**
 
 **Why the order changed from the original 1–8.** Three things the prototype

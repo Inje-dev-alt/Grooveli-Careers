@@ -19,3 +19,5 @@ import './organizations.ts';
 import './notifications.ts';
 import './social.ts';
 import './interviews.ts';
+import './learning.ts';
+import './leaderboard.ts';
