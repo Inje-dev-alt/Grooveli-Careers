@@ -23,7 +23,7 @@ import { adminClient } from '../_shared/supabase.ts';
 import { badRequest, forbidden, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { authorIdOf, authorsFor, blockedBy, otherSide, toPosts } from '../_shared/social.ts';
-import { notify } from '../_shared/notify.ts';
+import { homeRouteFor, notify } from '../_shared/notify.ts';
 import { userPayload } from '../_shared/users.ts';
 
 type Row = Record<string, unknown>;
@@ -422,11 +422,18 @@ route('POST', '/social/connections', async (req) => {
   }
 
   const authors = await authorsFor(admin, [authUser.id], []);
+  /*
+   * Routed by the RECIPIENT's active role, not to a fixed path. `/network` is
+   * a candidate-only route: an employer who followed this notice was bounced
+   * straight back out of it, which made the notice a dead end for exactly the
+   * people most likely to be asked. The requests panel is on both surfaces
+   * now, so the notice only has to name the right one.
+   */
   await notify(admin, userId, {
     type: 'system',
     title: `${authors.get(authUser.id)?.name ?? 'Someone'} wants to connect`,
-    body: 'Open your network to accept.',
-    route: '/network',
+    body: 'Accept to message each other freely and ask for referrals.',
+    route: await homeRouteFor(admin, userId),
   });
 
   const row = data as Row;
@@ -669,11 +676,13 @@ route('POST', '/social/referrals', async (req) => {
     throw serverError();
   }
 
+  // Same reasoning as the connection notice: a referral can be asked of
+  // anyone this account is connected to, including an employer.
   await notify(admin, referrerId, {
     type: 'system',
     title: `${authors.get(authUser.id)?.name ?? 'A connection'} asked for a referral`,
     body: `For ${str(job?.title)} at ${str(job?.company_name)}.`,
-    route: '/network',
+    route: await homeRouteFor(admin, referrerId),
   });
 
   return { status: 201, body: shape(data as Row) };

@@ -21,6 +21,7 @@ import { useEmployerStore } from '../stores/employerStore.js';
 import { statusLabel, statusTone } from '../utils/applicationStatus.js';
 import { formatRelativeTime } from '../utils/format.js';
 import { HiringAnalytics } from '../components/employer/HiringAnalytics.jsx';
+import { ConnectionRequests } from '../components/social/ConnectionRequests.jsx';
 
 /**
  * The employer dashboard.
@@ -168,6 +169,15 @@ export default function EmployerDashboard() {
                 </ul>
               )}
             </Panel>
+
+            {/*
+              An employer can be asked to connect — they stand in their own
+              office lobby and appear in rosters like anyone else. `/network`
+              is a candidate-only route, so without this they had a request
+              they could never answer. Renders nothing when there is nothing
+              waiting.
+            */}
+            <ConnectionRequests />
 
             <HiringAnalytics />
           </div>

@@ -173,10 +173,13 @@ export function connect(userId) {
 /**
  * Answer a connection request.
  *
- * **Nothing in the interface calls this yet.** The network offers "Connect"
- * and no way to answer, so every connection stays `pending` and the profile's
- * connection tile reads 0 for everyone. The endpoint and this branch exist so
- * that gap is a screen to build rather than a schema to change.
+ * Answered from `ConnectionRequests`, which both the network page and the
+ * employer dashboard render — an employer can be asked to connect too, and
+ * `/network` is candidate-only, so one surface was not enough.
+ *
+ * Accepting is load bearing beyond the social graph: it is what lifts the
+ * one-message limit on a conversation with that person, and what makes them
+ * named rather than merely counted in presence at the default visibility.
  */
 export function respondToConnection(connectionId, decision) {
   return withMock(
