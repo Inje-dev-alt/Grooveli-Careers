@@ -9,7 +9,7 @@ import { usePlayerStore } from '../../stores/playerStore.js';
  * Phaser is imported dynamically so the engine is fetched only when a world
  * route is opened — the marketplace, profile and AI routes never pay for it.
  *
- * @param {{ scene: 'city' | 'apartment' }} props
+ * @param {{ scene: 'city' | 'apartment' | 'company' }} props
  */
 export function GameCanvas({ scene }) {
   const hostRef = useRef(null);
@@ -22,17 +22,33 @@ export function GameCanvas({ scene }) {
 
     async function boot() {
       // Dynamic import keeps Phaser out of the initial bundle.
-      const [{ default: Phaser }, { createGameConfig }, { CityScene }, { ApartmentScene }] =
-        await Promise.all([
-          import('phaser'),
-          import('../../game/config.js'),
-          import('../../game/scenes/CityScene.js'),
-          import('../../game/scenes/ApartmentScene.js'),
-        ]);
+      const [
+        { default: Phaser },
+        { createGameConfig },
+        { CityScene },
+        { ApartmentScene },
+        { CompanyScene },
+        { OfficeScene },
+      ] = await Promise.all([
+        import('phaser'),
+        import('../../game/config.js'),
+        import('../../game/scenes/CityScene.js'),
+        import('../../game/scenes/ApartmentScene.js'),
+        import('../../game/scenes/CompanyScene.js'),
+        import('../../game/scenes/OfficeScene.js'),
+      ]);
 
       if (cancelled || !host) return;
 
-      const SceneClass = scene === 'apartment' ? ApartmentScene : CityScene;
+      // A map rather than a ternary chain: four rooms was where the chain
+      // stopped reading as a choice and started reading as a puzzle.
+      const SCENES = {
+        city: CityScene,
+        apartment: ApartmentScene,
+        company: CompanyScene,
+        office: OfficeScene,
+      };
+      const SceneClass = SCENES[scene] ?? CityScene;
       const config = createGameConfig({ parent: host, scenes: [SceneClass] });
       const game = new Phaser.Game(config);
       gameRef.current = game;

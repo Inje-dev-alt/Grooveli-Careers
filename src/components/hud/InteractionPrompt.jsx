@@ -2,8 +2,7 @@ import './hud.css';
 import { gameBridge, GAME_EVENTS } from '../../game/bridge.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
-import { getLocation } from '../../game/world/locations.js';
-import { getApartmentObject } from '../../game/world/apartment.js';
+import { resolvePlace } from '../../game/world/places.js';
 
 /**
  * The [E] ENTER prompt.
@@ -20,7 +19,7 @@ export function InteractionPrompt({ scene = 'city' }) {
   if (!nearbyLocationId || modalOpen || menuOpen) return null;
 
   const target =
-    scene === 'apartment' ? getApartmentObject(nearbyLocationId) : getLocation(nearbyLocationId);
+    resolvePlace(scene, nearbyLocationId);
   if (!target) return null;
 
   const trigger = () =>

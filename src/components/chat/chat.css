@@ -1,0 +1,161 @@
+/* ---------- Conversations ---------- */
+
+.chat {
+  display: grid;
+  /* head, met, scroll, refusal, composer, moderation — the scroll row is the
+     only one that flexes, so a long thread grows inside the panel rather than
+     pushing the composer off the bottom of it. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  gap: var(--g-space-3);
+  min-height: 48vh;
+  max-height: 64vh;
+}
+
+.chat__head {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding-bottom: var(--g-space-3);
+  border-bottom: 1px solid var(--g-glass-border);
+}
+
+.chat__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-pill);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+  color: var(--g-text-on-accent);
+}
+
+.chat__who { flex: 1; min-width: 0; }
+.chat__name { font-size: var(--g-text-sm); font-weight: 600; }
+.chat__headline { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+
+.chat__met {
+  margin: 0;
+  font-size: var(--g-text-xs);
+  color: var(--g-text-dim);
+}
+
+.chat__scroll {
+  overflow-y: auto;
+  /* Room for the scrollbar so a message does not sit under it. */
+  padding-right: var(--g-space-2);
+}
+
+.chat__empty {
+  margin: 0;
+  font-size: var(--g-text-sm);
+  color: var(--g-text-muted);
+  line-height: 1.65;
+}
+
+.chat__messages {
+  display: grid;
+  gap: var(--g-space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.chat__message {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  max-width: 82%;
+  padding: var(--g-space-2) var(--g-space-3);
+  border-radius: var(--g-radius-md);
+  background: var(--g-glass);
+  border: 1px solid var(--g-glass-border);
+}
+
+/* Your own messages sit on the right. The only visual difference that matters
+   in a two-person thread is which side spoke. */
+.chat__message--mine {
+  margin-left: auto;
+  justify-items: end;
+  background: var(--g-glass-strong);
+}
+
+.chat__body {
+  margin: 0;
+  font-size: var(--g-text-sm);
+  line-height: 1.6;
+  /* Messages are plain text with newlines preserved — never Markdown, never
+     HTML — the same bargain a post's body makes. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.chat__time { font-size: 10px; color: var(--g-text-dim); }
+
+.chat__refusal {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin: 0;
+  font-size: var(--g-text-xs);
+  color: var(--g-warning, #ffc46b);
+  line-height: 1.55;
+}
+
+.chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--g-space-2);
+}
+
+.chat__composer .g-textarea { flex: 1; resize: none; }
+
+.chat__moderation {
+  display: flex;
+  gap: var(--g-space-3);
+  padding-top: var(--g-space-2);
+  border-top: 1px solid var(--g-glass-border);
+}
+
+.chat__verb {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--g-text-xs);
+  color: var(--g-text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.chat__verb:hover:not(:disabled) { color: var(--g-text-muted); }
+.chat__verb:disabled { cursor: default; text-decoration: none; }
+
+/* ---------- The inbox ---------- */
+
+.inbox { display: grid; gap: var(--g-space-2); list-style: none; padding: 0; margin: 0; }
+
+.inbox__thread {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  width: 100%;
+  padding: var(--g-space-3);
+  border: 1px solid var(--g-glass-border);
+  border-radius: var(--g-radius-md);
+  background: var(--g-glass);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inbox__thread:hover { background: var(--g-glass-strong); }
+
+.inbox__body { flex: 1; min-width: 0; }
+.inbox__name { font-size: var(--g-text-sm); font-weight: 600; }
+.inbox__preview { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+
+@media (max-width: 560px) {
+  .chat { max-height: 70vh; }
+  .chat__message { max-width: 92%; }
+}

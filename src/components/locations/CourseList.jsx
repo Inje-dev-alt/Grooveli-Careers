@@ -15,20 +15,31 @@ import { useUiStore } from '../../stores/uiStore.js';
 import * as learningService from '../../services/learningService.js';
 import { recordCareerEvent } from '../../stores/progression.js';
 import { CAREER_EVENTS } from '../../utils/careerEvents.js';
+import { useCareerPath } from '../../hooks/useCareerPath.js';
 
 /** Courses at the Training Center. Completing one is worth a certification and 200 XP. */
 export function CourseList() {
   const [completing, setCompleting] = useState(null);
   const [completed, setCompleted] = useState([]);
   const pushToast = useUiStore((s) => s.pushToast);
+  const homePath = useCareerPath();
   const query = useAsync(() => learningService.listCourses(), []);
 
   const complete = async (course) => {
     setCompleting(course.id);
     try {
-      await learningService.completeCourse(course.id);
+      const result = await learningService.completeCourse(course.id);
       setCompleted((prev) => [...prev, course.id]);
-      recordCareerEvent(CAREER_EVENTS.COURSE_COMPLETED, { label: `${course.title} completed` });
+      // A course may only be completed once. The service tells us when this
+      // call was a no-op, so the XP loop cannot be farmed by re-clicking.
+      if (!result.alreadyCompleted) {
+        recordCareerEvent(CAREER_EVENTS.COURSE_COMPLETED, {
+          label: `${course.title} completed`,
+          // `courseId` is what the award is keyed on, so the 200 XP lands once
+          // per course. It was `course` here, which the backend does not read.
+          context: { courseId: course.id, skill: course.skill },
+        });
+      }
     } catch (error) {
       pushToast({ title: 'Could not record the course', body: error.message, tone: 'danger' });
     } finally {
@@ -46,7 +57,7 @@ export function CourseList() {
       {(courses) => (
         <ul className="g-stack">
           {courses.map((course) => {
-            const done = completed.includes(course.id);
+            const done = course.completed || completed.includes(course.id);
             return (
               <li key={course.id}>
                 <Panel pad="sm" className="course-card">
@@ -70,6 +81,9 @@ export function CourseList() {
                     <Badge>{course.weeks} weeks</Badge>
                     <Badge>{course.level}</Badge>
                     <Badge>Builds {course.skill}</Badge>
+                    {homePath && course.pathIds?.includes(homePath.id) ? (
+                      <Badge tone="accent">For your {homePath.title} path</Badge>
+                    ) : null}
                   </div>
 
                   <Button

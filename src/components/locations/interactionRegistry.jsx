@@ -13,6 +13,7 @@ import {
   IconKey,
 } from '../ui/index.js';
 import { AI_INTENTS } from '../../services/aiService.js';
+import { useOfficeStore } from '../../stores/officeStore.js';
 
 /**
  * The interaction registry.
@@ -111,6 +112,109 @@ export const INTERACTIONS = {
     },
   },
 
+  'company-jobs': {
+    label: 'Manage Roles',
+    description: 'Create jobs and manage published roles',
+    icon: IconBriefcase,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/jobs');
+    },
+  },
+
+  'company-candidates': {
+    label: 'Review Candidates',
+    description: 'Applications waiting on your decision',
+    icon: IconUser,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/candidates');
+    },
+  },
+
+  'company-analytics': {
+    label: 'Hiring Analytics',
+    description: 'Pipeline, time in stage and applicant mix',
+    icon: IconTrendUp,
+    open: ({ replaceModal }) => replaceModal('company-analytics', {}),
+  },
+
+  'company-profile': {
+    label: 'Company Profile',
+    description: 'What candidates see before they apply',
+    icon: IconGrid,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer/company');
+    },
+  },
+
+  /* --------------------------------------------- a company's own office --- */
+
+  /*
+   * Which company you are standing in comes from the route, not from the world
+   * data — every office is the same room. The office store holds it, so these
+   * read it rather than taking it as context the registry cannot supply.
+   */
+
+  'office-profile': {
+    label: 'Reception',
+    description: 'Who this company is',
+    icon: IconGrid,
+    open: ({ replaceModal }) => replaceModal('office-profile', {}),
+  },
+
+  'office-jobs': {
+    label: 'Open Roles',
+    description: 'Every role this company has published',
+    icon: IconBriefcase,
+    // Reuses the marketplace browser scoped to one company, so an office
+    // inherits search, facets, match scores and the apply flow for free.
+    open: ({ replaceModal }) => {
+      const organization = useOfficeStore.getState().organization;
+      replaceModal('jobs', {
+        organizationId: organization?.id,
+        title: organization?.name ?? 'Open roles',
+      });
+    },
+  },
+
+  'office-presence': {
+    label: 'Meeting Table',
+    description: 'Who else is in this lobby',
+    icon: IconUser,
+    // Reads the presence store, which the app-wide heartbeat is already
+    // filling — so the panel opens on data it did not have to fetch.
+    open: ({ replaceModal }) => replaceModal('room-roster', { eyebrow: 'Meeting table' }),
+  },
+
+  'office-posts': {
+    label: 'Notice Board',
+    description: 'What this company has shared',
+    icon: IconDoc,
+    open: ({ replaceModal }) => replaceModal('office-posts', {}),
+  },
+
+  'office-exit': {
+    label: 'Leave the office',
+    description: 'Back to the city',
+    icon: IconHome,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/city');
+    },
+  },
+
+  'company-exit': {
+    label: 'Leave HQ',
+    description: 'Back to the employer dashboard',
+    icon: IconHome,
+    open: ({ closeAllModals, navigate }) => {
+      closeAllModals();
+      navigate('/employer');
+    },
+  },
+
   'career-dashboard': {
     label: 'Career Dashboard',
     description: 'Level, XP, reputation and what is in flight',
@@ -146,6 +250,13 @@ export const INTERACTIONS = {
     open: ({ replaceModal }) => replaceModal('achievements', {}),
   },
 
+  leaderboard: {
+    label: 'City Standings',
+    description: 'The most credible careers in Grooveli, ranked by reputation',
+    icon: IconTrendUp,
+    open: ({ replaceModal }) => replaceModal('leaderboard', {}),
+  },
+
   notifications: {
     label: 'Notifications',
     description: 'Matches, updates and reminders',
@@ -160,6 +271,21 @@ export const INTERACTIONS = {
  */
 function districtScope(location) {
   return location.type === 'career-district' ? location.id : '';
+}
+
+/**
+ * The interview action shown at the player's own home district, branded with
+ * their path. Built rather than listed: whether a district offers it depends
+ * on who is standing there, so the panel asks for it explicitly.
+ */
+export function homePathInterviewAction(path) {
+  return {
+    id: 'path-interview',
+    label: `${path.title} Interview`,
+    description: 'Practise with your home path question bank, then get scored',
+    icon: IconKey,
+    open: ({ replaceModal }) => replaceModal('ai', { initialIntent: AI_INTENTS.INTERVIEW_SIM }),
+  };
 }
 
 /** @returns {{ id: string } & typeof INTERACTIONS[string] | null} */

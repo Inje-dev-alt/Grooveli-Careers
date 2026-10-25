@@ -1,5 +1,37 @@
 import { create } from 'zustand';
 import * as authService from '../services/authService.js';
+import { useCareerStore } from './careerStore.js';
+import { useMissionStore } from './missionStore.js';
+import { useJobStore } from './jobStore.js';
+import { useSocialStore } from './socialStore.js';
+import { useEmployerStore } from './employerStore.js';
+import { useNotificationStore } from './notificationStore.js';
+import { usePresenceStore } from './presenceStore.js';
+import { useChatStore } from './chatStore.js';
+
+/**
+ * Drop every account-scoped store.
+ *
+ * Each of these wrote a `reset` and documented it as "clear on sign-out", but
+ * nothing called them: signing out cleared the session and left the previous
+ * account's XP, missions, saved jobs, pipeline and inbox sitting in memory for
+ * whoever signed in next in that tab. There is no page reload between the two,
+ * so the stores survive it.
+ *
+ * Imported directly rather than registered through a subscriber: no store
+ * imports `authStore`, so there is no cycle, and a list that is read in one
+ * place is easier to keep complete than one assembled at runtime.
+ */
+function clearAccountStores() {
+  useCareerStore.getState().reset();
+  useMissionStore.getState().reset();
+  useJobStore.getState().reset();
+  useSocialStore.getState().reset();
+  useEmployerStore.getState().reset();
+  useNotificationStore.getState().reset();
+  usePresenceStore.getState().reset();
+  useChatStore.getState().reset();
+}
 
 /**
  * Session and identity.
@@ -85,11 +117,23 @@ export const useAuthStore = create((set, get) => ({
     return user;
   },
 
+  /** Re-read the current user — e.g. after an avatar upload changes it. */
+  refreshUser: async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      set({ user });
+      return user;
+    } catch {
+      return get().user;
+    }
+  },
+
   signOut: async () => {
     // The local session clears whatever the server says — a failed round-trip
     // must not leave someone stuck signed in.
     await authService.logout().catch(() => {});
     set({ user: null, status: 'idle', error: null });
+    clearAccountStores();
   },
 
   clearError: () => set({ error: null }),

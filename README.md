@@ -12,10 +12,14 @@ AI. Every mechanic connects to a career outcome — walking into the Technology
 Hub opens the roles actually open there, and XP comes from finishing a profile or
 passing a skill assessment, never from time spent in the product.
 
-This is the **frontend prototype**. There is no backend. Every data path runs
-through a service layer backed by realistic mock data, written so the mocks can
-be swapped for real endpoints without touching a component. See
-[`docs/BACKEND_HANDOFF.md`](docs/BACKEND_HANDOFF.md).
+Every data path runs through a service layer written as "the real endpoint, or
+the mock", so a surface can be switched on without touching a component.
+Identity, jobs, candidates, applications, career progression, missions and the
+whole employer side are **live** on Supabase, as are notifications and the
+network, interview simulation, learning and the leaderboard. Only the AI
+career centre is still **mocked**. The defaults run
+entirely on mocks, so the whole product can be demonstrated with no backend at
+all. See [`docs/BACKEND_HANDOFF.md`](docs/BACKEND_HANDOFF.md).
 
 ---
 
@@ -53,12 +57,14 @@ a new candidate correctly starts at **level 1 with 0 XP**.
 career onboarding → enter Grooveli City → walk to a district and press **E** →
 explore jobs, missions or career discovery → complete a skill challenge, earn XP
 and an achievement → check the AI Career Center for your next move and the reason
-for it → apply to a role above 60% match → share the achievement on the network.
+for it → apply to a role above 60% match → watch the application move through the
+pipeline (review, shortlist or a rejection with feedback) → accept an offer
+and see the role join your profile → share the achievement on the network.
 
 **Employer.** Create an account → choose *Hire talent* → company onboarding →
 employer dashboard → publish a role → **it appears in the same marketplace
 candidates browse**, tagged `grooveli_employer` → discover candidates whose
-skills carry assessment scores → move an application along the pipeline.
+skills carry assessment scores → move an application along the pipeline — rejecting asks for a reason the candidate actually reads.
 
 That crossover is the thing worth watching: one job object, published by an
 employer, consumed unchanged by the candidate marketplace.
@@ -80,22 +86,42 @@ highlighting.
 
 **One interaction system.** Walk up to anything and an `[E] ENTER` prompt
 appears; pressing E opens a panel whose actions come from that location's own
-data. Buildings and apartment furniture share it — there is no per-building code.
+data. Four rooms share it — the city, your apartment, the employer's
+headquarters and any company's office — so a new room is a data file and a
+six-line subclass, never a new renderer.
+
+**Companies are places.** Walk into a district, pick a company, and visit their
+office: reception with the profile you read before applying, a board of their
+open roles with your match against each, and their notice board. Every office is
+the same room; the route decides whose it is.
 
 **Career identity.** Profile, skills with verification and assessment scores,
 experience, education, completeness checklist, CV, statistics, achievements and a
 career activity stream.
 
 **Career progression.** XP, levels, missions whose objectives listen for career
-events, achievements earned from the same events, and reputation as a separate
-number.
+events, achievements **counted** against their stated conditions (five district
+visits, the *Excel* challenge specifically), and reputation as a separate
+number. Every award lands in an XP ledger with its reason. **The server decides
+what everything is worth** — the browser sends what happened and reads back the
+consequences, so no code path in the interface can increase XP.
+
+**The living pipeline.** Applications on mock jobs advance on their own —
+review, then shortlist or rejection-with-feedback, then interview, then an
+offer you accept or decline. Accepting signs the role onto your profile and
+is worth 150 XP; a rejection unlocks the Bounce Back mission. Every move is
+recorded as stage history the candidate can read. Roles published by real
+employers are never auto-advanced — they own their timeline.
 
 **Job marketplace.** Search, facet filters (district, location, industry,
 employment type, work type, experience level, skills, salary, match), sorting,
 job detail with the match explanation, saving, and a confirm-then-apply flow.
 Reachable from the city *and* as a standalone route.
 
-**Employer space.** Dashboard with company and recruitment overview, job
+**Employer space.** A headquarters in the city — the employer's own room, the
+way the apartment is the candidate's: the hiring board, the desk that publishes
+roles, the candidate wall and the company profile, all reached by walking up and
+pressing **E**. Behind it, a dashboard with company and recruitment overview, job
 creation, published job management, candidate discovery, and a pipeline you can
 move applications through.
 
@@ -205,6 +231,15 @@ Everything that matters calls one function, `recordCareerEvent`, which fans the
 event out to XP, reputation, missions, achievements, the activity stream and
 notices. No screen awards XP directly.
 
+It is also the only thing that *can*. `recordCareerEvent` sends the event and
+the thing it was about — `{ event: 'skill.challenge', context: { skill: 'Excel' } }` —
+and copies the totals out of the reply. The award is keyed on that context, so
+the database enforces one per application, per course, per skill, per district
+rather than one per click, and a mission's reward is read from its own row only
+after the server has recounted the objectives against the events it recorded.
+The tables in `src/utils/careerEvents.js` are a mirror of the server's, kept so
+the interface can say what something is worth before you do it.
+
 ### XP is earned; reputation is proved
 
 | Activity | XP |
@@ -216,9 +251,10 @@ notices. No screen awards XP directly.
 | Interview simulation | 100 |
 | Application to a **suitable** role | 25 |
 | Course completion | 200 |
+| Accepting a real offer | 150 |
 
-Deliberate zeros: viewing a job, saving a job, posting, connecting, and applying
-below the 60% match threshold. The interface says so before you apply. The system
+Deliberate zeros: viewing a job, saving a job, posting, connecting, being
+rejected, declining an offer, and applying below the 60% match threshold. The interface says so before you apply. The system
 cannot be farmed by volume, because volume is not career progress.
 
 **Reputation is a separate number** and only moves on work someone else could
@@ -234,7 +270,7 @@ progression; reputation is credibility.
 | `authStore` | Session, roles, active role, onboarding gates |
 | `onboardingStore` | The onboarding draft (a form, not career data) |
 | `playerStore` | Position, facing, animation, nearby/active location |
-| `careerStore` | XP, reputation, the XP ledger |
+| `careerStore` | XP, reputation, the XP ledger — all as the server last reported them |
 | `missionStore` | Mission definitions and objective progress |
 | `jobStore` | The search query, saved jobs, applications |
 | `socialStore` | Feed, likes, connections, follows |
@@ -295,7 +331,8 @@ sign-up screen warns against reusing a real password.
 
 Per the brief: production authentication, payments and employer billing,
 real-time messaging, multiplayer, recommendation algorithms, a production AI
-provider, external job ingestion, advanced analytics, leaderboards, and
-organization permission enforcement. Contracts for the employer and social sides
+provider, external job ingestion, advanced analytics, and organization permission
+enforcement. Referrals, feed moderation (report/block) and the opt-in
+reputation leaderboard **are** built and contracted in the handoff. Contracts for the employer and social sides
 are documented in the handoff where they were cheap to pin down, so they are not
 invented twice.

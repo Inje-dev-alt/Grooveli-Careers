@@ -24,6 +24,7 @@ export class ControlSystem {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
       interact: Phaser.Input.Keyboard.KeyCodes.E,
+      enter: Phaser.Input.Keyboard.KeyCodes.ENTER,
       close: Phaser.Input.Keyboard.KeyCodes.ESC,
     });
 
@@ -70,10 +71,12 @@ export class ControlSystem {
     return { x, y };
   }
 
-  /** True on the frame E was pressed. */
+  /** True on the frame E or Enter was pressed. */
   consumeInteract() {
     if (this.locked) return false;
-    return Phaser.Input.Keyboard.JustDown(this.keys.interact);
+    const interactPressed = Phaser.Input.Keyboard.JustDown(this.keys.interact);
+    const enterPressed = Phaser.Input.Keyboard.JustDown(this.keys.enter);
+    return interactPressed || enterPressed;
   }
 
   /** ESC is handled globally by the interface; the scene only needs to know. */

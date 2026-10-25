@@ -14,6 +14,7 @@ export const APPLICATION_STATUS = {
   offer: { label: 'Offer', tone: 'success' },
   rejected: { label: 'Not progressing', tone: 'danger' },
   withdrawn: { label: 'Withdrawn', tone: 'default' },
+  declined: { label: 'Offer declined', tone: 'default' },
   hired: { label: 'Hired', tone: 'success' },
 };
 
@@ -27,6 +28,14 @@ export const PIPELINE_ORDER = [
   'offer',
   'hired',
 ];
+
+/** Statuses from which a candidate can still withdraw their own application. */
+export const WITHDRAWABLE = new Set(['applied', 'under-review', 'shortlisted', 'interview', 'assessment']);
+
+/** True while the application is still live in the pipeline. */
+export function isActiveStatus(status) {
+  return WITHDRAWABLE.has(status) || status === 'offer';
+}
 
 export function statusLabel(status) {
   return APPLICATION_STATUS[status]?.label ?? status;

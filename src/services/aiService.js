@@ -11,11 +11,22 @@
  * agent talks about this candidate's actual matches, gaps and applications
  * rather than producing generic chatbot filler.
  */
-import { apiClient, withMock } from './apiClient.js';
+import { apiClient, surface } from './apiClient.js';
+
+/**
+ * Every call here belongs to the `ai` surface, so it can stay on mocks
+ * while the rest of the product is live. The AI centre is blocked on a
+ * provider decision rather than on engineering, and six screens erroring is
+ * a worse answer than six screens running on good mock data.
+ */
+const withMock = surface('ai');
 import { db, nextId, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { formatSalaryRange } from '../utils/format.js';
 import { jobSkills } from './jobService.js';
+import { scoreJobsForProfile } from './matchingService.js';
+import { CAREER_PATHS, resolvePathForProfile } from '../data/careerPaths.js';
+import { cityLocations } from '../game/world/locations.js';
 
 /** Intents the Career Center can route. Free text falls back to `general`. */
 export const AI_INTENTS = {
@@ -53,7 +64,7 @@ function context() {
   const profile = account?.candidateProfileId ? db.profiles[account.candidateProfileId] : null;
   const me = account?.id;
   const published = db.jobs.filter((j) => j.status === 'published');
-  const scored = published.filter((j) => typeof j.matchScore === 'number');
+  const scored = scoreJobsForProfile(published, profile).filter((j) => typeof j.matchScore === 'number');
 
   return {
     account,
@@ -61,10 +72,13 @@ function context() {
     progress: db.careerProgress[me] ?? { xp: 0, level: 1, reputation: 0 },
     applications: db.applications.filter((a) => a.candidateId === me),
     interviews: db.interviews,
-    jobs: published,
+      jobs: scored,
     topMatches: [...scored].sort((a, b) => b.matchScore - a.matchScore).slice(0, 3),
     strongMatches: scored.filter((j) => j.matchScore >= 75),
     achievements: db.achievements[me] ?? [],
+    // The candidate's home path: explicit first, then inference. Null for
+    // accounts without a candidate profile - the AI has no path to brand on.
+    path: profile ? resolvePathForProfile(profile) : null,
   };
 }
 
@@ -97,7 +111,9 @@ export function getBriefing() {
       const firstName = (ctx.account?.displayName || 'there').split(' ')[0];
 
       return {
-        greeting: `Welcome back, ${firstName}.`,
+        greeting: ctx.path
+          ? `Welcome back, ${firstName}. Your ${ctx.path.title} track starts at ${cityLocations.find((l) => l.id === ctx.path.districtId)?.name ?? 'its home district'}.`
+          : `Welcome back, ${firstName}.`,
         question: 'What would you like to work on?',
         highlights: [
           { id: 'hl-matches', label: 'jobs match your profile', value: ctx.strongMatches.length, route: '/jobs' },
@@ -210,6 +226,7 @@ export function getNextCareerAction() {
 
 /**
  * Career paths worth considering, with the reasoning behind each.
+ * Read from the canonical ten-path catalog - one source of truth.
  * @returns {Promise<import('../models/index.js').CareerMatch[]>}
  */
 export function getCareerMatches() {
@@ -217,32 +234,25 @@ export function getCareerMatches() {
     async () => {
       await delay(520);
       const ctx = context();
-      const have = (ctx.profile?.skills ?? []).filter((s) => s.level >= 65).map((s) => s.name);
+      const held = new Set((ctx.profile?.skills ?? []).map((s) => s.name.toLowerCase()));
       const gaps = skillGaps(ctx);
 
-      /** Career paths are defined by the skills they lean on. */
-      const paths = [
-        { id: 'path-talent-ops', title: 'Talent Operations Specialist', core: ['Recruitment', 'HR Operations', 'Excel'], growth: ['Data Analysis'], summary: 'Owns the systems and process behind hiring, rather than the conversations. Pays a premium where automation is involved.' },
-        { id: 'path-people-systems', title: 'People Systems Analyst', core: ['HR Operations', 'Excel', 'AI Automation'], growth: ['Data Analysis', 'SQL'], summary: 'Sits between the people team and engineering. The fastest-growing band in this market.' },
-        { id: 'path-recruitment-lead', title: 'Recruitment Lead', core: ['Recruitment', 'Stakeholder Management', 'Communication'], growth: ['Project Management'], summary: 'Runs hiring for a function and manages a small team. A natural step from specialist work.' },
-        { id: 'path-hr-analytics', title: 'HR Analytics Partner', core: ['HR Operations', 'Data Analysis'], growth: ['SQL', 'Data Analysis'], summary: 'Turns people data into decisions. Scarce skill set, and employers pay for it.' },
-      ];
-
-      return paths
-        .map((path) => {
-          const strengths = path.core.filter((s) => have.includes(s));
-          const missing = [...path.core.filter((s) => !have.includes(s)), ...path.growth.filter((s) => !have.includes(s))];
-          const matchScore = Math.round((strengths.length / path.core.length) * 78 + (missing.length === 0 ? 22 : 0));
-          return {
-            id: path.id,
-            title: path.title,
-            matchScore: Math.max(18, Math.min(97, matchScore + (gaps.length ? 0 : 5))),
-            strengths,
-            gaps: missing.slice(0, 2),
-            summary: path.summary,
-          };
-        })
-        .sort((a, b) => b.matchScore - a.matchScore);
+      return CAREER_PATHS.map((path) => {
+        const strengths = path.core.filter((skill) => held.has(skill.toLowerCase()));
+        const missing = [
+          ...path.core.filter((skill) => held.has(skill.toLowerCase()) === false),
+          ...path.growth.filter((skill) => !held.has(skill.toLowerCase())),
+        ];
+        const score = Math.round((strengths.length / path.core.length) * 78 + (missing.length === 0 ? 22 : 0));
+        return {
+          id: path.id,
+          title: path.title,
+          matchScore: Math.max(18, Math.min(97, score + (gaps.length === 0 ? 5 : 0))),
+          strengths,
+          gaps: missing.slice(0, 2),
+          summary: path.summary,
+        };
+      }).sort((a, b) => b.matchScore - a.matchScore);
     },
     () => apiClient.get('/ai/career/discovery'),
   );
@@ -272,7 +282,9 @@ function buildReply(intent, content) {
           '',
           ...lines,
           '',
-          'The common thread is people operations with a systems edge — that is where your experience prices highest.',
+          ctx.path
+            ? `The common thread is your home path: ${ctx.path.title} - ${ctx.path.core.join(', ')}.`
+            : 'The common thread is where your profile and the open roles overlap.',
         ].join('\n'),
         {
           references: { jobIds: ctx.topMatches.map((j) => j.id) },
@@ -319,7 +331,9 @@ function buildReply(intent, content) {
           : [
               'Nothing is scheduled, which makes this the right time to practise.',
               '',
-              'I will run a six-question simulation for a role in your match range and score structure, specificity and recovery.',
+              ctx.path
+                ? `I will run a six-question simulation from the ${ctx.path.title} question bank and score structure, specificity and recovery.`
+                : 'I will run a six-question simulation for a role in your match range and score structure, specificity and recovery.',
             ].join('\n'),
         { actions: [{ id: 'act-sim', label: 'Start interview simulation', intent: AI_INTENTS.INTERVIEW_SIM }] },
       );
@@ -426,24 +440,3 @@ export function runCareerAssessment() {
   );
 }
 
-/** Interview simulation. Scoring is the backend's job; the UI renders it. */
-export function runInterviewSimulation({ jobTitle } = {}) {
-  return withMock(
-    async () => {
-      await delay(1200);
-      const score = 74 + Math.floor(Math.random() * 20);
-      return {
-        jobTitle: jobTitle || 'People Systems Analyst',
-        companyName: 'Grooveli AI',
-        score,
-        completedAt: new Date().toISOString(),
-        feedback: [
-          { area: 'Structure', note: 'Answers landed in a clear situation-action-result shape.' },
-          { area: 'Specificity', note: 'Two answers needed a number. Name the scale you worked at.' },
-          { area: 'Recovery', note: 'You handled the follow-up on the missed deadline well — you owned it without over-explaining.' },
-        ],
-      };
-    },
-    () => apiClient.post('/ai/interview-simulation', { jobTitle }),
-  );
-}

@@ -34,7 +34,19 @@ Turning the backend on is:
 
 1. Set `VITE_API_BASE_URL` to the API root.
 2. Set `VITE_USE_MOCKS=false`.
-3. Delete the mock branch of each service as its endpoint goes live.
+3. Leave surfaces that are not ready in `VITE_MOCK_SURFACES`.
+4. Delete the mock branch of each service as its endpoint goes live.
+
+**Going live is not all-or-nothing.** `VITE_MOCK_SURFACES` is a comma list of
+surfaces that stay on mocks with the global switch off, so one surface that is
+blocked does not hold the rest back. Today it is `ai`: the career centre needs
+a provider, a server-side key and a budget decision rather than engineering,
+and six screens on good mock data beats six error states.
+
+A service tags itself once — `const withMock = surface('ai')` — and every call
+in it reads as before. A single call can be tagged instead, which is how
+`missionService.runSkillChallenge` stays mocked while every other mission
+endpoint is live: grading an attempt needs the same model.
 
 No component changes. Components never call `fetch` and never import mock data —
 both are enforceable with a grep and currently hold.
@@ -55,8 +67,10 @@ both are enforceable with a grep and currently hold.
 
 ## 2. Identity
 
-**MOCKED** in `src/services/authService.js`. Passwords are compared in the
-browser. This is not authentication and is labelled as such in the UI.
+**LIVE on Supabase** (Edge Function `api`, Supabase Auth) since Phase 2 — still
+**MOCKED** when `VITE_USE_MOCKS` is on, in `src/services/authService.js`.
+Passwords were compared in the browser in the prototype; the live path never
+does.
 
 ### The account model
 
@@ -159,6 +173,7 @@ These mirror `src/models/index.js`, which is the frontend's source of truth.
   "yearsExperience": 5,
   "careerGoal": "Move into a people systems role…",
   "careerInterests": ["People Operations", "HR Technology"],
+  "careerPathId": "path-hr",
   "workTypes": ["hybrid", "remote"],
   "openTo": ["full-time", "contract"],
   "salaryExpectation": { "min": 450000, "max": 750000, "currency": "NGN" },
@@ -198,6 +213,18 @@ optimistically — **the two must agree**. Current weighting:
 `verified` and `score` on a skill are the backend's to set, from an assessment.
 A self-rated skill must never come back verified — the whole employer-side value
 proposition rests on that distinction.
+
+`gender` ∈ `female` | `male` | `non-binary` | `prefer-not-to-say`, optional and
+private. It personalises the candidate's experience only — it must never be
+returned on employer-facing reads, included in matching, or used in analytics.
+`careerInterests` values come from the ten-row `career_paths` catalog (§4.6);
+reject anything not in it.
+
+`careerPathId` is the candidate's explicit home path — the `career_paths.id`
+(§4.6) of the interest they picked first at onboarding. Nullable: profiles saved
+before this field existed resolve by inference instead (first interest, then
+held-skill overlap), and the backend must mirror that same inference when the
+field is absent so both sides resolve identically.
 
 ### 4.2 Organization
 
@@ -325,6 +352,13 @@ A mission objective names the **career event** that advances it:
 }
 ```
 
+Missions can belong to a career path. A mission carrying `pathId` (a
+`career_paths.id`, §4.6) is part of that path's chain and must only be served
+to accounts whose resolved path matches — the backend filters `GET /missions`
+by the caller's `careerPathId` (explicit first, inference second, §4.1).
+Missions without `pathId` are core and serve everyone. One interview-and-apply
+loop mission per path exists today (`msn-path-*`).
+
 The event vocabulary is fixed, in `src/utils/careerEvents.js`:
 
 | Event | Fired when |
@@ -381,15 +415,22 @@ Level 1→2 costs 120 XP; level 10→11 about 534. **A new account starts at lev
 with 0 XP** — progression that was handed out rather than earned makes every
 number downstream meaningless.
 
-**Still to design: `POST /career/events`.** XP, reputation, mission progress and
-achievements are currently computed client-side and written back through
-`PUT /career/progress`. The clean replacement is a single write the frontend
-already funnels everything through (`recordCareerEvent` in
-`src/stores/progression.js`):
+**`POST /career/events` - designed, and the single write everything funnels
+through** (`recordCareerEvent` in `src/stores/progression.js`):
 
 ```json
-{ "event": "application.suitable", "occurredAt": "…", "context": { "jobId": "job-002" } }
+{
+  "event": "application.suitable",
+  "occurredAt": "2026-10-06T09:00:00.000Z",
+  "idempotencyKey": "evt-usr-001-application.suitable-job-002-1791286800",
+  "context": { "jobId": "job-002" }
+}
 ```
+
+**The `idempotencyKey` is mandatory and unique per user.** Every screen that
+can fire an event can double-fire it (double-clicks, retries, two tabs); the
+server must treat a repeated key as already-done and return the original
+result with `200`. Client-side guards exist and are not trusted.
 
 **200**
 ```json
@@ -407,7 +448,76 @@ already funnels everything through (`recordCareerEvent` in
 With that endpoint the server owns the XP table, the one-off rule and the
 anti-spam rule, and the frontend becomes a pure renderer of the response.
 
-### 4.6 Social
+**Three tables behind it:**
+
+- **`career_events`** - append-only: `(id, user_id, event, context jsonb,
+  occurred_at, idempotency_key UNIQUE(user_id, idempotency_key))`. The one-off
+  rule (profile, CV, assessment) becomes "one row per key", not a client
+  array: the frontend's `one_time_events` mirror exists only until this lands.
+- **`xp_ledger`** - `(id, user_id, career_event_id, amount, reason,
+  created_at)`. The "why did I level up" history the HUD renders; totals
+  without a ledger are numbers the player cannot defend.
+- **`achievement_progress`** - `(user_id, achievement_id, count, awarded_at
+  NULL)`. Achievements are **counted**, not fired: Career Explorer needs five
+  `location.visited` rows and the Excel award needs `context.skill = "Excel"`.
+  `count` and `context` live on the achievement definition.
+
+### 4.6 Career paths
+
+Ten rows, owned by the backend. Everything that talks about careers keys off
+them — onboarding interests, Discovery matches, interview banks, districts.
+
+`GET /career-paths` → the catalog; `GET /career-paths/:id` → one path.
+
+```json
+{
+  "id": "path-hr",
+  "title": "Human Resources",
+  "districtId": "recruitment-agency",
+  "tagline": "Hiring, people operations and the systems behind them.",
+  "summary": "Run recruitment, own people operations, and build the processes…",
+  "core": ["Recruitment", "HR Operations", "Communication"],
+  "growth": ["Excel", "Data Analysis", "AI Automation"],
+  "interviewBankId": "bank-hr"
+}
+```
+
+**The ten launch titles are fixed** — Human Resources, Software Development,
+AI Engineering, Social Media Management, Digital Marketing, Product Design,
+Motion Design, Video Editing, Customer Support, Virtual Assistance. Add a path
+by adding a row (plus a question bank); renaming a `title` renames it in
+onboarding, Discovery and interviews at once, so treat titles as stable
+identifiers. `core` reuses the skill vocabulary jobs speak, so matching needs
+no translation layer. Candidates submit `careerInterests` as titles from this
+list — reject anything not in it.
+
+### 4.7 Interview attempts
+
+A simulation is a real exam with a binary pass rule, enforced server-side:
+**two correct answers pass, two wrong answers fail**, over up to four
+questions from the candidate's path bank. An exam everyone passes certifies
+nothing — only a pass fires `interview.simulated`, its XP and the Interview
+Ready badge.
+
+`POST /interviews/start` `{ pathId? , jobTitle? }` → `{ attempt, question,
+questionNumber, total, rule }`. The question carries options but **never the
+answer index or rationale** — what the candidate may see is the contract.
+
+`POST /interviews/:id/answer` `{ questionId, optionIndex }` → `{ correct,
+correctOptionIndex, rationale, correctCount, wrongCount, finished, passed,
+score, questionNumber, nextQuestion, attempt }`. The rationale rides with the
+grade because the point of a practice interview is the feedback, not the
+score.
+
+`GET /interviews/attempts` → this account's attempts, newest first.
+`score` is correct ÷ answered as a percentage (2–0 is 100, 2–1 is 67).
+
+**Table `interview_attempts`:** `(id, user_id, path_id, job_title,
+question_ids jsonb, answers jsonb, correct_count, wrong_count, status,
+passed, score, started_at, completed_at)`. `question_ids` is the drawn paper —
+fixed at start so a retry cannot swap questions mid-exam.
+
+### 4.8 Social
 
 ```json
 {
@@ -430,6 +540,20 @@ anti-spam rule, and the frontend becomes a pure renderer of the response.
 `achievement` | `skill` | `advice` | `insight` | `opportunity` |
 `company-update`.
 
+**Identity surfaces.** `avatarUrl` (User) and `logoUrl` (Organization) are
+optional picture references with a generated-monogram fallback — the frontend
+never requires a file to render. Uploads are `multipart/form-data` with a
+`file` part:
+
+- `POST /users/me/avatar` → the updated user with `avatarUrl` set, plus a
+  signed URL if pictures are retrievable. Mocked in `socialService.js`
+  (file name only — nothing leaves the browser, exactly like the CV).
+- `POST /organizations/:id/logo` → the updated organization with `logoUrl`
+  set. Mocked in `organizationService.js`.
+- `GET /social/connections/count?userId=` → `{ count }` of accepted
+  connections, either side of the row. The profile renders it as a
+  "Connections" tile; the company renders `followerCount` as "Followers".
+
 **Only achievements the candidate has actually earned may be attached**, and
 `verified` must come from the backend. An attachable achievement that was not
 earned would turn the feed from social proof into noise.
@@ -437,12 +561,24 @@ earned would turn the feed from social proof into noise.
 `body` is rendered as plain text with newlines preserved. **Do not send Markdown
 or HTML** — the frontend does not parse either, by design.
 
-Connections and follows are **separate relationships**: a user connects with a
-user (mutual, with a `pending` state) and follows a user or an organization
-(one-way). Keeping them apart now means the social graph does not need rebuilding
-when either side grows.
+Connections and follows are **separate relationships**: a user connects with
+a user (mutual, with a `pending` state) and follows a user or an organization
+(one-way). Keeping them apart now means the social graph does not need
+rebuilding when either side grows.
 
-### 4.7 AI
+**Referrals** (`social.referrals`): `{ id, referrerUserId, referrerName,
+applicantUserId, applicationId, jobTitle, companyName, status ∈ requested |
+sent | declined, createdAt }`. A referral is a connection vouching for a
+candidate on a live application. It earns zero XP - a request is not work -
+and the backend must rate-limit it like the consequential action it is.
+
+**Moderation** ships with the feed or the feed does not ship:
+`social.reports` (`{ id, postId, reporterUserId, authorId, reason, status ∈
+open | reviewing | actioned | dismissed, createdAt }`) - rows for human
+review, never instant takedowns - and per-user blocks
+(`blocked_author_ids(user_id, author_id)`), which hide an author from that
+account only.
+### 4.9 AI
 
 ```json
 {
@@ -481,9 +617,37 @@ UI gives it as much space as the title.
 
 ---
 
+### 4.10 Evidence tables - skill assessments and course enrolments
+
+**`skill_assessments`** - `(id, profile_id, skill_name, kind ∈ ai-assessment |
+mission | course, ref_id, score, occurred_at)`. Every time a skill flips to
+`verified`, this row is the reason why. Without it, `verified` is a claim
+the platform makes about itself; with it, an employer can see which mission
+or assessment produced the score and when. The frontend writes
+`POST /candidates/me/skills/verify` and expects this row to appear.
+
+**`course_enrollments`** - `(id, user_id, course_id, status ∈ enrolled |
+completed, enrolled_at, completed_at, UNIQUE(user_id, course_id))`. A course
+completes once. `POST /learning/courses/:id/complete` on an already-completed
+enrolment returns `200` with `alreadyCompleted: true` and awards nothing -
+the 200 XP and the certification increment are not repeatable.
+
+---
+
 ## 5. Endpoints
 
-All **MOCKED** today. "Mocked in" names the file to delete the branch from.
+**LIVE** on the Supabase `api` Edge Function: identity (`/auth/*`,
+`/users/me`), jobs (`/jobs*`), candidates (`/candidates*`, own profile and
+employer discovery), applications (`/jobs/:id/apply`, `/applications*`), career
+progression (`/career/*`), missions (`/missions*`) and organizations
+(`/organizations*`) — steps 1–8 below.
+
+**MOCKED**: social, learning, interviews, leaderboard, notifications and AI.
+"Mocked in" names the file to delete the branch from.
+
+Progression is the one surface where the frontend was changed as well as
+pointed at new endpoints, because the browser had been deciding what it earned.
+That work is described under **Career** and **Missions** and in §7.
 
 ### Jobs
 | Method | Path | Mocked in |
@@ -505,6 +669,67 @@ key per value. Pagination is not used yet; when the catalogue grows return
 
 **`POST /jobs/:id/apply` must be idempotent per candidate+job.**
 
+Every candidate-facing read (`GET /jobs`, `GET /jobs/:id`,
+`GET /jobs/recommended`) computes `matchScore`/`matchReasons`/`skillGaps`
+for the requesting candidate. The frontend mirror is
+`src/services/matchingService.js` - a pure (job, profile) function - which
+also feeds the AI briefing and the 60% suitability threshold. A job the
+profile says nothing about returns no score, not a zero.
+
+### Applications (candidate side)
+| Method | Path | Mocked in |
+| --- | --- | --- |
+| GET | `/applications` (the candidate's own rows) | `applicationService.js` |
+| POST | `/jobs/:id/apply` | `applicationService.js` |
+| PATCH | `/applications/:id` (withdraw) | `applicationService.js` |
+| POST | `/applications/:id/respond` (`{ decision: accept | decline }`) | `applicationService.js` |
+| POST | `/applications/:id/acknowledge` (rejection seen) | `applicationService.js` |
+| GET | `/applications/:id/events` (stage history) | `applicationService.js` |
+| GET | `/interviews`, `POST /interviews/simulations` | `applicationService.js` |
+
+Accepting an offer moves the application to `hired` and the backend should
+also append an experience entry to the candidate profile - the role joins
+the career story at the moment it is signed.
+
+### Career paths and interviews — **LIVE** (Batch 3.7)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/career-paths`, `/career-paths/:id` | **MOCKED** — `data/careerPaths.js` (static mirror) |
+| POST | `/interviews/start` (`{ pathId?, jobTitle? }`) | Live |
+| POST | `/interviews/:id/answer` (`{ questionId, optionIndex }`) | Live |
+| GET | `/interviews/attempts` | Live |
+| GET | `/interviews/pass-rate` | Live |
+| GET | `/interviews` (scheduled and completed) | Live |
+| POST | `/interviews/simulations` | Live |
+
+**The exam is no longer open-book.** The prototype shipped
+`src/data/interviewQuestions.js` with every `answerIndex` and rationale in the
+bundle, so the badge it awarded was worth whatever devtools said. The 55
+questions now live in `interview_questions`; a question is served with its
+options and nothing else, and the rationale rides back with the grade because
+the point of a practice interview is the feedback.
+
+**The paper is drawn once.** `question_ids` is fixed when the attempt starts,
+and an answer must name the next unanswered slot of that paper — so a
+candidate cannot reroll into easier questions, answer the same one four times,
+or answer one they were never served.
+
+**`POST /interviews/simulations` does not take a score.** It reads the caller's
+most recent passed attempt. The frontend reports that a simulation finished;
+what it was worth is already in `interview_attempts`, and accepting a number
+would be a second, softer way to claim a result.
+
+`pathId` defaults to the account's **explicit** `career_path_id` — the same
+value that gates which path missions it is served. A caller may name another
+path and that is honoured, because practising another field is legitimate; the
+attempt records which one, so a path mission counts only simulations sat for
+it. That contract is what let the ten path objectives finally be keyed — see
+below.
+
+The question bank is generated: edit `src/data/interviewQuestions.js` and run
+`node scripts/generate-interview-seed.mjs` rather than editing the SQL. A
+mistyped answer index tells a candidate they failed a question they answered
+correctly.
 ### Candidates
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -521,41 +746,295 @@ is uploaded and the file never leaves the browser. The real endpoint should take
 `cv.hasCv`, `cv.fileName` and `cv.updatedAt` set, plus a signed download URL if
 candidates should be able to retrieve it.
 
-### Organizations
-| Method | Path | Mocked in |
+### Organizations — **LIVE** (Batch 3.4)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/organizations`, `/organizations/:id` | `organizationService.js` |
-| GET | `/organizations/active` | `organizationService.js` |
-| PATCH | `/organizations/:id` | `organizationService.js` |
-| GET / POST | `/organizations/:id/jobs` | `organizationService.js` |
-| GET | `/organizations/:id/applications` | `organizationService.js` |
-| GET | `/organizations/:id/overview` | `organizationService.js` |
-| PATCH | `/applications/:id` (status) | `organizationService.js` |
+| GET | `/organizations`, `/organizations/:id` | Live — public |
+| GET | `/organizations/active` | Live — `null` for a non-member |
+| PATCH | `/organizations/:id` | Live — membership required |
+| GET / POST | `/organizations/:id/jobs` | Live — membership required |
+| GET | `/organizations/:id/applications` | Live — membership required |
+| GET | `/organizations/:id/overview` | Live — membership required |
+| GET | `/organizations/:id/analytics` | Live — membership required |
+| POST | `/organizations/:id/logo` | Live — file name only, see below |
+| PATCH | `/jobs/:id` (status) | Live — membership resolved from the job |
+| PATCH | `/applications/:id` (status) | Live — see **two authorities** below |
+| GET | `/candidates`, `/candidates/:id` | Live — employers only |
 
-### Career
-| Method | Path | Mocked in |
+**Membership is now enforced.** Every write, and every read of an
+organization's private data, resolves `organization_memberships` first. The
+prototype took `organizationId` from the browser and trusted it, so publishing
+a job into another company, or reading and moving its pipeline, was a matter of
+editing one string in a request. A non-member gets 403; a company that does not
+exist gets 404.
+
+Permission *levels* are deliberately **not** enforced. `role` is stored and
+returned (`owner` | `admin` | `recruiter` | `hiring-manager`) so the UI can show
+it, but every member may take every employer action. Organization permission
+enforcement stays out of scope (§10), and a half-built permission model reads as
+a guarantee while being none.
+
+**`PATCH /applications/:id` has two authorities on one path**, because the same
+row means different things to the two sides of the marketplace:
+
+| Caller | May set |
+| --- | --- |
+| the candidate who applied | `withdrawn`, and nothing else |
+| a member of the hiring organization | `under-review`, `shortlisted`, `interview`, `assessment`, `offer`, `rejected` |
+| anyone else | **404**, never 403 |
+
+`applied` is how a row begins. `declined` and `hired` are reached through
+`POST /applications/:id/respond`: an employer who could set `hired` directly
+would be recording somebody else's decision. The 404 for a stranger is the §3
+rule — a 403 would confirm both that the application exists and that somebody
+is in that pipeline.
+
+**A rejection requires `feedback`.** Blank or whitespace is a 400 naming the
+field. The mock used to substitute canned text when the employer left it empty,
+which made the prototype more permissive than production and put words in an
+employer's mouth; both now refuse, and `EmployerCandidates` disables the button
+until a reason is written.
+
+**A published role is a `jobs` row like any other** — `source:
+"grooveli_employer"`, immediately visible to `GET /jobs`. `industry` and
+`districtId` come from the organization rather than the draft, as the mock did:
+a role belongs to its company's district, and letting the form choose would put
+a company's jobs somewhere its own profile contradicts.
+
+`GET /organizations/:id/analytics` returns `{ applications, byStage,
+avgDaysInStage, sourceMix, matchBuckets }`, computed from the organization's own
+rows — no sample data. `matchBuckets` uses fixed boundaries `0-39 | 40-59 |
+60-79 | 80-100 | unscored`, where `unscored` is an applicant with no resolvable
+card: a candidate whose profile says nothing is an unknown match, not a bad one,
+and folding them into `0-39` would invent a judgement. An empty pipeline returns
+zeros and the panel renders honest empty states.
+
+**`POST /organizations/:id/logo` stores a file name only**, and nothing is
+uploaded — the same open decision as the CV above. The column `logo_url` exists
+so the endpoint is not implying it stored something. Every screen renders
+`logoColor` today; this is for when there is a real mark.
+
+**Stage changes now raise a notice.** Since Batch 3.5 an employer's move
+writes both the `application_events` row and a notification to the candidate,
+so the pipeline no longer moves silently. See Notifications below.
+
+#### The employer's view of a candidate
+
+`GET /candidates`, `GET /candidates/:id` and the `candidate` attached to each
+inbound application all serve one shape, built in `_shared/candidates.ts`:
+`{ id, name, headline, location, careerLevel, reputation, color, skills,
+experience, achievements, activity, openTo, workTypes, matchScore }`.
+
+It is deliberately **not** the candidate's own profile. No summary, salary
+expectation, education, CV, contact details or career goal. An employer
+discovering talent sees evidence of work and nothing a candidate did not put
+forward as evidence.
+
+`matchScore` here is `reputation + min(20, careerLevel)` — a ranking of proven
+strength, and **not** the candidate-facing job match score, which is a
+`(job, profile)` function and means something else entirely. Two different
+numbers have shared this name since the prototype; they are still two numbers.
+
+Discovery requires organization membership. In the prototype it was open to
+anyone signed in, so a candidate could list every other candidate. Membership is
+the honest test of "is an employer": `activeRole` is a preference the account
+sets for itself, so it decides which experience to render, never what may be
+read. An account with no candidate profile is absent from discovery rather than
+rendered as an empty card.
+
+`GET /organizations/:id/analytics` returns `{ applications, byStage,
+avgDaysInStage, sourceMix, matchBuckets }`, computed from the organization's
+real application and job rows — no sample data. `byStage` counts per
+application status; `avgDaysInStage` averages days since `stageEnteredAt`
+(`updatedAt` fallback); `sourceMix` counts published roles by job `source`;
+`matchBuckets` distributes applicants across fixed boundaries `0-39 | 40-59 |
+60-79 | 80-100 | unscored` (unscored = no resolvable profile score). An empty
+pipeline returns zeros and the panel renders honest empty states.
+
+### Career — **LIVE** (Batch 3.1)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET / PUT | `/career/progress` | `careerService.js` |
-| GET | `/career/stats`, `POST /career/stats/increment` | `careerService.js` |
-| GET | `/career/achievements`, `POST /career/achievements/evaluate` | `careerService.js` |
-| GET / POST | `/career/activity` | `careerService.js` |
+| GET | `/career/progress` | Live |
+| GET | `/career/stats` | Live |
+| GET | `/career/achievements` | Live |
+| GET | `/career/activity?limit=` | Live |
+| GET | `/career/ledger` | Live |
+| GET | `/career/one-time-events` | Live |
+| POST | `/career/events` | Live — the only progression write |
 
-### Missions and learning
-| Method | Path | Mocked in |
+**Six writes were removed, not migrated.** `PUT /career/progress`,
+`POST /career/ledger`, `POST /career/stats/increment`,
+`POST /career/achievements/evaluate`, `POST /career/one-time-events` and
+`POST /career/activity` each accepted a number from the browser, so a console
+could award itself any level and the ledger would corroborate it. They answer
+**410 `endpoint_retired`** with `details.replacedBy`, deliberately not 404,
+which would read as "not built yet".
+
+`POST /career/events` takes `{ event, context }` and nothing else. It replies
+with `status` (`applied` | `replayed` | `already_counted`), `xpAwarded`,
+`reputationAwarded`, `progress`, `stats` and `awardedAchievements` — everything
+a caller needs, so no screen makes a second request to find out what happened.
+
+**`context` is mandatory, and it is the anti-farming mechanism.** Each event is
+keyed on the thing it is *about*, so the unique index enforces one award per
+application, per course, per skill, per district rather than one per click. The
+field per event is `NATURAL_KEY` in `routes/career.ts`, mirrored as
+`EVENT_CONTEXT_KEY` in `src/utils/careerEvents.js`. An XP-bearing event that
+arrives without its field is a **400** naming the field — without that guard the
+key falls back to a fresh UUID and the award repeats on every request.
+
+`mission.completed` is refused here (400, `replacedBy`): a mission's reward is a
+property of its row, so it is paid by the mission endpoint, which checks the
+objectives first. Both paths derive the same key, so firing it twice awards once.
+
+### Missions — **LIVE** (Batch 3.2)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET | `/missions`, `/missions/:id` | `missionService.js` |
-| GET / PUT | `/missions/progress` | `missionService.js` |
-| POST | `/missions/:id/complete`, `/missions/:id/attempt` | `missionService.js` |
-| GET | `/learning/courses`, `POST /learning/courses/:id/complete` | `learningService.js` |
+| GET | `/missions`, `/missions/:id` | Live |
+| GET / PUT | `/missions/progress` | Live |
+| POST | `/missions/:id/complete` | Live |
+| POST | `/missions/:id/reminded` | Live |
+| POST | `/missions/:id/attempt` | **MOCKED** — `missionService.js`, needs the AI service |
 
-### Social
-| Method | Path | Mocked in |
+Three levels of trust, and the split is the point. The **catalog** is
+authoritative and owns `xp_reward`. **Progress** is advisory: written from the
+browser so part-finished objectives survive a reload, clamped to real targets,
+and `completed` cannot be asserted through it. **Completion** is re-derived —
+`POST /missions/:id/complete` recounts every objective against the account's own
+`career_events` rows and answers **409** with `details.outstanding` if the work
+was not done. The reply carries `progress`, the same shape `/career/events`
+returns, so the client sets totals from it rather than doing arithmetic.
+
+#### An objective can name *which* event satisfies it
+
+`mission_objectives` carries a nullable `context_key`/`context_value` pair,
+shaped and matched exactly like the one on `achievements`:
+
+```json
+{ "id": "obj-excel-challenge", "label": "Complete the Excel challenge",
+  "event": "skill.challenge", "target": 1,
+  "context": { "key": "skill", "value": "Excel" } }
+```
+
+Completion counts **per objective, not per event name**. An objective with a
+key counts only events whose recorded `context` matches it; a null key counts
+every event of that type, which is what a deliberately generic objective asks
+for ("Pass a skill mission", "Apply to three suitable jobs").
+
+This exists because four skill missions each ask for `skill.challenge` × 1 and
+nothing named the skill, so one passed challenge satisfied all four and paid
+400 XP. The live smoke test claimed 4 of 4 from 2 challenges. The *achievement*
+for Excel was always correct because `achievements` already had these columns;
+the mission was not because `mission_objectives` did not.
+
+**Closed in Batch 3.7.** The ten `msn-path-*` interview objectives each name a
+career path and shared `interview.simulated` the same way. They were left
+unkeyed because keying them would have bound an endpoint that did not exist:
+if `/interviews/*` had sent an inferred path or none at all, ten objectives
+would have become quietly impossible.
+
+`interview_attempts.path_id` settled it — it defaults to the explicit
+`career_path_id`, so the default simulation is always the one its own path
+mission is asking for. `20261024150000` keys all ten by **deriving** the value
+from `missions.path_id` rather than naming them, because ten hand-typed
+pairings are ten chances to pair an objective with the wrong path.
+
+Two objectives stay generic on purpose, which is why that migration scopes by
+`missions.path_id` rather than by event: `msn-first-job / obj-interview`
+("Complete an interview simulation") and `msn-interview / obj-interview-sim`
+("Complete an AI interview") name no path and belong to none.
+
+`scripts/verify-missions-seed.mjs` prints every event shared by objectives that
+are not all discriminated, so a new ambiguity shows up as a line in its output
+rather than as XP nobody earned.
+
+`POST /missions/:id/attempt` is the one gap: grading a skill challenge is the AI
+service's job (§6), and a stub that invented a score would be worse than a 404.
+
+### Learning — **LIVE** (Batch 3.8)
+| Method | Path | Status |
 | --- | --- | --- |
-| GET / POST | `/social/posts` | `socialService.js` |
-| POST | `/social/posts/:id/like`, `/social/posts/:id/comments` | `socialService.js` |
-| GET | `/social/connections/suggestions`, `POST /social/connections` | `socialService.js` |
-| GET / POST | `/social/follows` | `socialService.js` |
+| GET | `/learning/courses` (`?skill=`, `?pathId=`) | Live |
+| GET | `/learning/enrollments` | Live |
+| POST | `/learning/courses/:id/enrol` | Live — idempotent |
+| POST | `/learning/courses/:id/complete` | Live |
 
+**A course completes once.** `alreadyCompleted` is the whole contract: the
+client only fires `course.completed` when it comes back false, so the 200 XP
+and the certification are claimed once however many times the button is
+pressed. The career event is keyed on `courseId` too, so a client that ignored
+it would still be refused by the event.
+
+**Completing does not touch `certifications`.** `course.completed` maps to that
+counter in `STAT_FOR_EVENT` and is applied inside `apply_career_event`. The
+prototype's mock bumped it in `completeCourse` *as well*, so finishing one
+course certified you twice; both sides now leave it to the event.
+
+Reminder preferences are `{ missionReminders: boolean, quietHours: { start,
+end } | null }` in 24h hours, per account. A mission is due when it is
+`active`, unreminded for 24h (`lastRemindedAt` on the progress row), and
+outside quiet hours. The mock evaluates this on page load and writes in-app
+notices; the backend runs the same rule on a scheduler and writes
+`POST /notifications` rows with `type: 'mission-reminder'`. Auth (email
+sign-up, session token) already exists — reminders build on it.
+
+### Social — **LIVE** (Batch 3.6)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET / POST | `/social/posts` | Live — `?type=`, `?authorId=` |
+| POST | `/social/posts/:id/like` | Live — toggle |
+| POST | `/social/posts/:id/comments` | Live |
+| GET | `/social/connections` | Live |
+| GET | `/social/connections/count?userId=` | Live |
+| GET | `/social/connections/suggestions` | Live |
+| POST | `/social/connections` | Live |
+| POST | `/social/connections/:id/respond` | Live — **no UI calls it yet** |
+| GET / POST | `/social/follows` | Live — toggle |
+| GET / POST | `/social/referrals` | Live |
+| POST | `/social/posts/:id/report` | Live |
+| POST | `/social/blocks` | Live |
+| POST | `/users/me/avatar` | Live — file name only |
+
+**An attachment is verified, not declared.** A post may only carry an
+achievement its author has been awarded, checked against
+`achievement_progress`; `label` and `verified` are written from the award row
+rather than copied from the request. An attachable achievement that was not
+earned turns the feed from social proof into noise.
+
+**A connection is two-sided.** `connections` holds `requester_id`,
+`addressee_id` and a status, with the pair ordered-unique so the same two
+people cannot hold two rows. The prototype stored `{ userId, status }` from
+the requester's side only, which is why `countConnections` — filtering on
+`c.from` and `c.to` — could never return anything but 0: no row had either
+field.
+
+**Closed.** The network now renders incoming requests with Accept and Decline,
+so a connection can reach `accepted` and the profile's connection tile counts
+something. Only incoming requests are offered — the person who asked does not
+get to accept on the other's behalf, and the endpoint refuses it besides. The
+panel is hidden when there is nothing to answer: an empty "Requests" box on
+every visit is furniture, not information.
+
+**A report is a row, never a takedown**, and reporting the same post twice is
+one report rather than two signals. **A block is one account's wall** — it
+hides an author from the blocker's feed and nobody else's. Both are the
+minimum a network cannot launch without.
+
+**A referral is checked twice**: the application must be the caller's own, and
+the person asked must actually be connected to them. A referral puts somebody's
+name on the record, so neither is taken on trust.
+
+Like counts are **derived**, not stored — a counter column drifts the first
+time a delete misses it. `organizations.follower_count` is the deliberate
+exception: it is seeded with figures no row accounts for, so deriving it would
+reset every company to its real followers, which today is nearly none.
+
+> **A fresh deployment has an empty feed.** `profiles.id` references
+> `auth.users`, so the prototype's fixture people (`cand-001` and friends) are
+> not accounts and their four posts cannot be seeded. The two company posts
+> are, because their organizations are real rows — and they arrive with no
+> likes, since a like names an account and inventing 58 of them would be
+> inventing 58 people.
 ### AI
 | Method | Path | Mocked in |
 | --- | --- | --- |
@@ -564,10 +1043,73 @@ candidates should be able to retrieve it.
 | GET | `/ai/career/next-action`, `/ai/career/discovery` | `aiService.js` |
 | POST | `/ai/assessment`, `/ai/interview-simulation` | `aiService.js` |
 
-### Notifications
-`GET /notifications`, `POST /notifications/:id/read`,
-`POST /notifications/read-all` — `notificationService.js`.
+### Notifications — **LIVE** (Batch 3.5)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/notifications` | Live — newest first, 50 max |
+| POST | `/notifications/:id/read` | Live |
+| POST | `/notifications/read-all` | Live — returns the feed |
+| GET / PUT | `/users/me/notification-preferences` | Live |
 
+**There is no endpoint that writes a notice.** A notice is a consequence of
+something else happening, so it is raised by the code that made it happen
+(`_shared/notify.ts`), never by a client asking for one — a browser that could
+post into an inbox could post into somebody else's.
+
+`POST /jobs/:id/apply` and the employer's `PATCH /applications/:id` are the
+two paths that raise one today. The stage copy lives in `stageNotice`, in both
+`_shared/notify.ts` and `src/services/applicationService.js`; the two must not
+drift. Only an **employer's** move notifies: `withdrawn`, `declined` and
+`hired` are the candidate's own actions, and telling someone what they just
+did themselves is noise.
+
+A failed notice never fails the thing it was about. The stage change is
+durable in `applications` and `application_events` before `notify` runs, and
+`notify` swallows and logs its own failure — answering the employer with a 500
+because the bell did not ring would turn a cosmetic failure into a move they
+would try again.
+
+Reads and the read-state write are scoped by `user_id` in the same statement
+rather than by a separate ownership check, so marking somebody else's notice
+read matches nothing and answers 404.
+
+**Still mocked: the reminder scheduler.** Preferences are stored and
+`POST /missions/:id/reminded` has been live since Batch 3.2, but nothing runs
+the 24h rule on a timer — `missionService.dueMissionReminders` still evaluates
+it in the browser on page load. The backend should run the same rule on a
+scheduler (pg_cron or a scheduled Edge Function) and write
+`type: 'mission-reminder'` rows. That is the one piece of this batch that is
+not finished.
+
+**Locally raised notices are not persisted.** `notificationStore.push` adds a
+row for a mission completing or an achievement unlocking while the player
+plays. Those are session-only and disappear on reload, which is the intended
+behaviour for something already shown as a toast — but it means the feed is
+not a complete history of everything the player was told.
+
+### Leaderboard — **LIVE** (Batch 3.8)
+| Method | Path | Status |
+| --- | --- | --- |
+| GET | `/leaderboard` | Live — top 50 |
+| GET / POST | `/leaderboard/opt-out` | Live |
+
+**Ranked by reputation, never XP.** Reputation moves only on work someone else
+could verify; XP moves on everything. A board ranked by XP becomes a farming
+contest within a week, and the board is meant to be the one number an employer
+can read without context.
+
+**An opted-out account is absent for everyone.** The prototype filtered only
+the viewer's own row (`!e.isMe || !optedOut`), so opting out removed you from
+your own screen and left you on everybody else's — the opposite of what the
+setting promises. The exclusion now happens before ranks are assigned, so the
+board has no gap where an opted-out account used to be.
+
+Opting out is stored as **presence**: a row in `leaderboard_opt_out` means
+hidden, no row means listed. Participation is opt-out rather than opt-in, so
+the default needs no row written for every account that never thinks about it.
+
+Only accounts with a candidate profile are ranked — an employer has no career
+to compare.
 ---
 
 ## 6. AI requirements
@@ -605,6 +1147,51 @@ Behaviour the frontend is built around:
 a reload — otherwise the prototype cannot be demonstrated in one sitting. The
 snapshot is written by an observer registered on `withMock`, so no service has
 to remember to save.
+
+As of Phase 2 the live surfaces (identity, jobs, candidates, applications,
+career, missions) no longer read `grooveli:mock-db` when mocks are off; every
+not-yet-migrated surface still does, so the snapshot stays until the last step
+of §11.
+
+### What the browser no longer decides (Batch 3.3)
+
+Progression used to be computed client-side and reported upward. `careerStore`
+held the XP table, added the reward to its own total, wrote the ledger row and
+sent the result to `PUT /career/progress`; `missionStore` read `xpReward` out of
+the mission catalog it had been served and paid it. The server wrote down
+whatever it was told, so a console could mint a career level and every number
+downstream — the badge, the ledger, the leaderboard — would agree with it.
+
+There is now no code path in the browser that increases XP. `careerStore.absorb`
+is the single place progression changes, and it only ever copies the totals out
+of a server reply. Three things follow that are worth knowing when reading the
+frontend:
+
+- **`recordCareerEvent` is async** and awaits the event before advancing
+  missions, because completion is re-derived from recorded events — a mission
+  asked for before its event has landed is refused. A toast therefore waits for
+  the round trip. That is deliberate: XP is a credential, and an optimistic
+  figure that gets corrected means sometimes showing one that was never earned.
+- **Zero-XP events moved from the ledger to the activity stream.** The browser
+  used to force a ledger row with `ledger: true` for things worth nothing that
+  the candidate still needs to see — an application below the match range, a
+  rejection, a declined offer. `apply_career_event` writes a ledger row only for
+  a non-zero award and an activity row for every event, so those now appear in
+  career activity. The ledger stays an answer to "why did my level move" rather
+  than a click log.
+- **One known cosmetic divergence.** A ledger row shows the screen's contextual
+  label for the rest of the session ("Applied for Senior Developer") but the
+  server stores the generic `EVENT_LABELS[event]`, so after a reload it reads
+  "Applied to a suitable role". Closing it means either accepting a display
+  string from the browser into a record of awards, or resolving the label from
+  the event's stored `context` server-side. The second is the better fix if the
+  ledger is ever shown to anyone but the candidate.
+
+`src/utils/careerEvents.js` still holds copies of the XP, reputation, one-shot,
+statistic and context-key tables. They are a **mirror**, kept so the interface
+can explain an award before it happens and so the mock can stand in for the
+server — not an authority. The server's copies are in
+`supabase/functions/api/_shared/progression.ts` and the two must not drift.
 
 ---
 
@@ -645,21 +1232,92 @@ no auth secrets, no private tokens.
 
 Documented where cheap to pin down, but no interface consumes them yet:
 employer billing and subscriptions, real-time messaging, multiplayer, the
-recruiter AI, interview scheduling, external job ingestion, notifications
-delivery, and organization permission enforcement.
+recruiter AI, interview scheduling, external job ingestion, notification
+delivery channels (email/push), and organization permission enforcement.
 
----
-
+Referrals, post moderation (report + block) and the opt-in leaderboard are
+no longer out of scope - they have contracts above and interfaces in the
+prototype. Messaging stays out deliberately: a feed plus referrals covers
+the hypothesis without becoming an inbox the team has to moderate.
 ## 11. Suggested order of integration
+
+**Status, Phase 2 (cloud-first, Supabase):** steps 1–4 are **live** — 8
+migrations and the `api` Edge Function router (`supabase/functions/api/`)
+implement identity, jobs (with the §4.3 matching port), candidates and
+applications against Postgres, verified end to end. Mocks remain the repo
+default; flip `VITE_USE_MOCKS=false` with `VITE_API_BASE_URL` pointed at
+`https://<ref>.supabase.co/functions/v1/api`. Known gaps until later phases:
+the mock/partner application pipeline simulation is browser-side only (real
+rows do not auto-advance), and employer, missions, social and `/ai/*`
+endpoints do not exist yet — those screens stay on mocks.
 
 Each step is independently shippable; the UI keeps working with the rest mocked.
 
-1. `/auth/*` and `/users/me` — everything needs an identity.
-2. `GET /jobs`, `GET /jobs/:id` — the largest surface, easiest to verify.
-3. `/candidates/me` and CV upload.
-4. `POST /jobs/:id/apply`, `GET /applications`.
-5. `/organizations/*` — employer side becomes real, and `source:
-   "grooveli_employer"` jobs start flowing into the same marketplace.
-6. `GET /missions` and `POST /career/events` — XP stops being browser-local.
-7. `/social/*`.
-8. `/ai/*`.
+1. `/auth/*` and `/users/me` — everything needs an identity. **Live.**
+2. `GET /jobs`, `GET /jobs/:id` — the largest surface, easiest to verify. **Live.**
+3. `/candidates/me` and CV upload. **Live.**
+4. `POST /jobs/:id/apply`, `GET /applications`. **Live.**
+5. `/career/*` — XP stops being browser-local. **Live.**
+6. `GET /missions` and mission progress. **Live.**
+7. Frontend progression refactor — no new endpoints. **Done** (§7).
+8. `/organizations/*` + candidate discovery — employer side becomes real, and
+   `source: "grooveli_employer"` jobs start flowing into the same marketplace.
+   **Live.**
+9. `/social/*`. **Live.** (Batch 3.6.)
+10. `/learning/*`. **Live.**
+11. `/interviews/*`. **Live.**
+12. `/leaderboard/*`. **Live.** (`/notifications/*` landed early, in Batch
+    3.5, because it was the launch gate.)
+13. `/ai/*` — blocked on an AI provider key. **Batch 3.9.**
+
+**Why the order changed from the original 1–8.** Three things the prototype
+grew were missing from this list and existed only as mocked service calls:
+`learningService` (4 calls), `interviewService` plus the two interview calls in
+`applicationService` (6), and `leaderboardService` + `notificationService` (6).
+That is ~14 endpoints and 3–4 tables of work, now steps 10–12.
+
+Career progression moved ahead of the employer side because of a failure mode
+rather than a preference. `careerStore.hydrate()` swallowed its fetch error in a
+`catch {}`, so with `VITE_USE_MOCKS=false` and no `/career/*` routes a signed-in
+user saw level 0, 0 XP and XP that silently vanished on reload — no error
+message anywhere. Silent data loss costs more trust than a visible outage, so
+steps 5–7 were the gate before any real cohort, candidate-only included. They
+are done: the store now records the failure in `error` instead of swallowing it,
+and there is a live endpoint behind every progression read.
+
+Steps 1–7 are what make a candidate-only launch defensible, with social,
+learning, leaderboard and interviews labelled "coming soon" rather than failing
+quietly. Step 8 made the marketplace two-sided: an employer can onboard, publish
+a role, and see real applications arrive against it.
+
+Batch 3.5 closed the gate: an employer's move now raises a notice, so the
+pipeline no longer goes quiet on the person waiting on it. Everything still
+outstanding is a feature that can be labelled "coming soon" — with one
+exception worth tracking, the mission-reminder scheduler, which is the only
+part of notifications that is not finished.
+
+# Batch 2 — Employer HQ, analytics and reminders (continuation)
+
+**Where this batch landed:**
+
+| Area | Frontend surface | Backend endpoint (contract) |
+| --- | --- | --- |
+| Company HQ scene | `GameCanvas scene="company"` + `InteriorScene` subclass — desk / hiring board / candidate wall / brand shelf / door. | `GET /organizations/:id/jobs`, `GET /organizations/:id/applications` |
+| Company profile page | `/employer/company` — edit name/tagline/industry/size/location/website + logo upload + network posts |
+| Hiring analytics | `HiringAnalytics` panel (dashboard + `company-analytics` modal) — stage mix, avg time in stage, source mix, match buckets |
+| Mission reminders | `MissionReminders` panel on `/missions` — preference save/load, quiet hours, on-load due-rule stamp |
+| Notification preferences | `GET /users/me/notification-preferences`, `PUT /users/me/notification-preferences` |
+| Connection count | `GET /social/connections/count?userId=` |
+| Logo upload | `POST /organizations/:id/logo` — `multipart` with `file` part in prod, file name only in the prototype |
+| Match buckets (fixed, shared with the backend): `0-39 | 40-59 | 60-79 | 80-100 | unscored`. A candidate with no resolved profile lands in `unscored`.
+| Reminder rule (the same rule the backend scheduler will run): an active mission not reminded in the last 24h, outside the configured quiet window, and `missionReminders === true` produces a `type: "mission-reminder"` notification row plus a `lastRemindedAt` stamp on the progress row. Quiet hours are 24h windows, so overnight (e.g. `22:00 – 07:00`) is supported.
+| MOCKED where not yet live:
+| - `GET /organizations/:id/analytics`
+| - `GET /organizations/:id/overview`
+| - `GET /users/me/notification-preferences`
+| - `PUT /users/me/notification-preferences`
+| - `POST /organizations/:id/logo`
+| - `POST /missions/:id/reminded`
+
+Each service in `src/services/*.js` already carries the real `apiClient` call as its second branch, so enabling the backend only requires flipping the mock/archive flag — no component changes.
+

@@ -1,10 +1,13 @@
 /**
- * The candidate profile — Grooveli's career identity.
+ * The candidate profile - Grooveli's career identity.
  * Backed by `GET /candidates/me`, `PATCH /candidates/me`, `POST /candidates/me/cv`.
  */
 import { apiClient, withMock } from './apiClient.js';
 import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+import { resolveProgression } from '../utils/progression.js';
+import { achievementCatalog } from '../mock/users.js';
+import { resolvePathForProfile } from '../data/careerPaths.js';
 
 /** What a complete career identity contains, and what each part is worth. */
 const COMPLETENESS_FIELDS = [
@@ -38,6 +41,19 @@ function resolveProfile() {
   return profile;
 }
 
+/**
+ * The signed-in candidate's career path id: the explicit `careerPathId` when
+ * the profile has one, otherwise the path inferred from interests and skills.
+ * Null for accounts with no candidate profile - employers are not on a path.
+ *
+ * @returns {string | null}
+ */
+export function signedInCareerPathId() {
+  const account = currentAccount();
+  const profile = account?.candidateProfileId ? db.profiles[account.candidateProfileId] : null;
+  return profile ? resolvePathForProfile(profile).id : null;
+}
+
 /** @returns {Promise<import('../models/index.js').CandidateProfile>} */
 export function getProfile() {
   return withMock(
@@ -68,7 +84,7 @@ export function updateProfile(patch) {
  * CV upload.
  *
  * The real endpoint takes multipart form data and returns a stored file
- * reference. The prototype records the file name only — nothing is uploaded and
+ * reference. The prototype records the file name only - nothing is uploaded and
  * the file never leaves the browser.
  */
 export function uploadCv({ fileName }) {
@@ -84,7 +100,12 @@ export function uploadCv({ fileName }) {
   );
 }
 
-/** Mark a skill verified after its assessment or skill mission is passed. */
+/**
+ * Mark a skill verified after its assessment or skill mission is passed.
+ * The write also lands a `skill_assessments` row server-side: an unverified
+ * self-rating must never come back verified, and the evidence trail is what
+ * makes the distinction visible to an employer.
+ */
 export function verifySkill(skillName, score) {
   return withMock(
     async () => {
@@ -112,7 +133,7 @@ export function verifySkill(skillName, score) {
   );
 }
 
-/** Add an experience entry during or after onboarding. */
+/** Add an experience entry during or after onboarding - or when an offer is accepted. */
 export function addExperience(entry) {
   return withMock(
     async () => {
@@ -126,12 +147,76 @@ export function addExperience(entry) {
   );
 }
 
-/** The candidate pool, as an employer discovers it. */
+/* ------------------------------------- employer-side discovery --- */
+
+/**
+ * Build the employer-facing candidate card from a real account's profile.
+ *
+ * The pool fixtures are worked examples; this is the real thing. Employers
+ * discover both, in the same shape, so the marketplace is not a theatre where
+ * only the fixtures are hireable.
+ */
+export function candidateFromAccount(account) {
+  if (!account?.candidateProfileId) return null;
+  const profile = db.profiles[account.candidateProfileId];
+  if (!profile) return null;
+  const progress = db.careerProgress[account.id] ?? { xp: 0, level: 1, reputation: 0 };
+  const earned = db.achievements[account.id] ?? [];
+  const activity = (db.activity[account.id] ?? []).slice(0, 3);
+
+  return {
+    id: account.id,
+    name: account.displayName,
+    headline: profile.headline || 'Grooveli candidate',
+    location: profile.location || 'Location not set',
+    careerLevel: resolveProgression(progress.xp ?? 0).level,
+    reputation: progress.reputation ?? 0,
+    color: '#5be3c8',
+    skills: (profile.skills ?? []).map((s) => ({
+      name: s.name,
+      level: s.level,
+      verified: Boolean(s.verified),
+      score: s.score,
+    })),
+    experience: (profile.experience ?? []).map((e) => ({
+      title: e.title,
+      organization: e.organization,
+      years: e.endDate ? `${e.startDate} - ${e.endDate}` : `${e.startDate} - present`,
+    })),
+    achievements: earned
+      .map((id) => achievementCatalog.find((a) => a.id === id)?.name)
+      .filter(Boolean),
+    activity: activity.map((a) => a.label),
+    openTo: profile.openTo ?? [],
+    workTypes: profile.workTypes ?? [],
+    // Employer discovery orders by reputation-weighted strength; the
+    // candidate-facing match score is a different axis and is not invented here.
+    matchScore: (progress.reputation ?? 0) + Math.min(20, resolveProgression(progress.xp ?? 0).level),
+  };
+}
+
+/** Resolve any candidate id - pool fixture or real account - to its card. */
+export function resolveCandidateForEmployer(candidateId) {
+  const pooled = db.candidates.find((c) => c.id === candidateId);
+  if (pooled) return pooled;
+  const account = db.accounts.find((a) => a.id === candidateId);
+  return account ? candidateFromAccount(account) : null;
+}
+
+/**
+ * The candidate pool plus every real account with a candidate profile, as an
+ * employer discovers it.
+ */
 export function listCandidates(filters = {}) {
   return withMock(
     async () => {
       await delay();
-      let results = [...db.candidates];
+      const me = currentAccount()?.id;
+      const real = db.accounts
+        .filter((a) => a.id !== me)
+        .map(candidateFromAccount)
+        .filter(Boolean);
+      let results = [...db.candidates, ...real];
       if (filters.search) {
         const needle = filters.search.toLowerCase();
         results = results.filter((c) =>
@@ -151,7 +236,7 @@ export function getCandidate(candidateId) {
   return withMock(
     async () => {
       await delay(220);
-      return db.candidates.find((c) => c.id === candidateId) ?? null;
+      return resolveCandidateForEmployer(candidateId);
     },
     () => apiClient.get(`/candidates/${candidateId}`),
   );

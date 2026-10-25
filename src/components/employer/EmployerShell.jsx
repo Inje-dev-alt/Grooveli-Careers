@@ -10,6 +10,9 @@ const EMPLOYER_NAV = [
   { to: '/employer/jobs', label: 'Jobs' },
   { to: '/employer/candidates', label: 'Candidates' },
   { to: '/employer/company', label: 'Company' },
+  // The HQ is a place, not a page of the dashboard - last in the list so it
+  // reads as leaving the desk rather than another tab of it.
+  { to: '/employer/hq', label: 'Headquarters' },
 ];
 
 /**

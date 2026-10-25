@@ -18,12 +18,15 @@ import {
 import { useUiStore } from './stores/uiStore.js';
 import { useCareerStore } from './stores/careerStore.js';
 import { useMissionStore } from './stores/missionStore.js';
+import { usePresenceStore } from './stores/presenceStore.js';
+import { HEARTBEAT_SECONDS } from './services/presenceService.js';
 import { useIdentityRoute } from './hooks/useIdentityRoute.js';
 import { useIsCompact } from './hooks/useMediaQuery.js';
 
 // Routes are split so the first paint is the shell, not the whole product.
 const SignIn = lazy(() => import('./pages/SignIn.jsx'));
 const SignUp = lazy(() => import('./pages/SignUp.jsx'));
+const Landing = lazy(() => import('./pages/Landing.jsx'));
 const RoleSelect = lazy(() => import('./pages/RoleSelect.jsx'));
 const CandidateOnboarding = lazy(() => import('./pages/CandidateOnboarding.jsx'));
 const EmployerOnboarding = lazy(() => import('./pages/EmployerOnboarding.jsx'));
@@ -35,11 +38,13 @@ const Missions = lazy(() => import('./pages/Missions.jsx'));
 const Profile = lazy(() => import('./pages/Profile.jsx'));
 const AI = lazy(() => import('./pages/AI.jsx'));
 const Network = lazy(() => import('./pages/Network.jsx'));
+const CompanyOffice = lazy(() => import('./pages/CompanyOffice.jsx'));
 
 const EmployerDashboard = lazy(() => import('./pages/EmployerDashboard.jsx'));
 const EmployerJobs = lazy(() => import('./pages/EmployerJobs.jsx'));
 const EmployerCandidates = lazy(() => import('./pages/EmployerCandidates.jsx'));
 const EmployerCompany = lazy(() => import('./pages/EmployerCompany.jsx'));
+const EmployerHQ = lazy(() => import('./pages/EmployerHQ.jsx'));
 
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
@@ -75,18 +80,22 @@ function RequireSession({ children }) {
   const isRestoring = useAuthStore(selectIsRestoring);
 
   if (isRestoring) return <WorldLoader label="Restoring your session" />;
-  if (!isAuthenticated) return <Navigate to="/signin" replace />;
+  if (!isAuthenticated) return <Landing />;
   return children;
 }
 
-/** Sends `/` wherever this particular account belongs. */
+/**
+ * `/` is the front door: guests meet Landing here, and signed-in accounts go
+ * wherever their role and setup state say they belong.
+ */
 function IdentityRedirect() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const isRestoring = useAuthStore(selectIsRestoring);
   const identityRoute = useIdentityRoute();
 
   if (isRestoring) return <WorldLoader label="Restoring your session" />;
-  return <Navigate to={isAuthenticated ? identityRoute : '/signin'} replace />;
+  if (!isAuthenticated) return <Landing />;
+  return <Navigate to={identityRoute} replace />;
 }
 
 /** Cross-cutting concerns that need the router but belong to no single screen. */
@@ -102,6 +111,8 @@ function AppEffects() {
   const careerHydrated = useCareerStore((s) => s.hydrated);
   const loadMissions = useMissionStore((s) => s.loadMissions);
   const missionStatus = useMissionStore((s) => s.status);
+  const beat = usePresenceStore((s) => s.beat);
+  const userId = user?.id ?? null;
   const isCompact = useIsCompact();
 
   useEffect(() => setCompact(isCompact), [isCompact, setCompact]);
@@ -120,6 +131,44 @@ function AppEffects() {
     if (!careerHydrated) hydrateCareer();
     if (missionStatus === 'idle') loadMissions();
   }, [user, activeRole, careerHydrated, hydrateCareer, missionStatus, loadMissions]);
+
+  /*
+   * The presence heartbeat — one timer for the whole product.
+   *
+   * It lives here rather than in each room because every navigation unmounts
+   * one room and mounts another, and a per-room timer would briefly run two of
+   * them. Rooms only declare where they are (`setPosition`); this sends it.
+   *
+   * It stops while the tab is hidden, which is both honest and necessary.
+   * Honest: a backgrounded tab is not someone standing in a lobby, and they
+   * should age out of it. Necessary: browsers throttle background intervals to
+   * roughly one a minute, which is slower than the 45-second online window, so
+   * a tab left open in another window would otherwise flicker in and out of
+   * every roster it appeared in. Becoming visible beats immediately rather
+   * than waiting for the interval, so coming back is instant.
+   */
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    let timer = null;
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      if (timer) return;
+      beat();
+      timer = setInterval(beat, HEARTBEAT_SECONDS * 1000);
+    };
+    const onVisibilityChange = () => (document.hidden ? stop() : start());
+
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [userId, beat]);
 
   // A route change should never leave a panel from the previous screen open.
   useEffect(() => {
@@ -158,6 +207,7 @@ export default function App() {
             <Route path="/missions" element={<RequireIdentity role="candidate"><Missions /></RequireIdentity>} />
             <Route path="/ai" element={<RequireIdentity role="candidate"><AI /></RequireIdentity>} />
             <Route path="/network" element={<RequireIdentity role="candidate"><Network /></RequireIdentity>} />
+            <Route path="/companies/:organizationId" element={<RequireIdentity role="candidate"><CompanyOffice /></RequireIdentity>} />
             <Route path="/profile" element={<RequireIdentity role="candidate"><Profile /></RequireIdentity>} />
 
             {/* Employer experience */}
@@ -165,6 +215,7 @@ export default function App() {
             <Route path="/employer/jobs" element={<RequireIdentity role="employer"><EmployerJobs /></RequireIdentity>} />
             <Route path="/employer/candidates" element={<RequireIdentity role="employer"><EmployerCandidates /></RequireIdentity>} />
             <Route path="/employer/company" element={<RequireIdentity role="employer"><EmployerCompany /></RequireIdentity>} />
+            <Route path="/employer/hq" element={<RequireIdentity role="employer"><EmployerHQ /></RequireIdentity>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

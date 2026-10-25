@@ -11,3 +11,4 @@ dist-ssr
 *.log
 npm-debug.log*
 coverage
+.claude/settings.local.json

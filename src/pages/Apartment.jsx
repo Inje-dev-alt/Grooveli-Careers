@@ -8,6 +8,7 @@ import { WorldLoader } from '../components/game/WorldLoader.jsx';
 import { Button, IconChevronLeft } from '../components/ui/index.js';
 import { useWorldInteractions, useWorldViewport } from '../hooks/useWorldInteractions.js';
 import { useUiStore } from '../stores/uiStore.js';
+import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
 
 /**
@@ -21,6 +22,9 @@ export default function Apartment() {
 
   useWorldInteractions();
   useWorldViewport();
+  // No locationId: an apartment is one person's flat, so standing in it is
+  // not standing anywhere with anyone.
+  usePresencePosition('apartment');
 
   return (
     <div className="app app--world">

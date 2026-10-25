@@ -1,17 +1,24 @@
 /**
  * Notifications.
- * Backed by `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`.
+ * Backed by `GET /notifications`, `POST /notifications/:id/read`,
+ * `POST /notifications/read-all`.
  */
 import { apiClient, withMock } from './apiClient.js';
-import { db } from './mockDb.js';
+import { db, currentAccount } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+
+function rows() {
+  const id = currentAccount()?.id;
+  if (!id) return [];
+  return (db.notificationsByUser[id] = db.notificationsByUser[id] ?? []);
+}
 
 /** @returns {Promise<import('../models/index.js').Notification[]>} */
 export function listNotifications() {
   return withMock(
     async () => {
       await delay(240);
-      return [...db.notifications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return [...rows()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     },
     () => apiClient.get('/notifications'),
   );
@@ -21,9 +28,9 @@ export function markNotificationRead(notificationId) {
   return withMock(
     async () => {
       await delay(120);
-      const notification = db.notifications.find((n) => n.id === notificationId);
+      const notification = rows().find((n) => n.id === notificationId);
       if (notification) notification.read = true;
-      return { ...notification };
+      return notification ? { ...notification } : null;
     },
     () => apiClient.post(`/notifications/${notificationId}/read`),
   );
@@ -33,10 +40,10 @@ export function markAllNotificationsRead() {
   return withMock(
     async () => {
       await delay(160);
-      db.notifications.forEach((n) => {
+      rows().forEach((n) => {
         n.read = true;
       });
-      return [...db.notifications];
+      return [...rows()];
     },
     () => apiClient.post('/notifications/read-all'),
   );

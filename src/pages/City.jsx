@@ -6,6 +6,8 @@ import { VirtualJoystick } from '../components/hud/VirtualJoystick.jsx';
 import { WorldLoader } from '../components/game/WorldLoader.jsx';
 import { useWorldInteractions, useWorldViewport } from '../hooks/useWorldInteractions.js';
 import { useUiStore } from '../stores/uiStore.js';
+import { usePlayerStore } from '../stores/playerStore.js';
+import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
 
 /**
@@ -16,10 +18,15 @@ import { useIsCompact } from '../hooks/useMediaQuery.js';
  */
 export default function City() {
   const worldReady = useUiStore((s) => s.worldReady);
+  const currentLocationId = usePlayerStore((s) => s.currentLocationId);
   const isCompact = useIsCompact();
 
   useWorldInteractions();
   useWorldViewport();
+  // The district you are standing in is the room. Out on the open street
+  // between them there is no room, and so no roster — which is the honest
+  // answer rather than a missing one.
+  usePresencePosition('city', currentLocationId);
 
   return (
     <div className="app app--world">

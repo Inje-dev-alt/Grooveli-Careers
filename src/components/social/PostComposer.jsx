@@ -40,7 +40,7 @@ export function PostComposer() {
     if (!body.trim()) return;
 
     try {
-      await publish({
+      const post = await publish({
         body,
         type,
         attachment: attachment
@@ -55,7 +55,10 @@ export function PostComposer() {
       });
       setBody('');
       setAttachmentId('');
-      recordCareerEvent(CAREER_EVENTS.POST_PUBLISHED, { label: 'Shared a career post', shareable: true });
+      recordCareerEvent(CAREER_EVENTS.POST_PUBLISHED, {
+        label: 'Shared a career post',
+        context: { postId: post.id },
+      });
       pushToast({ title: 'Posted to your network', tone: 'success' });
     } catch (caught) {
       setError(caught.message || 'Could not publish that post.');

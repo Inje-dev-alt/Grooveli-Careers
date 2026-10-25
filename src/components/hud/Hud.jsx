@@ -1,14 +1,25 @@
 import { useEffect } from 'react';
 import './hud.css';
-import { ProgressBar, IconBell, IconMenu, IconMapPin, IconTrendUp } from '../ui/index.js';
+import {
+  ProgressBar,
+  IconBell,
+  IconInbox,
+  IconMenu,
+  IconMapPin,
+  IconTrendUp,
+  IconUser,
+} from '../ui/index.js';
 import { InteractionPrompt } from './InteractionPrompt.jsx';
 import { useAuthStore } from '../../stores/authStore.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
+import { usePresenceStore } from '../../stores/presenceStore.js';
+import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
 import { getLocation } from '../../game/world/locations.js';
-import { getApartmentObject } from '../../game/world/apartment.js';
+import { resolvePlace, placeFallback } from '../../game/world/places.js';
+import { useCareerPath } from '../../hooks/useCareerPath.js';
 import { initials } from '../../utils/format.js';
 
 /**
@@ -18,7 +29,7 @@ import { initials } from '../../utils/format.js';
  * they need, and the interaction prompt. Everything else lives behind the menu
  * so the city stays visible.
  */
-export function Hud({ scene = 'city', action = null }) {
+export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const user = useAuthStore((s) => s.user);
   const progression = useCareerStore(selectProgression);
   const reputation = useCareerStore((s) => s.reputation);
@@ -28,17 +39,36 @@ export function Hud({ scene = 'city', action = null }) {
   const unreadCount = useNotificationStore((s) => s.items.filter((n) => !n.read).length);
   const loadNotifications = useNotificationStore((s) => s.load);
   const notificationStatus = useNotificationStore((s) => s.status);
+  const homePath = useCareerPath();
+  const unreadMessages = useChatStore(selectUnreadMessages);
+  const loadConversations = useChatStore((s) => s.loadConversations);
+  const closeConversation = useChatStore((s) => s.close);
+  const chatStatus = useChatStore((s) => s.status);
+  const presenceStarted = usePresenceStore((s) => s.started);
+  const cityOnline = usePresenceStore((s) => s.cityOnline);
+  const hereCount = usePresenceStore((s) => s.hereCount);
 
   useEffect(() => {
     if (notificationStatus === 'idle') loadNotifications();
   }, [notificationStatus, loadNotifications]);
 
-  const location =
-    scene === 'apartment'
-      ? getApartmentObject(currentLocationId) ?? { name: 'Your Apartment', accent: '#ffd9a0' }
-      : getLocation(currentLocationId);
+  // Same lazy load as the bell: the badge needs a count before anyone opens
+  // the inbox, and the inbox is cheap next to not knowing somebody wrote.
+  useEffect(() => {
+    if (chatStatus === 'idle') loadConversations();
+  }, [chatStatus, loadConversations]);
 
-  const locationName = scene === 'apartment' ? 'Your Apartment' : location?.name ?? 'Grooveli City';
+  // Whichever room this is — the city, the apartment or a company HQ — the
+  // lookup is chosen by scene rather than branched on here. See world/places.js.
+  const fallback = placeFallback(scene);
+  const nearby = resolvePlace(scene, currentLocationId);
+  const location = nearby ?? fallback;
+
+  // Standing next to something names itself. Otherwise `locationLabel` lets a
+  // scene say what the world data cannot know — the signed-in employer's own
+  // company — and failing that the room's own name.
+  const locationName = nearby?.name ?? locationLabel ?? fallback.name;
+  const homeDistrictName = homePath ? getLocation(homePath.districtId)?.name ?? null : null;
   const locationAccent = location?.accent ?? 'var(--g-accent)';
 
   return (
@@ -70,6 +100,21 @@ export function Hud({ scene = 'city', action = null }) {
           <button
             type="button"
             className="hud-btn"
+            onClick={() => {
+              // Explicitly, because `openId` outlives the panel now: an inbox
+              // button that reopened the last thread would give no way back to
+              // the list on the first press.
+              closeConversation();
+              openModal('messages');
+            }}
+            aria-label={`Messages${unreadMessages ? `, ${unreadMessages} unread` : ''}`}
+          >
+            <IconInbox size={18} />
+            {unreadMessages > 0 ? <span className="hud-btn__count">{unreadMessages}</span> : null}
+          </button>
+          <button
+            type="button"
+            className="hud-btn"
             onClick={() => openModal('notifications')}
             aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
           >
@@ -90,6 +135,36 @@ export function Hud({ scene = 'city', action = null }) {
           <IconMapPin size={13} />
           {locationName}
         </span>
+        {homePath ? (
+          <span className="hud-path" title={homeDistrictName ? `Home district: ${homeDistrictName}` : undefined}>
+            {homePath.title}
+            {scene === 'city' && currentLocationId === homePath.districtId ? (
+              <span className="hud-path__home">Home district</span>
+            ) : null}
+          </span>
+        ) : null}
+        {/*
+          The city is not empty, and until now there was no way to know that.
+          Hidden until the first heartbeat answers: "1 online" while the
+          request is still in flight is a worse answer than no answer.
+        */}
+        {presenceStarted ? (
+          <button
+            type="button"
+            className="hud-presence"
+            onClick={() => openModal('room-roster')}
+            title={
+              hereCount > 0
+                ? `${cityOnline} people in Grooveli City, ${hereCount} of them in this room`
+                : `${cityOnline} people in Grooveli City`
+            }
+          >
+            <span className="hud-presence__dot" />
+            <IconUser size={13} />
+            {cityOnline} online
+            {hereCount > 0 ? <span className="hud-presence__here">{hereCount} here</span> : null}
+          </button>
+        ) : null}
         {action}
       </div>
 

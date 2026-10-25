@@ -1,15 +1,17 @@
 /**
  * The Grooveli Network.
  * Backed by `GET /social/posts`, `POST /social/posts`, `POST /social/posts/:id/like`,
- * `POST /social/posts/:id/comments`, `GET /social/connections`, `POST /social/follows`.
+ * `POST /social/posts/:id/comments`, `GET /social/connections`, `POST /social/follows`,
+ * `POST /social/referrals`, `POST /social/reports`, `POST /social/blocks`.
  *
- * Deliberately small. The hypothesis is narrow — does career activity become
+ * Deliberately small. The hypothesis is narrow - does career activity become
  * something worth sharing, and does seeing other people's make opportunities
- * easier to find — so this implements a feed, a post, a like, a comment, a
- * follow and a connection, and nothing else.
+ * easier to find - so this implements a feed, a post, a like, a comment, a
+ * follow, a connection, a referral request and the two moderation verbs a real
+ * network cannot launch without: report and block.
  */
 import { apiClient, withMock } from './apiClient.js';
-import { db, nextId, currentAccount } from './mockDb.js';
+import { db, nextId, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { suggestedPeople } from '../mock/social.js';
 
@@ -26,15 +28,33 @@ function selfAuthor() {
   };
 }
 
+function blockedIds() {
+  const id = currentUserId();
+  if (!id) return [];
+  return (db.blockedAuthorIds[id] = db.blockedAuthorIds[id] ?? []);
+}
+
+/**
+ * The other person in a connection row.
+ *
+ * A connection is stored once, from whoever asked, so both sides read it as
+ * "my connection to them": the id that is not yours is the one that matters.
+ * Mirrors `otherSide` in `_shared/social.ts`.
+ */
+function otherSide(connection, me) {
+  return connection.requesterId === me ? connection.addresseeId : connection.requesterId;
+}
+
 /** @returns {Promise<import('../models/index.js').Post[]>} */
 export function listFeed(filters = {}) {
   return withMock(
     async () => {
       await delay();
-      let posts = [...db.posts];
+      const blocked = new Set(blockedIds());
+      let posts = db.posts.filter((p) => !blocked.has(p.author.id));
       if (filters.type && filters.type !== 'all') posts = posts.filter((p) => p.type === filters.type);
       if (filters.authorId) posts = posts.filter((p) => p.author.id === filters.authorId);
-      return posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     },
     () => apiClient.get('/social/posts', { params: filters }),
   );
@@ -124,25 +144,180 @@ export function listSuggestedPeople() {
 /**
  * Request a connection.
  *
- * Connections are mutual and follows are not — keeping them separate now means
+ * Connections are mutual and follows are not - keeping them separate now means
  * the social graph does not have to be rebuilt when either side grows.
  */
 export function connect(userId) {
   return withMock(
     async () => {
       await delay(320);
-      const existing = db.connections.find((c) => c.userId === userId);
-      if (existing) return { ...existing };
+      const me = currentUserId();
+      const existing = db.connections.find((c) => otherSide(c, me) === userId);
+      if (existing) {
+        return { id: existing.id, userId, status: existing.status, createdAt: existing.createdAt };
+      }
       const connection = {
         id: nextId('con'),
-        userId,
+        requesterId: me,
+        addresseeId: userId,
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
       db.connections.push(connection);
-      return connection;
+      return { id: connection.id, userId, status: connection.status, createdAt: connection.createdAt };
     },
     () => apiClient.post('/social/connections', { userId }),
+  );
+}
+
+/**
+ * Answer a connection request.
+ *
+ * **Nothing in the interface calls this yet.** The network offers "Connect"
+ * and no way to answer, so every connection stays `pending` and the profile's
+ * connection tile reads 0 for everyone. The endpoint and this branch exist so
+ * that gap is a screen to build rather than a schema to change.
+ */
+export function respondToConnection(connectionId, decision) {
+  return withMock(
+    async () => {
+      await delay(240);
+      const connection = db.connections.find((c) => c.id === connectionId);
+      if (!connection) throw new Error('That request is no longer there.');
+      if (connection.addresseeId !== currentUserId()) {
+        throw new Error('That request is not yours to answer.');
+      }
+      connection.status = decision === 'accept' ? 'accepted' : 'declined';
+      return { ...connection, userId: connection.requesterId };
+    },
+    () => apiClient.post(`/social/connections/${connectionId}/respond`, { decision }),
+  );
+}
+
+/**
+ * The signed-in user's connections, resolved to people they can act on -
+ * the list a referral request is chosen from.
+ */
+export function listConnections() {
+  return withMock(
+    async () => {
+      await delay(180);
+      const me = currentUserId();
+      return db.connections
+        .filter((c) => c.requesterId === me || c.addresseeId === me)
+        .map((connection) => {
+          const userId = otherSide(connection, me);
+          const person = suggestedPeople.find((p) => p.id === userId);
+          return {
+            id: connection.id,
+            userId,
+            status: connection.status,
+            name: person?.name ?? 'Connection',
+            headline: person?.headline ?? 'Professional',
+            color: person?.color ?? '#5be3c8',
+            incoming: connection.addresseeId === me,
+            createdAt: connection.createdAt,
+          };
+        });
+    },
+    () => apiClient.get('/social/connections'),
+  );
+}
+
+/* -------------------------------------------------- referrals --- */
+
+/**
+ * Ask a connection to refer you for an application.
+ *
+ * No XP - a request is not work. What it earns is visibility: the referral
+ * lands on the connection's side and, once the prototype models the employer
+ * inbox, on the application itself.
+ */
+export function requestReferral({ connectionId, applicationId, jobTitle, companyName }) {
+  return withMock(
+    async () => {
+      await delay(320);
+      const me = currentUserId();
+      // `connectionId` carries the other person's user id, which is what
+      // ApplicationList sends; a connection row id is accepted too.
+      const connection = db.connections.find(
+        (c) => c.id === connectionId || otherSide(c, me) === connectionId,
+      );
+      if (!connection) throw new Error('That connection no longer exists.');
+      const referrerUserId = otherSide(connection, me);
+      const existing = db.referrals.find(
+        (r) => r.referrerUserId === referrerUserId && r.applicationId === applicationId,
+      );
+      if (existing) return { ...existing };
+
+      const referral = {
+        id: nextId('ref'),
+        referrerUserId,
+        referrerName: suggestedPeople.find((p) => p.id === referrerUserId)?.name ?? 'Connection',
+        applicantUserId: currentUserId(),
+        applicationId,
+        jobTitle,
+        companyName,
+        status: 'requested',
+        createdAt: new Date().toISOString(),
+      };
+      db.referrals.push(referral);
+      return { ...referral };
+    },
+    () => apiClient.post('/social/referrals', { connectionId, applicationId, jobTitle, companyName }),
+  );
+}
+
+/** @returns {Promise<import('../models/index.js').Referral[]>} */
+export function listReferrals() {
+  return withMock(
+    async () => {
+      await delay(140);
+      const me = currentUserId();
+      return db.referrals.filter((r) => r.applicantUserId === me);
+    },
+    () => apiClient.get('/social/referrals'),
+  );
+}
+
+/* -------------------------------------------------- moderation --- */
+
+/**
+ * Report a post. Reports are rows for review, never instant takedowns - a
+ * reporting system that acts on the first click is a harassment weapon.
+ */
+export function reportPost(postId, reason = 'other') {
+  return withMock(
+    async () => {
+      await delay(200);
+      const post = db.posts.find((p) => p.id === postId);
+      if (!post) throw new Error('That post is no longer available.');
+      const report = {
+        id: nextId('rpt'),
+        postId,
+        reporterUserId: currentUserId(),
+        authorId: post.author.id,
+        reason,
+        createdAt: new Date().toISOString(),
+        status: 'open',
+      };
+      db.reports.push(report);
+      return { ...report };
+    },
+    () => apiClient.post(`/social/posts/${postId}/report`, { reason }),
+  );
+}
+
+/** Hide everything from one author, for this account only. */
+export function blockAuthor(authorId) {
+  return withMock(
+    async () => {
+      await delay(180);
+      const blocked = blockedIds();
+      if (!blocked.includes(authorId)) blocked.push(authorId);
+      return [...blocked];
+    },
+    () => apiClient.post('/social/blocks', { authorId }),
   );
 }
 
@@ -201,3 +376,49 @@ export const POST_TYPES = [
   { id: 'insight', label: 'Insight' },
   { id: 'opportunity', label: 'Opportunity' },
 ];
+/* --------------------------------------------- identity surfaces --- */
+
+/**
+ * Accepted-connection count for one account, either side of the row.
+ * Backed by `GET /social/connections/count?userId=`.
+ * @param {string} [userId] defaults to the signed-in account
+ */
+export function countConnections(userId) {
+  return withMock(
+    async () => {
+      await delay(120);
+      const id = userId ?? currentUserId();
+      if (!id) return 0;
+      // Either side of the row. This used to read `c.from` and `c.to`, which
+      // no connection ever had — `connect` stored a one-sided
+      // `{ userId, status }` — so the tile could only ever show 0.
+      return db.connections.filter(
+        (c) => c.status === 'accepted' && (c.requesterId === id || c.addresseeId === id),
+      ).length;
+    },
+    () => apiClient.get('/social/connections/count', { params: { userId: userId ?? currentUserId() } }),
+  );
+}
+
+/**
+ * Profile picture upload.
+ *
+ * The real endpoint takes `multipart/form-data` with a `file` part and returns
+ * the user with `avatarUrl` set, plus a signed URL if pictures are retrievable.
+ * The prototype records the file name only — nothing is uploaded and the file
+ * never leaves the browser — exactly like the CV precedent.
+ */
+export function uploadAvatar({ fileName }) {
+  return withMock(
+    async () => {
+      await delay(480);
+      const account = currentAccount();
+      if (!account) throw new Error('Your session has expired. Sign in again.');
+      account.avatarUrl = fileName;
+      return { ...account };
+    },
+    () => apiClient.post('/users/me/avatar', { fileName }),
+  );
+}
+
+/** Post type options offered in the composer. */

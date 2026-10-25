@@ -2,12 +2,18 @@
  * Organizations: the employer side of the marketplace.
  * Backed by `GET /organizations`, `GET /organizations/:id`, `PATCH /organizations/:id`,
  * `GET /organizations/:id/jobs`, `GET /organizations/:id/applications`.
+ *
+ * The pipeline reads the SAME `applications` rows the candidate list reads,
+ * filtered by organization - one table, two views. An application submitted by
+ * a real candidate appears here immediately, which is the whole point of the
+ * marketplace the product is built on.
  */
-import { apiClient, withMock } from './apiClient.js';
-import { db, nextId, currentAccount } from './mockDb.js';
+import { apiClient, withMock, ApiError } from './apiClient.js';
+import { db, nextId, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
+import { resolveCandidateForEmployer } from './candidateService.js';
+import { recordStageChange, notifyUser, stageNotice } from './applicationService.js';
 
-/** @returns {Promise<import('../models/index.js').Organization[]>} */
 export function listOrganizations(filters = {}) {
   return withMock(
     async () => {
@@ -37,7 +43,7 @@ export function updateOrganization(organizationId, patch) {
     async () => {
       await delay(420);
       const organization = db.organizations.find((o) => o.id === organizationId);
-      if (!organization) throw new Error('That company profile no longer exists.');
+      if (!organization) throw new Error('That company profile does not exist anymore.');
       Object.assign(organization, patch);
       return { ...organization };
     },
@@ -79,7 +85,7 @@ export function listOrganizationJobs(organizationId) {
  * It is written straight into the same job collection the candidate
  * marketplace reads, tagged `grooveli_employer`. That single fact is what
  * demonstrates the marketplace relationship the product depends on:
- * employer → company → job → candidate → application.
+ * employer - company - job - candidate - application.
  *
  * @param {string} organizationId
  * @param {object} draft
@@ -90,7 +96,7 @@ export function publishJob(organizationId, draft) {
     async () => {
       await delay(720);
       const organization = db.organizations.find((o) => o.id === organizationId);
-      if (!organization) throw new Error('That company profile no longer exists.');
+      if (!organization) throw new Error('That company profile does not exist anymore.');
 
       /** @type {import('../models/index.js').Job} */
       const job = {
@@ -118,8 +124,8 @@ export function publishJob(organizationId, draft) {
         responsibilities: [],
         requirements: [],
         featured: false,
-        // A real matching service scores this per candidate. Until it exists the
-        // job carries no score rather than a fabricated one.
+        // Scores are computed per requesting candidate by the matching service
+        // (client-side today, backend later). The row itself carries none.
         matchScore: undefined,
         matchReasons: [],
         skillGaps: [],
@@ -145,32 +151,69 @@ export function updateJobStatus(jobId, status) {
   );
 }
 
-/** Applications received by this organization, resolved against the candidate pool. */
+/** Applications received by this organization - the same rows the candidate sees. */
 export function listInboundApplications(organizationId) {
   return withMock(
     async () => {
       await delay(320);
-      return db.inboundApplications
+      return db.applications
         .filter((a) => a.organizationId === organizationId)
-        .map((a) => ({ ...a, candidate: db.candidates.find((c) => c.id === a.candidateId) ?? null }))
+        .map((a) => ({ ...a, candidate: resolveCandidateForEmployer(a.candidateId) }))
         .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     },
     () => apiClient.get(`/organizations/${organizationId}/applications`),
   );
 }
 
-/** Move an application along the pipeline. */
-export function setApplicationStatus(applicationId, status) {
+/**
+ * Move an application along the pipeline.
+ *
+ * Rejecting asks for a reason: a no with no feedback teaches nothing, and the
+ * candidate-side "Bounce Back" mission turns the lesson into the next move.
+ *
+ * @param {string} applicationId
+ * @param {import('../models/index.js').ApplicationStatus} status
+ * @param {{ feedback?: string }} [options]
+ */
+export function setApplicationStatus(applicationId, status, options = {}) {
   return withMock(
     async () => {
       await delay(300);
-      const application = db.inboundApplications.find((a) => a.id === applicationId);
+      const application = db.applications.find((a) => a.id === applicationId);
       if (!application) throw new Error('That application no longer exists.');
+
+      const from = application.status;
       application.status = status;
       application.updatedAt = new Date().toISOString();
+      application.stageEnteredAt = application.updatedAt;
+
+      let note = options.feedback?.trim() || null;
+      if (status === 'rejected') {
+        // The API refuses a rejection with no reason, so this does too. It used
+        // to substitute canned text, which made the prototype more permissive
+        // than production and put words in an employer's mouth.
+        if (!note) {
+          throw new ApiError('A rejection needs a reason the candidate can act on.', {
+            status: 400,
+            code: 'bad_request',
+            details: { field: 'feedback' },
+          });
+        }
+        application.feedback = note;
+        // A new rejection is unread, even if an earlier one on this row was read.
+        application.rejectionAcknowledged = false;
+      }
+      recordStageChange(application, from, status, 'employer', note);
+
+      // The same copy the simulation uses, from one table. This branch used to
+      // write a flatter "moved to shortlisted", so a candidate got a worse
+      // message when a real employer moved them than when the timer did.
+      const notice = stageNotice(status, application.jobTitle, application.companyName);
+      if (notice) notifyUser(application.candidateId, notice);
+
       return { ...application };
     },
-    () => apiClient.patch(`/applications/${applicationId}`, { status }),
+    () => apiClient.patch(`/applications/${applicationId}`, { status, feedback: options.feedback }),
   );
 }
 
@@ -180,7 +223,7 @@ export function getRecruitmentOverview(organizationId) {
     async () => {
       await delay(260);
       const jobs = db.jobs.filter((j) => j.organizationId === organizationId);
-      const inbound = db.inboundApplications.filter((a) => a.organizationId === organizationId);
+      const inbound = db.applications.filter((a) => a.organizationId === organizationId);
       return {
         openJobs: jobs.filter((j) => j.status === 'published').length,
         totalJobs: jobs.length,
@@ -190,5 +233,87 @@ export function getRecruitmentOverview(organizationId) {
       };
     },
     () => apiClient.get(`/organizations/${organizationId}/overview`),
+  );
+}
+
+/** Who is signed in as an employer, for audit trails on pipeline moves. */
+export function currentEmployerId() {
+  return currentUserId();
+}
+
+/**
+ * HR analytics: hiring as numbers, computed from the same application rows the
+ * pipeline reads. No invented figures — an empty pipeline returns zeros and
+ * the panel renders honest empty states.
+ *
+ * Backed by `GET /organizations/:id/analytics`.
+ */
+export function getHiringAnalytics(organizationId) {
+  return withMock(
+    async () => {
+      await delay(320);
+      const inbound = db.applications.filter((a) => a.organizationId === organizationId);
+      const jobs = db.jobs.filter((j) => j.organizationId === organizationId);
+
+      const byStage = {};
+      inbound.forEach((a) => {
+        byStage[a.status] = (byStage[a.status] ?? 0) + 1;
+      });
+
+      const now = Date.now();
+      const daysInStage = inbound.map((a) => {
+        const entered = new Date(a.stageEnteredAt ?? a.updatedAt).getTime();
+        return Number.isFinite(entered) ? Math.max(0, (now - entered) / 86400000) : 0;
+      });
+      const avgDaysInStage = daysInStage.length === 0
+        ? 0
+        : Math.round((daysInStage.reduce((t, d) => t + d, 0) / daysInStage.length) * 10) / 10;
+
+      const sourceMix = {};
+      jobs.forEach((j) => {
+        sourceMix[j.source ?? 'mock'] = (sourceMix[j.source ?? 'mock'] ?? 0) + 1;
+      });
+
+      // Match distribution across applicants who resolve to a real profile.
+      // Buckets are fixed here so the backend can own the same boundaries.
+      const matchBuckets = { '0-39': 0, '40-59': 0, '60-79': 0, '80-100': 0, unscored: 0 };
+      inbound.forEach((a) => {
+        const candidate = resolveCandidateForEmployer(a.candidateId);
+        const score = candidate?.matchScore;
+        if (typeof score !== 'number') {
+          matchBuckets.unscored += 1;
+        } else if (score < 40) matchBuckets['0-39'] += 1;
+        else if (score < 60) matchBuckets['40-59'] += 1;
+        else if (score < 80) matchBuckets['60-79'] += 1;
+        else matchBuckets['80-100'] += 1;
+      });
+
+      return {
+        applications: inbound.length,
+        byStage,
+        avgDaysInStage,
+        sourceMix,
+        matchBuckets,
+      };
+    },
+    () => apiClient.get(`/organizations/${organizationId}/analytics`),
+  );
+}
+
+/**
+ * Company logo upload. Same contract shape as the avatar: multipart with a
+ * `file` part in production, file name only in the prototype.
+ * Backed by `POST /organizations/:id/logo`.
+ */
+export function uploadOrganizationLogo(organizationId, { fileName }) {
+  return withMock(
+    async () => {
+      await delay(480);
+      const organization = db.organizations.find((o) => o.id === organizationId);
+      if (!organization) throw new Error('That company profile does not exist anymore.');
+      organization.logoUrl = fileName;
+      return { ...organization };
+    },
+    () => apiClient.post(`/organizations/${organizationId}/logo`, { fileName }),
   );
 }

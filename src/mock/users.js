@@ -9,7 +9,7 @@
  */
 
 /**
- * Accounts that can sign in. Any password is accepted by the mock — this is a
+ * Accounts that can sign in. Any password is accepted by the mock - this is a
  * prototype credential check, not authentication.
  *
  * @type {(import('../models/index.js').User & { password: string })[]}
@@ -48,7 +48,7 @@ export const accounts = [
 ];
 
 /**
- * The demo candidate's profile — a worked example with real history, used by
+ * The demo candidate's profile - a worked example with real history, used by
  * the seeded account. A newly registered candidate starts from
  * `emptyCandidateProfile` instead.
  *
@@ -64,6 +64,7 @@ export const candidateProfile = {
   yearsExperience: 5,
   careerGoal: 'Move into a people systems role where process ownership and automation sit together.',
   careerInterests: ['People Operations', 'HR Technology', 'Talent Acquisition'],
+  careerPathId: 'path-hr',
   workTypes: ['hybrid', 'remote'],
   openTo: ['full-time', 'contract'],
   salaryExpectation: { min: 450000, max: 750000, currency: 'NGN' },
@@ -103,7 +104,7 @@ export const candidateProfile = {
 
 /**
  * The shape a brand-new candidate starts from. Onboarding fills it in, and
- * `completeness` rises as it does — the profile is something the user builds,
+ * `completeness` rises as it does - the profile is something the user builds,
  * not something handed to them finished.
  */
 export function emptyCandidateProfile(userId, profileId) {
@@ -116,6 +117,7 @@ export function emptyCandidateProfile(userId, profileId) {
     yearsExperience: 0,
     careerGoal: '',
     careerInterests: [],
+    careerPathId: null,
     workTypes: [],
     openTo: [],
     salaryExpectation: { min: 0, max: 0, currency: 'NGN' },
@@ -131,13 +133,16 @@ export function emptyCandidateProfile(userId, profileId) {
 /**
  * Career progress for the seeded demo account.
  *
- * A new account starts at `{ xp: 0, level: 1, reputation: 0 }` — progression is
+ * A new account starts at `{ xp: 0, level: 1, reputation: 0 }` - progression is
  * earned, so it cannot be seeded from a fixture.
  *
  * @type {Record<string, import('../models/index.js').CareerProgress>}
  */
 export const careerProgress = {
-  'usr-001': { xp: 1240, level: 8, reputation: 61 },
+  // No `level`: it is derived from the XP on every read, server-side and in the
+  // mock, so a stored one could only ever be a second answer to the same
+  // question. 1240 XP resolves to level 7 on the curve in utils/progression.js.
+  'usr-001': { xp: 1240, reputation: 61 },
 };
 
 /** @type {Record<string, import('../models/index.js').CareerStats>} */
@@ -154,21 +159,36 @@ export const careerStats = {
 };
 
 /**
- * Achievements. Those with an `event` are earned by doing that career activity;
- * the rest are seeded as already held by the demo account.
+ * Achievements.
+ *
+ * Every entry is evaluated by the backend, never by the screen that fired the
+ * event. Two fields control the award:
+ *
+ * - `count`   the event must have fired this many times (default 1). Career
+ *             Explorer is five district visits, not the first one.
+ * - `context` a value the event must carry, e.g. the Excel challenge - any
+ *             other skill challenge does not earn it.
  *
  * @type {import('../models/index.js').Achievement[]}
  */
 export const achievementCatalog = [
-  { id: 'ach-first-mission', name: 'First Career Mission', description: 'Completed your first career mission.', icon: 'trophy', event: 'mission.completed' },
-  { id: 'ach-first-application', name: 'First Application', description: 'Submitted your first application through Grooveli.', icon: 'rocket', event: 'application.suitable' },
-  { id: 'ach-interview-ready', name: 'Interview Ready', description: 'Completed an interview simulation.', icon: 'target', event: 'interview.simulated' },
-  { id: 'ach-excel-foundations', name: 'Excel Foundations', description: 'Passed the Excel skill challenge.', icon: 'chart', event: 'skill.challenge' },
-  { id: 'ach-career-explorer', name: 'Career Explorer', description: 'Visited five districts in Grooveli City.', icon: 'map', event: 'location.visited' },
-  { id: 'ach-certified', name: 'Certified', description: 'Completed an accredited course.', icon: 'award', event: 'course.completed' },
-  { id: 'ach-profile-complete', name: 'Career Identity', description: 'Completed your career profile.', icon: 'user', event: 'profile.completed' },
-  { id: 'ach-first-post', name: 'Found Your Voice', description: 'Shared your first career post.', icon: 'megaphone', event: 'social.posted' },
+  { id: 'ach-first-mission', name: 'First Career Mission', description: 'Completed your first career mission.', icon: 'trophy', event: 'mission.completed', count: 1 },
+  { id: 'ach-first-application', name: 'First Application', description: 'Submitted your first application through Grooveli.', icon: 'rocket', event: 'application.suitable', count: 1 },
+  { id: 'ach-interview-ready', name: 'Interview Ready', description: 'Completed an interview simulation.', icon: 'target', event: 'interview.simulated', count: 1 },
+  { id: 'ach-excel-foundations', name: 'Excel Foundations', description: 'Passed the Excel skill challenge.', icon: 'chart', event: 'skill.challenge', count: 1, context: { key: 'skill', value: 'Excel' } },
+  { id: 'ach-comms-proven', name: 'Communication Proven', description: 'Passed the Communication skill challenge.', icon: 'megaphone', event: 'skill.challenge', count: 1, context: { key: 'skill', value: 'Communication' } },
+  { id: 'ach-career-explorer', name: 'Career Explorer', description: 'Visited five districts in Grooveli City.', icon: 'map', event: 'location.visited', count: 5 },
+  { id: 'ach-certified', name: 'Certified', description: 'Completed an accredited course.', icon: 'award', event: 'course.completed', count: 1 },
+  { id: 'ach-profile-complete', name: 'Career Identity', description: 'Completed your career profile.', icon: 'user', event: 'profile.completed', count: 1 },
+  { id: 'ach-first-post', name: 'Found Your Voice', description: 'Shared your first career post.', icon: 'megaphone', event: 'social.posted', count: 1 },
+  { id: 'ach-bounce-back', name: 'Bounce Back', description: 'Kept going after a rejection.', icon: 'rocket', event: 'application.rejected', count: 1 },
+  { id: 'ach-offer-accepted', name: 'Signed the Offer', description: 'Accepted a real offer and started a new role.', icon: 'trophy', event: 'offer.accepted', count: 1 },
 ];
 
 /** Achievements the demo account already holds. */
 export const seededAchievementIds = ['ach-first-mission', 'ach-first-application', 'ach-career-explorer'];
+
+/** Their progress toward count-based awards, so the counts start honest. */
+export const seededAchievementProgress = {
+  'usr-001': { 'ach-first-mission': 1, 'ach-first-application': 1, 'ach-career-explorer': 4 },
+};

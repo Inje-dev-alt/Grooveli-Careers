@@ -1,6 +1,7 @@
 import './missions.css';
 import { Panel, Badge, Button, ProgressBar } from '../ui/index.js';
 import { useMissionStore } from '../../stores/missionStore.js';
+import { getCareerPath } from '../../data/careerPaths.js';
 
 const DIFFICULTY_TONE = { easy: 'success', medium: 'warning', hard: 'danger' };
 const TYPE_LABEL = { career: 'Career mission', skill: 'Skill mission', discovery: 'Discovery' };
@@ -13,12 +14,16 @@ export function MissionCard({ mission, onOpen }) {
   const counts = progress?.objectiveCounts ?? {};
   const completedCount = mission.objectives.filter((o) => (counts[o.id] ?? 0) >= o.target).length;
   const complete = progress?.status === 'completed';
+  const path = mission.pathId ? getCareerPath(mission.pathId) : null;
 
   return (
     <Panel pad="sm" className="mission-card">
       <div className="mission-card__top">
         <div style={{ minWidth: 0 }}>
-          <p className="g-eyebrow">{TYPE_LABEL[mission.type] ?? mission.type}</p>
+          <p className="g-eyebrow">
+            {TYPE_LABEL[mission.type] ?? mission.type}
+            {path ? ` · ${path.title}` : ''}
+          </p>
           <h3 className="mission-card__title">{mission.title}</h3>
         </div>
         {complete ? (

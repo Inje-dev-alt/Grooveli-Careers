@@ -16,8 +16,15 @@ import { CareerStats } from '../profile/CareerStats.jsx';
 import { CareerDashboard } from '../profile/CareerDashboard.jsx';
 import { Achievements } from '../profile/Achievements.jsx';
 import { NotificationList } from '../hud/NotificationList.jsx';
-import { getLocation } from '../../game/world/locations.js';
-import { getApartmentObject } from '../../game/world/apartment.js';
+import { Leaderboard } from '../leaderboard/Leaderboard.jsx';
+import { HiringAnalytics } from '../employer/HiringAnalytics.jsx';
+import { useChatStore } from '../../stores/chatStore.js';
+import { resolveAnyPlace } from '../../game/world/places.js';
+import { OfficeReception } from '../locations/OfficeReception.jsx';
+import { OfficeNotices } from '../locations/OfficeNotices.jsx';
+import { RoomRoster } from '../locations/RoomRoster.jsx';
+import { ConversationList } from '../chat/ConversationList.jsx';
+import { ChatPanel } from '../chat/ChatPanel.jsx';
 
 /**
  * Renders whichever panel is on top of the modal stack.
@@ -47,8 +54,10 @@ function ModalLayer({ modal }) {
 
   switch (type) {
     case 'location': {
-      const location =
-        getLocation(props.locationId) ?? getApartmentObject(props.locationId) ?? null;
+      // Every room's lookup, from the one registry in world/places.js. A
+      // hand-written chain here is how the company office ended up with a
+      // prompt that opened nothing.
+      const location = resolveAnyPlace(props.locationId);
       if (!location) return null;
       return <LocationPanel location={location} />;
     }
@@ -64,6 +73,7 @@ function ModalLayer({ modal }) {
         >
           <JobBrowser
             districtId={props.districtId}
+            organizationId={props.organizationId}
             onOpenJob={(job) => openModal('job-detail', { job })}
             compactFilters
           />
@@ -218,6 +228,19 @@ function ModalLayer({ modal }) {
         </Modal>
       );
 
+    case 'leaderboard':
+      return (
+        <Modal
+          eyebrow="Plaza board"
+          title="City Standings"
+          subtitle="Ranked by reputation - what employers can verify, not what people post."
+          size="md"
+          onClose={closeModal}
+        >
+          <Leaderboard />
+        </Modal>
+      );
+
     case 'notifications':
       return (
         <Modal eyebrow="Phone" title="Notifications" size="md" onClose={closeModal}>
@@ -225,7 +248,104 @@ function ModalLayer({ modal }) {
         </Modal>
       );
 
+    case 'office-profile':
+      return (
+        <Modal
+          eyebrow="Reception"
+          title="About this company"
+          subtitle="What a candidate reads before applying."
+          size="md"
+          onClose={closeModal}
+        >
+          <OfficeReception />
+        </Modal>
+      );
+
+    case 'office-posts':
+      return (
+        <Modal
+          eyebrow="Notice board"
+          title="From this company"
+          subtitle="What they have shared with the network."
+          size="md"
+          onClose={closeModal}
+        >
+          <OfficeNotices />
+        </Modal>
+      );
+
+    case 'room-roster':
+      return (
+        <Modal
+          eyebrow={props.eyebrow ?? 'Around you'}
+          title="Who else is here"
+          subtitle="Presence updates every few seconds."
+          size="md"
+          onClose={closeModal}
+        >
+          <RoomRoster />
+        </Modal>
+      );
+
+    /*
+     * One modal for both the inbox and a thread, swapping between them in
+     * place. Which one shows is decided by the chat store rather than by a
+     * second modal layer: a thread pushed on top of the inbox would stack two
+     * translucent backdrops, which this stack deliberately never does, and
+     * would leave the store and the stack as two places that each think they
+     * know which conversation is open.
+     */
+    case 'messages':
+      return <MessagesModal onClose={closeModal} />;
+
+    case 'company-analytics':
+      return (
+        <Modal
+          eyebrow="Hiring board"
+          title="Hiring Analytics"
+          subtitle="Your pipeline as numbers."
+          size="md"
+          onClose={closeModal}
+          footer={
+            <Button variant="ghost" onClick={() => goTo('/employer/candidates')}>
+              Review candidates
+            </Button>
+          }
+        >
+          <HiringAnalytics />
+        </Modal>
+      );
+
     default:
       return null;
   }
+}
+
+/**
+ * Messages: the inbox, or the thread that is open.
+ *
+ * Its own component because it needs the chat store, and `ModalLayer` is a
+ * switch over every panel in the product — subscribing it to one panel's
+ * store would re-render all of them on every incoming message.
+ */
+function MessagesModal({ onClose }) {
+  const openId = useChatStore((s) => s.openId);
+  const open = useChatStore((s) => s.open);
+  const close = useChatStore((s) => s.close);
+
+  return (
+    <Modal
+      eyebrow="Grooveli"
+      title={openId ? 'Conversation' : 'Messages'}
+      subtitle={openId ? undefined : 'People you have met in the city.'}
+      size="md"
+      onClose={onClose}
+    >
+      {openId ? (
+        <ChatPanel onBack={close} />
+      ) : (
+        <ConversationList onOpen={open} />
+      )}
+    </Modal>
+  );
 }

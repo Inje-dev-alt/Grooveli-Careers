@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './locations.css';
 import { Modal, Button, Badge } from '../ui/index.js';
-import { resolveInteractions } from './interactionRegistry.jsx';
+import { resolveInteractions, homePathInterviewAction } from './interactionRegistry.jsx';
 import { useUiStore } from '../../stores/uiStore.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
 import { recordCareerEvent } from '../../stores/progression.js';
 import { CAREER_EVENTS } from '../../utils/careerEvents.js';
+import { useCareerPath } from '../../hooks/useCareerPath.js';
 
 /**
  * The panel that opens when the player presses E.
@@ -24,6 +25,7 @@ export function LocationPanel({ location }) {
   const closeModal = useUiStore((s) => s.closeModal);
   const closeAllModals = useUiStore((s) => s.closeAllModals);
   const visited = usePlayerStore((s) => s.visitedLocationIds.includes(location.id));
+  const homePath = useCareerPath();
 
   useEffect(() => {
     // Read the store at effect time rather than from the render closure: the
@@ -40,6 +42,9 @@ export function LocationPanel({ location }) {
       recordCareerEvent(CAREER_EVENTS.LOCATION_VISITED, {
         label: `Visited ${location.name}`,
         silent: true,
+        // Keyed on the district, which is what makes Career Explorer "visit
+        // five districts" rather than "visit one district five times".
+        context: { location: location.id },
       });
     }
 
@@ -47,6 +52,10 @@ export function LocationPanel({ location }) {
   }, [location.id, location.name, location.type]);
 
   const actions = resolveInteractions(location.interactions);
+  // The home district offers the path interview by name; the registry keeps
+  // the behaviour, this only decides whether this district qualifies.
+  const pathAction = homePath && location.id === homePath.districtId ? homePathInterviewAction(homePath) : null;
+  const allActions = pathAction ? [pathAction, ...actions] : actions;
   const context = { location, openModal, replaceModal, closeAllModals, navigate };
 
   return (
@@ -78,7 +87,7 @@ export function LocationPanel({ location }) {
         </div>
 
         <div className="location-panel__actions">
-          {actions.map((action) => {
+          {allActions.map((action) => {
             const Icon = action.icon;
             return (
               <button

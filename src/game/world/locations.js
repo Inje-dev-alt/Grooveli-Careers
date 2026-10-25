@@ -40,7 +40,7 @@ export const cityLocations = [
     position: { x: 1300, y: 1480 },
     size: { width: 520, height: 320 },
     accent: '#5be3c8',
-    interactions: ['city-guide', 'missions'],
+    interactions: ['city-guide', 'missions', 'leaderboard'],
     walkable: true,
     glyph: 'GC',
   },

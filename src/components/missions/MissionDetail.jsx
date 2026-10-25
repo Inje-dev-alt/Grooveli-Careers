@@ -22,7 +22,7 @@ const SKILL_FOR_CATEGORY = {
  * One mission, in full.
  *
  * Skill missions can be attempted here; career and discovery missions are
- * advanced by acting elsewhere in the product, which is the point — the mission
+ * advanced by acting elsewhere in the product, which is the point - the mission
  * is a wrapper around real career activity, not a minigame.
  *
  * @param {{ mission: import('../../models/index.js').Mission, onNavigate?: (route:string)=>void }} props
@@ -43,19 +43,36 @@ export function MissionDetail({ mission, onNavigate }) {
 
       if (result.passed) {
         const skill = SKILL_FOR_CATEGORY[mission.category];
+        // The skill rides along as event context: the Excel award must not
+        // land on the Communication challenge, and the backend counts the
+        // same way. It is also what the award is keyed on, so passing the
+        // same challenge again is recognised rather than paid twice.
+        //
         // An interview mission completes through the interview event so the
-        // "Get Your First Job" objective sees it too.
+        // "Get Your First Job" objective sees it too, and that event is keyed
+        // on `simulationId` instead. Namespaced, because a mission's practice
+        // run and an AI Career Center simulation are different things and
+        // neither should stand in for the other.
+        const interview = mission.category === 'interview';
         recordCareerEvent(
-          mission.category === 'interview'
+          interview
             ? CAREER_EVENTS.INTERVIEW_SIMULATION_COMPLETED
             : CAREER_EVENTS.SKILL_CHALLENGE_COMPLETED,
-          { label: `${mission.title} passed` },
+          {
+            label: `${mission.title} passed`,
+            context: {
+              skill,
+              missionId: mission.id,
+              score: result.score,
+              ...(interview ? { simulationId: `mission:${mission.id}` } : null),
+            },
+          },
         );
         if (skill) candidateService.verifySkill(skill, result.score).catch(() => {});
       } else {
         pushToast({
           title: 'Not quite',
-          body: 'Have another go — the attempt is not held against you.',
+          body: 'Have another go - the attempt is not held against you.',
           tone: 'warning',
         });
       }

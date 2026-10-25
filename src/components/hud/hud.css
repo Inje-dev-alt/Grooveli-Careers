@@ -149,6 +149,99 @@
 
 .hud-location__dot { width: 7px; height: 7px; border-radius: 50%; }
 
+/* ---------- Presence chip ---------- */
+
+/* Same chip as the location, because it is the same kind of fact about where
+   you are. The dot is green and gently pulsing: a number that moves on its own
+   needs to read as live rather than as a glitch. */
+.hud-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin-left: var(--g-space-2);
+  padding: 8px 16px;
+  border-radius: var(--g-radius-pill);
+  background: var(--g-glass-strong);
+  border: 1px solid var(--g-glass-border);
+  backdrop-filter: blur(var(--g-blur));
+  -webkit-backdrop-filter: blur(var(--g-blur));
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--g-text-muted);
+  animation: g-fade-in var(--g-dur) var(--g-ease) both;
+  box-shadow: var(--g-shadow-sm);
+  /* It is a button because it is the only presence control a player sees
+     from every room — the panel behind it is where they turn themselves
+     off, and a chip you cannot click would leave that reachable only to
+     someone who happened to visit an office. */
+  cursor: pointer;
+  text-align: left;
+}
+
+.hud-presence:hover { color: var(--g-text); }
+
+.hud-presence__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5be3c8;
+  animation: hud-presence-pulse 2.4s var(--g-ease) infinite;
+}
+
+.hud-presence__here {
+  padding-left: var(--g-space-2);
+  margin-left: var(--g-space-1, 4px);
+  border-left: 1px solid var(--g-glass-border);
+  color: var(--g-text-dim);
+}
+
+@keyframes hud-presence-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* A pulsing dot is decoration, and decoration that moves is a problem for
+   some people. */
+@media (prefers-reduced-motion: reduce) {
+  .hud-presence__dot { animation: none; }
+}
+
+
+/* ---------- Career path chip ---------- */
+.hud-path {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin-left: var(--g-space-2);
+  padding: 8px 16px;
+  border-radius: var(--g-radius-pill);
+  background: var(--g-glass-strong);
+  border: 1px solid var(--g-glass-border);
+  backdrop-filter: blur(var(--g-blur));
+  -webkit-backdrop-filter: blur(var(--g-blur));
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--g-text-muted);
+  animation: g-fade-in var(--g-dur) var(--g-ease) both;
+  box-shadow: var(--g-shadow-sm);
+}
+
+.hud-path__home {
+  padding: 2px 8px;
+  border-radius: var(--g-radius-pill);
+  background: rgba(91, 227, 200, 0.14);
+  border: 1px solid rgba(91, 227, 200, 0.45);
+  color: var(--g-accent);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .hud-exit {
   background: var(--g-glass-strong);
   border-color: var(--g-glass-border);

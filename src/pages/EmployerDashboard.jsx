@@ -15,11 +15,12 @@ import {
   IconBriefcase,
   IconGrid,
   IconUser,
-  IconTarget,
+  IconTarget, IconMapPin,
 } from '../components/ui/index.js';
 import { useEmployerStore } from '../stores/employerStore.js';
 import { statusLabel, statusTone } from '../utils/applicationStatus.js';
 import { formatRelativeTime } from '../utils/format.js';
+import { HiringAnalytics } from '../components/employer/HiringAnalytics.jsx';
 
 /**
  * The employer dashboard.
@@ -45,6 +46,9 @@ export default function EmployerDashboard() {
     { label: 'View jobs', icon: IconGrid, to: '/employer/jobs' },
     { label: 'View candidates', icon: IconUser, to: '/employer/candidates' },
     { label: 'Company profile', icon: IconTarget, to: '/employer/company' },
+    // The HQ is the employer's place in the city, not another dashboard tab -
+    // worth a quick action because nothing else in the product hints it exists.
+    { label: 'Enter your HQ', icon: IconMapPin, to: '/employer/hq' },
   ];
 
   return (
@@ -164,6 +168,8 @@ export default function EmployerDashboard() {
                 </ul>
               )}
             </Panel>
+
+            <HiringAnalytics />
           </div>
         ) : null}
       </EmployerPage>

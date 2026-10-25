@@ -1,11 +1,13 @@
+import { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import './shell.css';
-import { ProgressBar, Button, IconBell, IconMenu } from '../ui/index.js';
+import { ProgressBar, Button, IconBell, IconInbox, IconMenu } from '../ui/index.js';
 import { PRIMARY_NAV, COMPACT_NAV } from './navigation.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
 import { useAuthStore, selectCanSwitchRole } from '../../stores/authStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
+import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
 
 /**
  * Chrome for the non-world routes.
@@ -20,8 +22,19 @@ export function AppShell({ children }) {
   const openModal = useUiStore((s) => s.openModal);
   const toggleMenu = useUiStore((s) => s.toggleMenu);
   const unreadCount = useNotificationStore((s) => s.items.filter((n) => !n.read).length);
+  const unreadMessages = useChatStore(selectUnreadMessages);
+  const loadConversations = useChatStore((s) => s.loadConversations);
+  const chatStatus = useChatStore((s) => s.status);
+  const closeConversation = useChatStore((s) => s.close);
   const switchRole = useAuthStore((s) => s.switchRole);
   const canSwitchRole = useAuthStore(selectCanSwitchRole);
+
+  // Same lazy load as the bell: the badge needs a count before anyone opens
+  // the inbox. Off-world screens are where someone reads a reply, so this
+  // shell needs it as much as the HUD does.
+  useEffect(() => {
+    if (chatStatus === 'idle') loadConversations();
+  }, [chatStatus, loadConversations]);
 
   const goToEmployer = async () => {
     await switchRole('employer');
@@ -71,6 +84,25 @@ export function AppShell({ children }) {
               />
             </span>
           </div>
+
+          {/*
+            A conversation has to outlive the room it started in. The HUD has
+            this button in the world; without it here, leaving a company's
+            office was the end of the thread as far as the interface was
+            concerned.
+          */}
+          <button
+            type="button"
+            className="hud-btn"
+            onClick={() => {
+              closeConversation();
+              openModal('messages');
+            }}
+            aria-label={`Messages${unreadMessages ? `, ${unreadMessages} unread` : ''}`}
+          >
+            <IconInbox size={18} />
+            {unreadMessages > 0 ? <span className="hud-btn__count">{unreadMessages}</span> : null}
+          </button>
 
           <button
             type="button"

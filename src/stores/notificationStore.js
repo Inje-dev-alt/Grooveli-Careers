@@ -18,6 +18,9 @@ export const useNotificationStore = create((set, get) => ({
     }
   },
 
+  /** Clear on sign-out so the next account does not read a stranger's inbox. */
+  reset: () => set({ items: [], status: 'idle', error: null }),
+
   unreadCount: () => get().items.filter((n) => !n.read).length,
 
   markRead: async (id) => {

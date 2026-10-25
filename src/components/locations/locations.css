@@ -110,3 +110,37 @@
 .course-card__provider { font-size: var(--g-text-xs); color: var(--g-text-dim); }
 .course-card__desc { font-size: var(--g-text-sm); color: var(--g-text-muted); line-height: 1.6; }
 .course-card__meta { display: flex; flex-wrap: wrap; gap: var(--g-space-2); }
+
+/* ---------- Who else is in the room ---------- */
+
+/* Its own classes rather than the feed's `.person__*`: a roster is a list of
+   people standing somewhere, not a list of people to connect with, and
+   borrowing social.css would make this panel depend on a stylesheet it does
+   not import. */
+.roster { display: grid; gap: var(--g-space-2); list-style: none; padding: 0; margin: 0; }
+
+.roster__person {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+}
+
+.roster__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-pill);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+  color: var(--g-text-on-accent);
+}
+
+.roster__body { flex: 1; min-width: 0; }
+.roster__name { font-size: var(--g-text-sm); font-weight: 600; }
+.roster__headline { font-size: var(--g-text-xs); color: var(--g-text-muted); }
+
+.roster__count { margin: 0; font-size: var(--g-text-sm); color: var(--g-text-muted); }
+.roster__note { margin: 0; font-size: var(--g-text-sm); color: var(--g-text-dim); line-height: 1.6; }
