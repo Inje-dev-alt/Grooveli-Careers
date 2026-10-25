@@ -42,8 +42,6 @@ export const useSocialStore = create((set, get) => ({
       status: 'idle', error: null, respondingTo: null,
     }),
 
-  /** Requests waiting on this account — the ones it can actually answer. */
-  pendingRequests: () => get().connections.filter((c) => c.incoming && c.status === 'pending'),
 
   /**
    * Accept or decline a request.
@@ -134,3 +132,16 @@ export const useSocialStore = create((set, get) => ({
 
   isFollowing: (organizationId) => get().followedOrganizationIds.includes(organizationId),
 }));
+
+/**
+ * A request waiting on this account — one it can actually answer.
+ *
+ * A predicate rather than a store method returning the filtered list. As a
+ * method it built a new array on every call, so `useSocialStore((s) =>
+ * s.pendingRequests())` never compared equal to its previous result and the
+ * panel re-rendered on every change anywhere in this store. Selecting the
+ * stable `connections` slice and filtering with this keeps the rule in one
+ * place without that cost.
+ */
+export const isPendingRequest = (connection) =>
+  connection.incoming && connection.status === 'pending';

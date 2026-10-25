@@ -44,6 +44,29 @@ export function toNotification(row: Record<string, unknown>) {
   };
 }
 
+/**
+ * Where to send this recipient, given their role.
+ *
+ * Several routes belong to one role only — `/network` is candidate-only, the
+ * employer space is employer-only — so a notice with a hard-coded path is a
+ * dead end for whichever role does not own it, and the person following it
+ * gets bounced to their own space with no idea what they were meant to see.
+ *
+ * Defaults to the candidate route: a profile with no active role yet is in
+ * onboarding, and will be redirected to finish it either way.
+ */
+export async function homeRouteFor(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<string> {
+  const { data } = await admin
+    .from('profiles')
+    .select('active_role')
+    .eq('id', userId)
+    .maybeSingle();
+  return String(data?.active_role ?? '') === 'employer' ? '/employer' : '/network';
+}
+
 /** Write one notice. Returns false if it could not be written. */
 export async function notify(
   admin: SupabaseClient,
