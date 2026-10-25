@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import './hud.css';
-import { ProgressBar, IconBell, IconMenu, IconMapPin, IconTrendUp } from '../ui/index.js';
+import { ProgressBar, IconBell, IconMenu, IconMapPin, IconTrendUp, IconUser } from '../ui/index.js';
 import { InteractionPrompt } from './InteractionPrompt.jsx';
 import { useAuthStore } from '../../stores/authStore.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
+import { usePresenceStore } from '../../stores/presenceStore.js';
 import { getLocation } from '../../game/world/locations.js';
 import { resolvePlace, placeFallback } from '../../game/world/places.js';
 import { useCareerPath } from '../../hooks/useCareerPath.js';
@@ -30,6 +31,9 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const loadNotifications = useNotificationStore((s) => s.load);
   const notificationStatus = useNotificationStore((s) => s.status);
   const homePath = useCareerPath();
+  const presenceStarted = usePresenceStore((s) => s.started);
+  const cityOnline = usePresenceStore((s) => s.cityOnline);
+  const hereCount = usePresenceStore((s) => s.hereCount);
 
   useEffect(() => {
     if (notificationStatus === 'idle') loadNotifications();
@@ -104,6 +108,28 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
               <span className="hud-path__home">Home district</span>
             ) : null}
           </span>
+        ) : null}
+        {/*
+          The city is not empty, and until now there was no way to know that.
+          Hidden until the first heartbeat answers: "1 online" while the
+          request is still in flight is a worse answer than no answer.
+        */}
+        {presenceStarted ? (
+          <button
+            type="button"
+            className="hud-presence"
+            onClick={() => openModal('room-roster')}
+            title={
+              hereCount > 0
+                ? `${cityOnline} people in Grooveli City, ${hereCount} of them in this room`
+                : `${cityOnline} people in Grooveli City`
+            }
+          >
+            <span className="hud-presence__dot" />
+            <IconUser size={13} />
+            {cityOnline} online
+            {hereCount > 0 ? <span className="hud-presence__here">{hereCount} here</span> : null}
+          </button>
         ) : null}
         {action}
       </div>

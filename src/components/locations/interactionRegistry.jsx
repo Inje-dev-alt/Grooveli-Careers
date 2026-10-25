@@ -179,6 +179,15 @@ export const INTERACTIONS = {
     },
   },
 
+  'office-presence': {
+    label: 'Meeting Table',
+    description: 'Who else is in this lobby',
+    icon: IconUser,
+    // Reads the presence store, which the app-wide heartbeat is already
+    // filling — so the panel opens on data it did not have to fetch.
+    open: ({ replaceModal }) => replaceModal('room-roster', { eyebrow: 'Meeting table' }),
+  },
+
   'office-posts': {
     label: 'Notice Board',
     description: 'What this company has shared',

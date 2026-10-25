@@ -9,6 +9,7 @@ import { Button, IconChevronLeft } from '../components/ui/index.js';
 import { useWorldInteractions, useWorldViewport } from '../hooks/useWorldInteractions.js';
 import { useUiStore } from '../stores/uiStore.js';
 import { useEmployerStore } from '../stores/employerStore.js';
+import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
 
 /**
@@ -39,6 +40,11 @@ export default function EmployerHQ() {
 
   useWorldInteractions();
   useWorldViewport();
+  // An HQ is shared by the people who run that company, so the
+  // organization is the room — the same rule a candidate's office visit
+  // follows, which is why two members of one employer meet here and
+  // members of two employers never do.
+  usePresencePosition('company', organization?.id ?? null);
 
   // The HQ is reached without passing through the dashboard shell, so it loads
   // the organization itself — otherwise the hiring board opens empty and the

@@ -96,6 +96,17 @@ export const db = {
   leaderboardOptOut: {},
   /** Social graph. Connections and follows are separate relationships. */
   connections: [],
+  /**
+   * Where each real account is, by user id: `{ scene, locationId, lastSeenAt }`.
+   *
+   * Overwritten by each heartbeat rather than appended, like the row it stands
+   * in for. The fixture people in ../mock/presence.js are NOT in here — they
+   * are permanently online by definition, and giving them timestamps would
+   * mean the mock city emptied out fifteen seconds after it loaded.
+   */
+  presence: {},
+  /** Who may see each account by name: 'everyone' | 'connections' | 'nobody'. */
+  presenceVisibility: {},
   followedOrganizationIds: clone(suggestedOrganizationIds).slice(0, 1),
   /** Notification preferences by user id: mission reminders and quiet hours. */
   notificationPreferences: {},

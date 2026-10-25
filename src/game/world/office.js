@@ -76,11 +76,11 @@ export const officeObjects = [
     kind: 'table',
     tagline: 'Where people talk.',
     description:
-      'Nothing happens here yet. When presence lands, this is where you will see who else is in the office.',
+      'Who else is standing in this lobby right now, and who can see you.',
     position: { x: 590, y: 430 },
     size: { width: 260, height: 140 },
     accent: '#9fb2d8',
-    interactions: [],
+    interactions: ['office-presence'],
   },
   {
     id: 'off-door',

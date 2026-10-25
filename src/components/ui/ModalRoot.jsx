@@ -23,6 +23,7 @@ import { getApartmentObject } from '../../game/world/apartment.js';
 import { getCompanyObject } from '../../game/world/company.js';
 import { OfficeReception } from '../locations/OfficeReception.jsx';
 import { OfficeNotices } from '../locations/OfficeNotices.jsx';
+import { RoomRoster } from '../locations/RoomRoster.jsx';
 
 /**
  * Renders whichever panel is on top of the modal stack.
@@ -267,6 +268,19 @@ function ModalLayer({ modal }) {
           onClose={closeModal}
         >
           <OfficeNotices />
+        </Modal>
+      );
+
+    case 'room-roster':
+      return (
+        <Modal
+          eyebrow={props.eyebrow ?? 'Around you'}
+          title="Who else is here"
+          subtitle="Presence updates every few seconds."
+          size="md"
+          onClose={closeModal}
+        >
+          <RoomRoster />
         </Modal>
       );
 

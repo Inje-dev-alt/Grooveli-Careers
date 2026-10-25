@@ -9,6 +9,7 @@ import { Button, IconChevronLeft } from '../components/ui/index.js';
 import { useWorldInteractions, useWorldViewport } from '../hooks/useWorldInteractions.js';
 import { useUiStore } from '../stores/uiStore.js';
 import { useOfficeStore } from '../stores/officeStore.js';
+import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
 
 /**
@@ -35,6 +36,9 @@ export default function CompanyOffice() {
 
   useWorldInteractions();
   useWorldViewport();
+  // Every office is the same room and the route decides whose it is, so the
+  // organization id is what separates one lobby's occupants from another's.
+  usePresencePosition('office', organizationId);
 
   useEffect(() => {
     visit(organizationId);

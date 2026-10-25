@@ -18,6 +18,8 @@ import {
 import { useUiStore } from './stores/uiStore.js';
 import { useCareerStore } from './stores/careerStore.js';
 import { useMissionStore } from './stores/missionStore.js';
+import { usePresenceStore } from './stores/presenceStore.js';
+import { HEARTBEAT_SECONDS } from './services/presenceService.js';
 import { useIdentityRoute } from './hooks/useIdentityRoute.js';
 import { useIsCompact } from './hooks/useMediaQuery.js';
 
@@ -109,6 +111,8 @@ function AppEffects() {
   const careerHydrated = useCareerStore((s) => s.hydrated);
   const loadMissions = useMissionStore((s) => s.loadMissions);
   const missionStatus = useMissionStore((s) => s.status);
+  const beat = usePresenceStore((s) => s.beat);
+  const userId = user?.id ?? null;
   const isCompact = useIsCompact();
 
   useEffect(() => setCompact(isCompact), [isCompact, setCompact]);
@@ -127,6 +131,44 @@ function AppEffects() {
     if (!careerHydrated) hydrateCareer();
     if (missionStatus === 'idle') loadMissions();
   }, [user, activeRole, careerHydrated, hydrateCareer, missionStatus, loadMissions]);
+
+  /*
+   * The presence heartbeat — one timer for the whole product.
+   *
+   * It lives here rather than in each room because every navigation unmounts
+   * one room and mounts another, and a per-room timer would briefly run two of
+   * them. Rooms only declare where they are (`setPosition`); this sends it.
+   *
+   * It stops while the tab is hidden, which is both honest and necessary.
+   * Honest: a backgrounded tab is not someone standing in a lobby, and they
+   * should age out of it. Necessary: browsers throttle background intervals to
+   * roughly one a minute, which is slower than the 45-second online window, so
+   * a tab left open in another window would otherwise flicker in and out of
+   * every roster it appeared in. Becoming visible beats immediately rather
+   * than waiting for the interval, so coming back is instant.
+   */
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    let timer = null;
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      if (timer) return;
+      beat();
+      timer = setInterval(beat, HEARTBEAT_SECONDS * 1000);
+    };
+    const onVisibilityChange = () => (document.hidden ? stop() : start());
+
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [userId, beat]);
 
   // A route change should never leave a panel from the previous screen open.
   useEffect(() => {
