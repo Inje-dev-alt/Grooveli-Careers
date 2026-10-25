@@ -214,8 +214,12 @@ ok('moving rooms leaves the last room behind',
   r.body?.hereCount === 0, `hereCount=${r.body?.hereCount}`);
 
 r = await beat(A, ROOM);
+// Only E. By now B is blocked, C has moved into the apartment and D is a
+// ghost — so this number is every rule above it, agreeing at once. The two
+// assertions below check the same room from two other points of view and
+// must stay consistent with it.
 ok('  and coming back finds who is still there',
-  r.body?.hereCount === 2, `hereCount=${r.body?.hereCount}`);
+  r.body?.hereCount === 1, `hereCount=${r.body?.hereCount}`);
 
 /* -------------------------------------------- occupancy from outside --- */
 
