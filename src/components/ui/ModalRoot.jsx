@@ -19,9 +19,7 @@ import { NotificationList } from '../hud/NotificationList.jsx';
 import { Leaderboard } from '../leaderboard/Leaderboard.jsx';
 import { HiringAnalytics } from '../employer/HiringAnalytics.jsx';
 import { useChatStore } from '../../stores/chatStore.js';
-import { getLocation } from '../../game/world/locations.js';
-import { getApartmentObject } from '../../game/world/apartment.js';
-import { getCompanyObject } from '../../game/world/company.js';
+import { resolveAnyPlace } from '../../game/world/places.js';
 import { OfficeReception } from '../locations/OfficeReception.jsx';
 import { OfficeNotices } from '../locations/OfficeNotices.jsx';
 import { RoomRoster } from '../locations/RoomRoster.jsx';
@@ -56,8 +54,10 @@ function ModalLayer({ modal }) {
 
   switch (type) {
     case 'location': {
-      const location =
-        getLocation(props.locationId) ?? getApartmentObject(props.locationId) ?? getCompanyObject(props.locationId) ?? null;
+      // Every room's lookup, from the one registry in world/places.js. A
+      // hand-written chain here is how the company office ended up with a
+      // prompt that opened nothing.
+      const location = resolveAnyPlace(props.locationId);
       if (!location) return null;
       return <LocationPanel location={location} />;
     }

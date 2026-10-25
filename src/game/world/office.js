@@ -81,6 +81,14 @@ export const officeObjects = [
     size: { width: 260, height: 140 },
     accent: '#9fb2d8',
     interactions: ['office-presence'],
+    /*
+     * Straight to the roster. Walking up to a table to be told there is a
+     * table, with one button that says so again, is a click that carries no
+     * information — and the point of standing here is to see who is standing
+     * here too. `direct` is only honoured for an object with exactly one
+     * interaction, so it can never hide a choice.
+     */
+    direct: true,
   },
   {
     id: 'off-door',

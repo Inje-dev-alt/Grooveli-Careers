@@ -50,6 +50,33 @@ export function resolvePlace(scene, placeId) {
 }
 
 /**
+ * The place with this id in ANY room.
+ *
+ * For the callers that hold an id and no scene — the interaction request
+ * arrives as a bare `locationId`, because the world is what knows where the
+ * player is standing. Object ids are prefixed per room (`apt-`, `co-`, `off-`,
+ * and the city's own readable names), so trying each lookup cannot answer with
+ * somebody else's furniture.
+ *
+ * This exists because `ModalRoot` had grown its own copy of the chain —
+ * `getLocation ?? getApartmentObject ?? getCompanyObject` — and when the
+ * office was added it was registered in LOOKUPS above and not in that copy.
+ * The result was a room where the prompt appeared, named the right object, and
+ * opened nothing at all. One registry, read by everyone, is the only version
+ * of this that cannot drift.
+ *
+ * @param {string | null} placeId
+ */
+export function resolveAnyPlace(placeId) {
+  if (!placeId) return null;
+  for (const lookup of Object.values(LOOKUPS)) {
+    const found = lookup(placeId);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
  * The name and accent to show when nothing is nearby.
  *
  * @param {string} scene
