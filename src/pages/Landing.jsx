@@ -63,98 +63,105 @@ const ACTIVITIES = [
 export default function Landing() {
   return (
     <div className="landing">
-      <section className="landing__hero">
-        <LandingCity />
+      {/*
+        Outside the hero and fixed to the viewport, so the city is behind the
+        WHOLE page rather than behind its first screen. Everything below
+        scrolls over it on glass.
+      */}
+      <LandingCity />
 
-        <header className="landing__brand">
-          <span className="landing__mark">G</span>
-          <div>
-            <p className="landing__wordmark">Grooveli</p>
-            <p className="g-eyebrow">Careers</p>
-          </div>
-        </header>
-
-        <div className="landing__headline">
-          <Badge tone="accent">Grooveli City is open</Badge>
-          <h1 className="landing__title">
-            The city where people
-            <br />
-            <span className="g-gradient-text">build careers.</span>
-          </h1>
-          <p className="landing__lede">
-            Walk the districts. Run missions, pass interviews, finish courses and earn a
-            profile employers can verify. Ten paths, one city, and proof instead of
-            promises.
-          </p>
-        </div>
-
-        {/*
-          The one thing the page is asking for, centred on the bottom edge.
-          It is the last thing in the grid with a 1fr spacer above it, so it
-          sits on the bottom at every viewport height without a magic offset —
-          and `dvh` on the hero keeps it clear of a phone browser's chrome,
-          which is exactly where `vh` would hide it.
-        */}
-        <div className="landing__cta">
-          <div className="landing__cta-panel">
-            <div className="landing__cta-buttons">
-              <Link to="/signup">
-                <Button variant="primary" size="lg" block>
-                  Enter the city
-                </Button>
-              </Link>
-              <Link to="/signin">
-                <Button variant="ghost" size="lg" block>
-                  I already have an account
-                </Button>
-              </Link>
+      <div className="landing__content">
+        <section className="landing__hero">
+          <header className="landing__brand">
+            <span className="landing__mark">G</span>
+            <div>
+              <p className="landing__wordmark">Grooveli</p>
+              <p className="g-eyebrow">Careers</p>
             </div>
-            <p className="landing__cta-note">
-              Free to join. Pick your path after you sign up.
+          </header>
+
+          <div className="landing__headline">
+            <Badge tone="accent">Grooveli City is open</Badge>
+            <h1 className="landing__title">
+              The city where people
+              <br />
+              <span className="g-gradient-text">build careers.</span>
+            </h1>
+            <p className="landing__lede">
+              Walk the districts. Run missions, pass interviews, finish courses and earn a
+              profile employers can verify. Ten paths, one city, and proof instead of
+              promises.
             </p>
           </div>
 
-          <span className="landing__scroll-hint">
-            See what you do here
-            <IconChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
-          </span>
-        </div>
-      </section>
-
-      <section className="landing__below">
-        <h2 className="landing__section-title">What you actually do here</h2>
-
-        <div className="landing__activities">
-          {ACTIVITIES.map((activity) => {
-            const Icon = activity.icon;
-            return (
-              <article key={activity.title} className="activity">
-                <span className="activity__icon">
-                  <Icon size={17} />
-                </span>
-                <p className="activity__title">{activity.title}</p>
-                <p className="activity__body">{activity.body}</p>
-              </article>
-            );
-          })}
-        </div>
-
-        <h2 className="landing__section-title">Ten paths to start on</h2>
-
-        <div className="landing__paths">
-          {CAREER_PATHS.map((path) => (
-            <div key={path.id} className="landing__path">
-              <div style={{ minWidth: 0 }}>
-                <p className="landing__path-title">{path.title}</p>
-                <p className="landing__path-tagline g-truncate">{path.tagline}</p>
+          {/*
+            The one thing the page is asking for, centred on the bottom edge.
+            It is the last thing in the grid with a 1fr spacer above it, so it
+            sits on the bottom at every viewport height without a magic offset —
+            and `dvh` on the hero keeps it clear of a phone browser's chrome,
+            which is exactly where `vh` would hide it.
+          */}
+          <div className="landing__cta">
+            <div className="landing__cta-panel">
+              <div className="landing__cta-buttons">
+                <Link to="/signup">
+                  <Button variant="primary" size="lg" block>
+                    Enter the city
+                  </Button>
+                </Link>
+                <Link to="/signin">
+                  <Button variant="ghost" size="lg" block>
+                    I already have an account
+                  </Button>
+                </Link>
               </div>
-              {/* No `tone`: there is no `neutral` badge style, so naming one
-                  emits a class that promises a look it does not have. */}
-              <Badge>{path.core[0]}</Badge>
+              <p className="landing__cta-note">
+                Free to join. Pick your path after you sign up.
+              </p>
             </div>
-          ))}
-        </div>
-      </section>
+
+            <span className="landing__scroll-hint">
+              See what you do here
+              <IconChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
+            </span>
+          </div>
+        </section>
+
+        <section className="landing__below">
+          <h2 className="landing__section-title">What you actually do here</h2>
+
+          <div className="landing__activities">
+            {ACTIVITIES.map((activity) => {
+              const Icon = activity.icon;
+              return (
+                <article key={activity.title} className="activity">
+                  <span className="activity__icon">
+                    <Icon size={17} />
+                  </span>
+                  <p className="activity__title">{activity.title}</p>
+                  <p className="activity__body">{activity.body}</p>
+                </article>
+              );
+            })}
+          </div>
+
+          <h2 className="landing__section-title">Ten paths to start on</h2>
+
+          <div className="landing__paths">
+            {CAREER_PATHS.map((path) => (
+              <div key={path.id} className="landing__path">
+                <div style={{ minWidth: 0 }}>
+                  <p className="landing__path-title">{path.title}</p>
+                  <p className="landing__path-tagline g-truncate">{path.tagline}</p>
+                </div>
+                {/* No `tone`: there is no `neutral` badge style, so naming one
+                    emits a class that promises a look it does not have. */}
+                <Badge>{path.core[0]}</Badge>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
