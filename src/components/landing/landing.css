@@ -1,0 +1,622 @@
+/* ============================================================== landing ===
+   The front door: a full-viewport animated city, with the sign-in call to
+   action anchored at the bottom centre.
+
+   Everything that moves here animates `transform` or `opacity` and nothing
+   else, so the whole scene runs on the compositor — a page full of walking
+   people costs no layout and no repaint. Animating `left` on seven walkers
+   would relayout the document sixty times a second.
+   ========================================================================= */
+
+.landing {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--g-bg-deep);
+  overflow-x: hidden;
+}
+
+/* ---------- the hero ---------- */
+
+.landing__hero {
+  position: relative;
+  /* `dvh` so the CTA is not hidden under a mobile browser's chrome, which is
+     exactly where it would land with `vh`. */
+  min-height: 100dvh;
+  display: grid;
+  /* brand / headline / CTA — the CTA row is pinned to the bottom by the
+     1fr spacer above it, which is what puts it in the middle of the bottom
+     edge at every viewport height without a magic offset. */
+  grid-template-rows: auto 1fr auto;
+  isolation: isolate;
+}
+
+.landing__brand {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-5) var(--g-space-6);
+}
+
+.landing__mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--g-radius-md, 12px);
+  background: var(--g-gradient);
+  color: var(--g-text-on-accent);
+  font-family: var(--g-font-display);
+  font-weight: 800;
+  font-size: var(--g-text-md);
+}
+
+.landing__wordmark {
+  font-family: var(--g-font-display);
+  font-weight: 700;
+  font-size: var(--g-text-md);
+  line-height: 1.1;
+}
+
+.landing__headline {
+  position: relative;
+  z-index: 3;
+  align-self: start;
+  max-width: 44rem;
+  margin: 0;
+  padding: 0 var(--g-space-6);
+  text-align: left;
+}
+
+.landing__title {
+  margin: 0;
+  font-family: var(--g-font-display);
+  font-size: clamp(2rem, 6.4vw, 4.25rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  /* A text shadow rather than a panel: the headline sits directly on the sky,
+     and a card behind it would cut a hole in the picture. */
+  text-shadow: 0 2px 28px rgba(4, 6, 13, 0.85);
+}
+
+.landing__lede {
+  margin: var(--g-space-4) 0 0;
+  max-width: 34rem;
+  font-size: clamp(0.9375rem, 1.6vw, var(--g-text-md));
+  line-height: 1.65;
+  color: var(--g-text-muted);
+  text-shadow: 0 1px 16px rgba(4, 6, 13, 0.9);
+}
+
+/* ---------- the call to action, bottom centre ---------- */
+
+.landing__cta {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-6) var(--g-space-5) clamp(var(--g-space-6), 6vh, var(--g-space-8));
+  text-align: center;
+}
+
+.landing__cta-panel {
+  display: grid;
+  gap: var(--g-space-3);
+  width: min(26rem, 100%);
+  padding: var(--g-space-5);
+  border-radius: 20px;
+  background: var(--g-glass-strong);
+  border: 1px solid var(--g-glass-border-strong);
+  backdrop-filter: blur(var(--g-blur));
+  -webkit-backdrop-filter: blur(var(--g-blur));
+  box-shadow: 0 24px 70px rgba(2, 4, 10, 0.72);
+  /* A slow breathing glow so the eye is pulled down to it after the city has
+     had its moment. */
+  animation: landing-cta-glow 5.5s var(--g-ease, ease-in-out) infinite;
+}
+
+@keyframes landing-cta-glow {
+  0%, 100% { box-shadow: 0 24px 70px rgba(2, 4, 10, 0.72), 0 0 0 0 rgba(91, 227, 200, 0); }
+  50% { box-shadow: 0 24px 70px rgba(2, 4, 10, 0.72), 0 0 34px 2px rgba(91, 227, 200, 0.2); }
+}
+
+.landing__cta-buttons { display: grid; gap: var(--g-space-2); }
+
+.landing__cta-note {
+  margin: 0;
+  font-size: var(--g-text-xs);
+  color: var(--g-text-dim);
+}
+
+.landing__scroll-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--g-text-dim);
+  animation: landing-nudge 2.4s ease-in-out infinite;
+}
+
+@keyframes landing-nudge {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(5px); opacity: 1; }
+}
+
+/* ======================================================= the city scene === */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ---------- sky ---------- */
+
+.scene__sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% 108%, rgba(91, 227, 200, 0.16) 0%, transparent 62%),
+    linear-gradient(180deg, #05070f 0%, #0a1024 42%, #121a36 72%, #1b2447 100%);
+}
+
+/* Two washes crossing at different speeds. One alone reads as a static
+   gradient; two make the sky feel like weather. */
+.scene__aurora {
+  position: absolute;
+  inset: -20% -30% auto;
+  height: 70%;
+  filter: blur(70px);
+  opacity: 0.45;
+  will-change: transform;
+}
+
+.scene__aurora--a {
+  background: radial-gradient(45% 60% at 30% 50%, rgba(108, 140, 255, 0.5), transparent 70%);
+  animation: aurora-a 34s ease-in-out infinite;
+}
+
+.scene__aurora--b {
+  background: radial-gradient(40% 55% at 70% 45%, rgba(185, 140, 255, 0.42), transparent 70%);
+  animation: aurora-b 46s ease-in-out infinite;
+}
+
+@keyframes aurora-a {
+  0%, 100% { transform: translate3d(-6%, 0, 0) scale(1); }
+  50% { transform: translate3d(8%, 3%, 0) scale(1.16); }
+}
+
+@keyframes aurora-b {
+  0%, 100% { transform: translate3d(6%, 2%, 0) scale(1.1); }
+  50% { transform: translate3d(-7%, -2%, 0) scale(1); }
+}
+
+/* Stars as a repeating gradient — no elements, no cost. */
+.scene__stars {
+  position: absolute;
+  inset: 0 0 42%;
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, rgba(238, 242, 251, 0.85) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 28% 9%, rgba(238, 242, 251, 0.6) 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 44% 24%, rgba(238, 242, 251, 0.75) 50%, transparent 51%),
+    radial-gradient(1.1px 1.1px at 61% 13%, rgba(238, 242, 251, 0.55) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 76% 21%, rgba(238, 242, 251, 0.8) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 89% 11%, rgba(238, 242, 251, 0.6) 50%, transparent 51%),
+    radial-gradient(1.3px 1.3px at 7% 32%, rgba(238, 242, 251, 0.5) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 54% 34%, rgba(238, 242, 251, 0.45) 50%, transparent 51%);
+  animation: stars-twinkle 7s ease-in-out infinite;
+}
+
+@keyframes stars-twinkle {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* ---------- layers ---------- */
+
+.scene__layer {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: 22%;
+  height: 56%;
+  will-change: transform;
+}
+
+/* The far layer is dim, blurred and barely moves. The contrast difference is
+   doing more for the depth than the drift is: a far layer that is only slower
+   still reads as flat. */
+.scene__layer--far {
+  filter: blur(2.5px);
+  opacity: 0.55;
+  animation: drift-far 90s ease-in-out infinite;
+}
+
+.scene__layer--mid {
+  bottom: 20%;
+  height: 46%;
+  animation: drift-mid 60s ease-in-out infinite;
+}
+
+@keyframes drift-far {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-2.2%, 0, 0); }
+}
+
+@keyframes drift-mid {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-4.5%, 0, 0); }
+}
+
+.tower {
+  position: absolute;
+  bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.tower--far {
+  background: linear-gradient(180deg, #1a2342 0%, #141b33 100%);
+  box-shadow: inset 0 1px 0 rgba(140, 165, 225, 0.12);
+}
+
+/* Mid-ground blocks: bigger, warmer, with a lit edge. */
+.block {
+  position: absolute;
+  bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #26315a 0%, #1b2342 100%);
+  box-shadow:
+    inset 1px 0 0 rgba(140, 165, 225, 0.14),
+    inset 0 1px 0 rgba(140, 165, 225, 0.2);
+}
+
+.block--a { left: 4%;  width: 20%; height: 72%; }
+.block--b { left: 26%; width: 24%; height: 96%; }
+.block--c { left: 52%; width: 22%; height: 80%; }
+.block--d { left: 76%; width: 21%; height: 92%; }
+
+/* ---------- windows with people in them ---------- */
+
+.window {
+  position: absolute;
+  width: clamp(34px, 3.4vw, 54px);
+  aspect-ratio: 4 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+  /* The lamp comes on, stays on a while, then goes off — staggered per window
+     by `--delay`, so the building looks occupied rather than wired to a
+     single switch. */
+  animation: window-life 9s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.window__glass {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(170deg, rgba(255, 220, 160, 0.3), rgba(255, 196, 107, 0.14));
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.28), 0 0 18px rgba(255, 196, 107, 0.2);
+}
+
+.window__glass svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+@keyframes window-life {
+  0%, 8% { opacity: 0.12; }
+  16%, 74% { opacity: 1; }
+  86%, 100% { opacity: 0.12; }
+}
+
+/* The monitor in a desk vignette flickers very slightly — the one detail that
+   makes a lit window read as someone working rather than a lamp left on. */
+.vignette__screen { animation: screen-flicker 3.4s steps(2, end) infinite; }
+
+@keyframes screen-flicker {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 0.68; }
+}
+
+/* The caller paces, because nobody takes a long call sitting still. */
+.vignette__pacer { animation: pace 6s ease-in-out infinite; }
+
+@keyframes pace {
+  0%, 100% { transform: translateX(-3px); }
+  50% { transform: translateX(7px); }
+}
+
+/* ---------- street ---------- */
+
+.scene__street {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  background:
+    linear-gradient(180deg, rgba(10, 14, 28, 0) 0%, rgba(8, 11, 22, 0.9) 24%, #070a14 100%);
+}
+
+.scene__kerb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 22%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(140, 165, 225, 0.3), transparent);
+}
+
+.lamp { position: absolute; bottom: 8%; }
+
+.lamp__pole {
+  display: block;
+  width: 3px;
+  height: clamp(60px, 11vh, 110px);
+  background: linear-gradient(180deg, rgba(140, 165, 225, 0.45), rgba(140, 165, 225, 0.08));
+  border-radius: 2px;
+}
+
+.lamp__glow {
+  position: absolute;
+  top: -14px;
+  left: -26px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 150, 0.5) 0%, transparent 68%);
+  animation: lamp-hum 5s ease-in-out infinite;
+}
+
+@keyframes lamp-hum {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.09); }
+}
+
+/* ---------- walkers ---------- */
+
+.walker {
+  position: absolute;
+  left: 0;
+  /* The height the figure is drawn at; `--scale` is the depth. */
+  height: clamp(90px, 17vh, 188px);
+  transform-origin: bottom center;
+  animation: walk-across var(--duration, 30s) linear infinite;
+  animation-delay: var(--offset, 0s);
+  will-change: transform;
+}
+
+/* Walking the other way: the whole figure is mirrored and the path reversed,
+   so one set of keyframes serves both directions. */
+.walker--reverse { animation-name: walk-back; }
+
+@keyframes walk-across {
+  from { transform: translate3d(-14vw, 0, 0) scale(var(--scale, 1)); }
+  to   { transform: translate3d(114vw, 0, 0) scale(var(--scale, 1)); }
+}
+
+@keyframes walk-back {
+  from { transform: translate3d(114vw, 0, 0) scale(var(--scale, 1)) scaleX(-1); }
+  to   { transform: translate3d(-14vw, 0, 0) scale(var(--scale, 1)) scaleX(-1); }
+}
+
+/* The bob is a separate element from the crossing, because they run at
+   different rates — one stride is under a second, one crossing is half a
+   minute, and a single animation cannot be both. */
+.walker__bob {
+  height: 100%;
+  animation: walk-bob 0.72s ease-in-out infinite;
+}
+
+@keyframes walk-bob {
+  0%, 100% { transform: translateY(0) rotate(-0.6deg); }
+  50% { transform: translateY(-3.5%) rotate(0.6deg); }
+}
+
+.walker__body { height: 100%; width: auto; display: block; overflow: visible; }
+
+.walker__shadow { fill: rgba(0, 0, 0, 0.45); animation: shadow-pulse 0.72s ease-in-out infinite; }
+
+@keyframes shadow-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.45; }
+  50% { transform: scale(0.88); opacity: 0.3; }
+}
+
+/* The stride. Two legs on opposite phases of the same keyframes is the whole
+   walk cycle — no sprite sheet, and a new character costs one line of data. */
+.walker__leg { transform-origin: 50% 0%; }
+.walker__leg--front { animation: stride 0.72s ease-in-out infinite; }
+.walker__leg--back { animation: stride 0.72s ease-in-out infinite reverse; fill-opacity: 0.78; }
+
+@keyframes stride {
+  0%, 100% { transform: rotate(16deg); }
+  50% { transform: rotate(-16deg); }
+}
+
+.walker__leg { fill: #1f2742; }
+
+.walker__arm { transform-origin: 50% 36px; }
+.walker__arm--front { animation: swing 0.72s ease-in-out infinite reverse; }
+.walker__arm--back { animation: swing 0.72s ease-in-out infinite; opacity: 0.8; }
+
+@keyframes swing {
+  0%, 100% { transform: rotate(-11deg); }
+  50% { transform: rotate(11deg); }
+}
+
+/* A phone held to the ear does not swing — the arm is up. */
+.walker__phone { animation: none; }
+
+.walker__steam { animation: steam 2.6s ease-out infinite; }
+
+@keyframes steam {
+  0% { opacity: 0; transform: translateY(2px); }
+  40% { opacity: 0.55; }
+  100% { opacity: 0; transform: translateY(-9px); }
+}
+
+/* ---------- XP motes ---------- */
+
+.mote {
+  position: absolute;
+  bottom: 26%;
+  z-index: 2;
+  padding: 5px 11px;
+  border-radius: var(--g-radius-pill, 999px);
+  background: rgba(91, 227, 200, 0.14);
+  border: 1px solid rgba(91, 227, 200, 0.4);
+  color: var(--g-accent);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  animation: mote-rise var(--duration, 12s) ease-out infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform, opacity;
+}
+
+@keyframes mote-rise {
+  0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(0.85); }
+  8% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  26% { opacity: 1; }
+  42% { opacity: 0; transform: translate3d(0, -130px, 0) scale(0.95); }
+  100% { opacity: 0; transform: translate3d(0, -130px, 0) scale(0.95); }
+}
+
+/* ---------- vignette ---------- */
+
+/* Darkens the edges and, more importantly, lays a gradient floor under the
+   bottom third so the call to action always has contrast to sit on whatever
+   happens to be walking past behind it. */
+.scene__vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 42%, rgba(4, 6, 13, 0.6) 100%),
+    linear-gradient(180deg, rgba(4, 6, 13, 0.55) 0%, transparent 22%, transparent 58%, rgba(4, 6, 13, 0.82) 100%);
+}
+
+/* ================================================= what you do down here === */
+
+.landing__below {
+  position: relative;
+  z-index: 2;
+  padding: var(--g-space-8) var(--g-space-6) var(--g-space-8);
+  background: var(--g-bg);
+  border-top: 1px solid var(--g-glass-border);
+}
+
+.landing__section-title {
+  margin: 0 0 var(--g-space-5);
+  font-family: var(--g-font-display);
+  font-size: var(--g-text-lg);
+  font-weight: 700;
+  text-align: center;
+}
+
+.landing__activities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--g-space-3);
+  max-width: 68rem;
+  margin: 0 auto var(--g-space-8);
+}
+
+.activity {
+  display: grid;
+  gap: 6px;
+  padding: var(--g-space-4);
+  border-radius: 14px;
+  background: var(--g-surface-1);
+  border: 1px solid var(--g-glass-border);
+  transition: transform var(--g-dur, 180ms) ease, border-color var(--g-dur, 180ms) ease;
+}
+
+.activity:hover {
+  transform: translateY(-3px);
+  border-color: var(--g-accent-line);
+}
+
+.activity__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--g-accent-soft);
+  color: var(--g-accent);
+}
+
+.activity__title { font-weight: 650; font-size: var(--g-text-sm); }
+.activity__body { margin: 0; font-size: var(--g-text-xs); color: var(--g-text-muted); line-height: 1.6; }
+
+.landing__paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--g-space-2);
+  max-width: 68rem;
+  margin: 0 auto;
+}
+
+.landing__path {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-space-3);
+  padding: var(--g-space-3) var(--g-space-4);
+  border-radius: 12px;
+  background: var(--g-surface-1);
+  border: 1px solid var(--g-glass-border);
+}
+
+.landing__path-title { font-weight: 600; font-size: var(--g-text-sm); }
+.landing__path-tagline { font-size: var(--g-text-xs); color: var(--g-text-dim); }
+
+/* ---------- phones ---------- */
+
+@media (max-width: 720px) {
+  .landing__brand { padding: var(--g-space-4); }
+  .landing__headline { padding: 0 var(--g-space-4); }
+  .landing__below { padding: var(--g-space-7) var(--g-space-4); }
+  /* Fewer, larger figures: at this width seven walkers are a crowd nobody
+     can read, and the distant ones are a few pixels of nothing. Flagged in
+     the data rather than selected by position — the street also contains a
+     kerb and four lamps, so counting children here picked the nearest
+     figures instead of the farthest. */
+  .walker--far { display: none; }
+  .mote { font-size: 10px; }
+}
+
+/* ---------- reduced motion ---------- */
+
+/* A drifting, blinking, parallaxing page is precisely what this setting is
+   for. The scene is composed to still be a picture when nothing moves, so
+   everything stops rather than being merely slowed — including the walkers,
+   who are left standing in the street at sensible positions. */
+@media (prefers-reduced-motion: reduce) {
+  .scene *,
+  .scene,
+  .landing__cta-panel,
+  .landing__scroll-hint {
+    animation: none !important;
+  }
+
+  .window { opacity: 1; }
+
+  /* Left standing at spread-out positions, which each walker carries in its
+     own data. A picture of a street with people on it, just not a moving
+     one. */
+  .walker {
+    transform: translate3d(var(--still, 40vw), 0, 0) scale(var(--scale, 1));
+  }
+
+  .walker--reverse {
+    transform: translate3d(var(--still, 40vw), 0, 0) scale(var(--scale, 1)) scaleX(-1);
+  }
+}

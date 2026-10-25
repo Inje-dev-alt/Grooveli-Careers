@@ -1,77 +1,160 @@
 /**
  * The public front door.
  *
- * Signed-out visitors meet the ten career paths first — they are the reason to
- * sign up — and the game city second. Signed-in visitors never see this; `/`
- * sends them to their own space instead. No session, no data, no game state is
- * touched here, so this screen can be redesigned freely without risking the
- * product behind it.
+ * The whole first screen is the city, with the sign-in call to action at the
+ * bottom centre and nothing else competing for it. What someone actually does
+ * in Grooveli is shown rather than listed — people walking to work with
+ * laptops, lit windows with someone at a desk or pacing through a call, XP
+ * surfacing off the skyline — because the pitch is that this is a career
+ * platform you walk through, and a bulleted list of that claim argues for it
+ * instead of demonstrating it.
+ *
+ * The ten paths and the activity cards stayed, below the fold. They are the
+ * reason to sign up, and a visitor who wants the detail before committing can
+ * scroll to it; a visitor who does not can sign in without reading a word.
+ *
+ * No session, no data and no game state is touched here, so this screen can be
+ * redesigned freely without risking the product behind it.
  */
 import { Link } from 'react-router-dom';
-import { AuthLayout } from '../components/auth/AuthLayout.jsx';
-import { Button, Badge } from '../components/ui/index.js';
+import '../components/landing/landing.css';
+import { LandingCity } from '../components/landing/LandingCity.jsx';
+import {
+  Button,
+  Badge,
+  IconTarget,
+  IconBriefcase,
+  IconAward,
+  IconUser,
+  IconSparkle,
+  IconChevronRight,
+} from '../components/ui/index.js';
 import { CAREER_PATHS } from '../data/careerPaths.js';
 
-const STEPS = [
-  { title: 'Pick a path', body: 'Ten careers, each with the skills that actually matter. Choose the one that fits — or discover it.' },
-  { title: 'Prove it', body: 'Missions, skill challenges, courses and interview simulations turn claims into evidence.' },
-  { title: 'Get hired', body: 'Apply with a verified profile. Employers see proof, not promises.' },
+/** What the city is for. The same five things the scene is showing. */
+const ACTIVITIES = [
+  {
+    icon: IconTarget,
+    title: 'Run missions',
+    body: 'Career work broken into steps that pay XP — and only for things that moved your career, never for time spent in the app.',
+  },
+  {
+    icon: IconAward,
+    title: 'Pass skill challenges',
+    body: 'Assessments and interview simulations that go on your record. A score an employer can check beats a claim they cannot.',
+  },
+  {
+    icon: IconBriefcase,
+    title: 'Walk into companies',
+    body: 'Every employer has an office you can visit: reception, their open roles with your match against each, and their notice board.',
+  },
+  {
+    icon: IconUser,
+    title: 'Meet people who are there',
+    body: 'See who else is standing in a lobby and start a conversation. Two people in the same room beats a cold message.',
+  },
+  {
+    icon: IconSparkle,
+    title: 'Ask the career AI',
+    body: 'Find the path your skills already point at, and what stands between you and the next one.',
+  },
 ];
 
 export default function Landing() {
   return (
-    <AuthLayout>
-      <div className="auth__card" style={{ maxWidth: 640 }}>
-        <div className="auth__card-head">
+    <div className="landing">
+      <section className="landing__hero">
+        <LandingCity />
+
+        <header className="landing__brand">
+          <span className="landing__mark">G</span>
+          <div>
+            <p className="landing__wordmark">Grooveli</p>
+            <p className="g-eyebrow">Careers</p>
+          </div>
+        </header>
+
+        <div className="landing__headline">
           <Badge tone="accent">Grooveli City is open</Badge>
-          <h2 className="auth__card-title" style={{ marginTop: 12 }}>
-            Build a career you can prove.
-          </h2>
-          <p className="g-muted" style={{ fontSize: 'var(--g-text-sm)', lineHeight: 1.7 }}>
-            Grooveli is a career city: walk its districts, complete missions, pass interview
-            simulations and earn a profile employers can verify. Start on one of ten paths.
+          <h1 className="landing__title">
+            The city where people
+            <br />
+            <span className="g-gradient-text">build careers.</span>
+          </h1>
+          <p className="landing__lede">
+            Walk the districts. Run missions, pass interviews, finish courses and earn a
+            profile employers can verify. Ten paths, one city, and proof instead of
+            promises.
           </p>
         </div>
 
-        <div className="g-stack" style={{ gap: 8 }}>
+        {/*
+          The one thing the page is asking for, centred on the bottom edge.
+          It is the last thing in the grid with a 1fr spacer above it, so it
+          sits on the bottom at every viewport height without a magic offset —
+          and `dvh` on the hero keeps it clear of a phone browser's chrome,
+          which is exactly where `vh` would hide it.
+        */}
+        <div className="landing__cta">
+          <div className="landing__cta-panel">
+            <div className="landing__cta-buttons">
+              <Link to="/signup">
+                <Button variant="primary" size="lg" block>
+                  Enter the city
+                </Button>
+              </Link>
+              <Link to="/signin">
+                <Button variant="ghost" size="lg" block>
+                  I already have an account
+                </Button>
+              </Link>
+            </div>
+            <p className="landing__cta-note">
+              Free to join. Pick your path after you sign up.
+            </p>
+          </div>
+
+          <span className="landing__scroll-hint">
+            See what you do here
+            <IconChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
+          </span>
+        </div>
+      </section>
+
+      <section className="landing__below">
+        <h2 className="landing__section-title">What you actually do here</h2>
+
+        <div className="landing__activities">
+          {ACTIVITIES.map((activity) => {
+            const Icon = activity.icon;
+            return (
+              <article key={activity.title} className="activity">
+                <span className="activity__icon">
+                  <Icon size={17} />
+                </span>
+                <p className="activity__title">{activity.title}</p>
+                <p className="activity__body">{activity.body}</p>
+              </article>
+            );
+          })}
+        </div>
+
+        <h2 className="landing__section-title">Ten paths to start on</h2>
+
+        <div className="landing__paths">
           {CAREER_PATHS.map((path) => (
-            <div key={path.id} className="g-row-between" style={{ gap: 12, alignItems: 'flex-start' }}>
+            <div key={path.id} className="landing__path">
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontWeight: 650, fontSize: 'var(--g-text-sm)' }}>{path.title}</p>
-                <p className="g-muted g-truncate" style={{ fontSize: 'var(--g-text-xs)' }}>{path.tagline}</p>
+                <p className="landing__path-title">{path.title}</p>
+                <p className="landing__path-tagline g-truncate">{path.tagline}</p>
               </div>
-              <Badge tone="neutral">
-                {path.core[0]}
-              </Badge>
+              {/* No `tone`: there is no `neutral` badge style, so naming one
+                  emits a class that promises a look it does not have. */}
+              <Badge>{path.core[0]}</Badge>
             </div>
           ))}
         </div>
-
-        <div className="g-stack" style={{ gap: 8, marginTop: 16 }}>
-          {STEPS.map((step, index) => (
-            <div key={step.title} className="g-row" style={{ gap: 10, alignItems: 'flex-start' }}>
-              <Badge tone="accent">{index + 1}</Badge>
-              <div>
-                <p style={{ fontWeight: 650, fontSize: 'var(--g-text-sm)' }}>{step.title}</p>
-                <p className="g-muted" style={{ fontSize: 'var(--g-text-xs)', lineHeight: 1.6 }}>{step.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="g-row" style={{ gap: 10, marginTop: 20 }}>
-          <Link to="/signup" style={{ flex: 1 }}>
-            <Button variant="primary" size="lg" block>
-              Create account
-            </Button>
-          </Link>
-          <Link to="/signin" style={{ flex: 1 }}>
-            <Button variant="ghost" size="lg" block>
-              Sign in
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </AuthLayout>
+      </section>
+    </div>
   );
 }
