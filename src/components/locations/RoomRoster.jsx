@@ -1,6 +1,8 @@
 import './locations.css';
-import { Badge, EmptyState, LoadingState, Select, Field, IconUser } from '../ui/index.js';
+import { Badge, Button, EmptyState, LoadingState, Select, Field, IconUser, IconSend } from '../ui/index.js';
 import { usePresenceStore, selectUnnamedHere } from '../../stores/presenceStore.js';
+import { useChatStore } from '../../stores/chatStore.js';
+import { useUiStore } from '../../stores/uiStore.js';
 import { initials } from '../../utils/format.js';
 
 /**
@@ -34,6 +36,23 @@ export function RoomRoster() {
   const unnamed = usePresenceStore(selectUnnamedHere);
   const visibility = usePresenceStore((s) => s.visibility);
   const setVisibility = usePresenceStore((s) => s.setVisibility);
+  const position = usePresenceStore((s) => s.position);
+  const startWith = useChatStore((s) => s.startWith);
+  const replaceModal = useUiStore((s) => s.replaceModal);
+
+  /*
+   * Saying hello carries where it happened. The thread keeps that, so a
+   * week later it still says the two of you met in this lobby — which is
+   * the context that makes the conversation worth continuing, and the whole
+   * reason this is better than a cold message.
+   */
+  const sayHello = async (person) => {
+    const thread = await startWith(person.id, {
+      metScene: position.scene,
+      metLocationId: position.locationId,
+    });
+    if (thread) replaceModal('messages', {});
+  };
 
   // The first heartbeat has not answered yet. An unanswered question and an
   // empty room look identical otherwise, and "nobody is here" is the wrong
@@ -65,6 +84,14 @@ export function RoomRoster() {
                   <div className="roster__headline g-truncate">{person.headline}</div>
                 </div>
                 <Badge>Lv {person.careerLevel}</Badge>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  icon={<IconSend size={13} />}
+                  onClick={() => sayHello(person)}
+                >
+                  Say hello
+                </Button>
               </li>
             ))}
           </ul>
@@ -78,13 +105,13 @@ export function RoomRoster() {
           ) : null}
 
           {/*
-            Chat is the next commit. Saying so is the same bargain the table
-            itself made before this panel existed: a feature that is not here
-            yet should say so, rather than offering a button that does nothing.
+            A stranger gets one message until they answer, and saying so here
+            is what makes the first one good. The rule is enforced server-side;
+            this line only explains it.
           */}
           <p className="roster__note">
-            You will be able to start a conversation from here. Standing in the same
-            lobby is a better introduction than a cold message, which is the point.
+            You can send one message to someone you are not connected to. Write it
+            about them, not about you.
           </p>
         </>
       )}

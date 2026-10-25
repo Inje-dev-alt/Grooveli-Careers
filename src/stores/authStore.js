@@ -7,6 +7,7 @@ import { useSocialStore } from './socialStore.js';
 import { useEmployerStore } from './employerStore.js';
 import { useNotificationStore } from './notificationStore.js';
 import { usePresenceStore } from './presenceStore.js';
+import { useChatStore } from './chatStore.js';
 
 /**
  * Drop every account-scoped store.
@@ -29,6 +30,7 @@ function clearAccountStores() {
   useEmployerStore.getState().reset();
   useNotificationStore.getState().reset();
   usePresenceStore.getState().reset();
+  useChatStore.getState().reset();
 }
 
 /**

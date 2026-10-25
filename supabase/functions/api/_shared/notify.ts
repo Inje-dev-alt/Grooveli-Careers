@@ -20,6 +20,7 @@ export type NotificationType =
   | 'interview'
   | 'mission'
   | 'mission-reminder'
+  | 'message'
   | 'system';
 
 export type Notice = {

@@ -552,7 +552,7 @@
  * @typedef {Object} Notification
  * @property {string} id
  * @property {string} userId          whose inbox this is
- * @property {'match' | 'application' | 'interview' | 'mission' | 'mission-reminder' | 'system'} type
+ * @property {'match' | 'application' | 'interview' | 'mission' | 'mission-reminder' | 'message' | 'system'} type
  * @property {string} title
  * @property {string} body
  * @property {boolean} read

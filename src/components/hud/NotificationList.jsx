@@ -18,6 +18,7 @@ const TYPE_TONE = {
   interview: 'warning',
   mission: 'success',
   'mission-reminder': 'accent',
+  message: 'info',
   system: 'default',
 };
 

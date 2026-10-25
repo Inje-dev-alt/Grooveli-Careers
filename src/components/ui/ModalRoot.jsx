@@ -18,12 +18,15 @@ import { Achievements } from '../profile/Achievements.jsx';
 import { NotificationList } from '../hud/NotificationList.jsx';
 import { Leaderboard } from '../leaderboard/Leaderboard.jsx';
 import { HiringAnalytics } from '../employer/HiringAnalytics.jsx';
+import { useChatStore } from '../../stores/chatStore.js';
 import { getLocation } from '../../game/world/locations.js';
 import { getApartmentObject } from '../../game/world/apartment.js';
 import { getCompanyObject } from '../../game/world/company.js';
 import { OfficeReception } from '../locations/OfficeReception.jsx';
 import { OfficeNotices } from '../locations/OfficeNotices.jsx';
 import { RoomRoster } from '../locations/RoomRoster.jsx';
+import { ConversationList } from '../chat/ConversationList.jsx';
+import { ChatPanel } from '../chat/ChatPanel.jsx';
 
 /**
  * Renders whichever panel is on top of the modal stack.
@@ -284,6 +287,17 @@ function ModalLayer({ modal }) {
         </Modal>
       );
 
+    /*
+     * One modal for both the inbox and a thread, swapping between them in
+     * place. Which one shows is decided by the chat store rather than by a
+     * second modal layer: a thread pushed on top of the inbox would stack two
+     * translucent backdrops, which this stack deliberately never does, and
+     * would leave the store and the stack as two places that each think they
+     * know which conversation is open.
+     */
+    case 'messages':
+      return <MessagesModal onClose={closeModal} />;
+
     case 'company-analytics':
       return (
         <Modal
@@ -305,4 +319,33 @@ function ModalLayer({ modal }) {
     default:
       return null;
   }
+}
+
+/**
+ * Messages: the inbox, or the thread that is open.
+ *
+ * Its own component because it needs the chat store, and `ModalLayer` is a
+ * switch over every panel in the product — subscribing it to one panel's
+ * store would re-render all of them on every incoming message.
+ */
+function MessagesModal({ onClose }) {
+  const openId = useChatStore((s) => s.openId);
+  const open = useChatStore((s) => s.open);
+  const close = useChatStore((s) => s.close);
+
+  return (
+    <Modal
+      eyebrow="Grooveli"
+      title={openId ? 'Conversation' : 'Messages'}
+      subtitle={openId ? undefined : 'People you have met in the city.'}
+      size="md"
+      onClose={onClose}
+    >
+      {openId ? (
+        <ChatPanel onBack={close} />
+      ) : (
+        <ConversationList onOpen={open} />
+      )}
+    </Modal>
+  );
 }

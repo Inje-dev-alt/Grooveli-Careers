@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import './hud.css';
-import { ProgressBar, IconBell, IconMenu, IconMapPin, IconTrendUp, IconUser } from '../ui/index.js';
+import {
+  ProgressBar,
+  IconBell,
+  IconInbox,
+  IconMenu,
+  IconMapPin,
+  IconTrendUp,
+  IconUser,
+} from '../ui/index.js';
 import { InteractionPrompt } from './InteractionPrompt.jsx';
 import { useAuthStore } from '../../stores/authStore.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
@@ -8,6 +16,7 @@ import { usePlayerStore } from '../../stores/playerStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import { usePresenceStore } from '../../stores/presenceStore.js';
+import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
 import { getLocation } from '../../game/world/locations.js';
 import { resolvePlace, placeFallback } from '../../game/world/places.js';
 import { useCareerPath } from '../../hooks/useCareerPath.js';
@@ -31,6 +40,9 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const loadNotifications = useNotificationStore((s) => s.load);
   const notificationStatus = useNotificationStore((s) => s.status);
   const homePath = useCareerPath();
+  const unreadMessages = useChatStore(selectUnreadMessages);
+  const loadConversations = useChatStore((s) => s.loadConversations);
+  const chatStatus = useChatStore((s) => s.status);
   const presenceStarted = usePresenceStore((s) => s.started);
   const cityOnline = usePresenceStore((s) => s.cityOnline);
   const hereCount = usePresenceStore((s) => s.hereCount);
@@ -38,6 +50,12 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   useEffect(() => {
     if (notificationStatus === 'idle') loadNotifications();
   }, [notificationStatus, loadNotifications]);
+
+  // Same lazy load as the bell: the badge needs a count before anyone opens
+  // the inbox, and the inbox is cheap next to not knowing somebody wrote.
+  useEffect(() => {
+    if (chatStatus === 'idle') loadConversations();
+  }, [chatStatus, loadConversations]);
 
   // Whichever room this is — the city, the apartment or a company HQ — the
   // lookup is chosen by scene rather than branched on here. See world/places.js.
@@ -78,6 +96,15 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
         </div>
 
         <div className="hud__controls">
+          <button
+            type="button"
+            className="hud-btn"
+            onClick={() => openModal('messages')}
+            aria-label={`Messages${unreadMessages ? `, ${unreadMessages} unread` : ''}`}
+          >
+            <IconInbox size={18} />
+            {unreadMessages > 0 ? <span className="hud-btn__count">{unreadMessages}</span> : null}
+          </button>
           <button
             type="button"
             className="hud-btn"

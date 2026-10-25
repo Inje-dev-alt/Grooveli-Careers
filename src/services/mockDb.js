@@ -107,6 +107,18 @@ export const db = {
   presence: {},
   /** Who may see each account by name: 'everyone' | 'connections' | 'nobody'. */
   presenceVisibility: {},
+
+  /**
+   * Conversations as a flat list, keyed on nothing — this is a table.
+   *
+   * One row per pair of people, which is what makes "say hello" idempotent:
+   * pressing it twice finds the thread rather than making a second one.
+   */
+  conversations: [],
+  /** Messages for every conversation, oldest first within each. */
+  messages: [],
+  /** Conversations reported for review. Rows for a human, never a takedown. */
+  conversationReports: [],
   followedOrganizationIds: clone(suggestedOrganizationIds).slice(0, 1),
   /** Notification preferences by user id: mission reminders and quiet hours. */
   notificationPreferences: {},
