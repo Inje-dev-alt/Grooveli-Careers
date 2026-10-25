@@ -13,7 +13,7 @@ import {
 import { useChatStore } from '../../stores/chatStore.js';
 import { useSocialStore } from '../../stores/socialStore.js';
 import { useAuthStore } from '../../stores/authStore.js';
-import { MESSAGE_MAX } from '../../services/chatService.js';
+import { MESSAGE_MAX, POLL_SECONDS } from '../../services/chatService.js';
 import { getLocation } from '../../game/world/locations.js';
 import { formatRelativeTime, initials } from '../../utils/format.js';
 
@@ -42,14 +42,27 @@ export function ChatPanel({ onBack = null }) {
   const sending = useChatStore((s) => s.sending);
   const send = useChatStore((s) => s.send);
   const report = useChatStore((s) => s.report);
+  const poll = useChatStore((s) => s.poll);
   const close = useChatStore((s) => s.close);
   const blockAuthor = useSocialStore((s) => s.blockAuthor);
 
   const thread = conversations.find((t) => t.id === openId) ?? null;
   const scrollRef = useRef(null);
 
-  // The thread polls while it is open, so closing the panel has to stop it.
-  useEffect(() => () => close(), [close]);
+  /*
+   * The thread polls while it is on screen and not a moment longer.
+   *
+   * Owning the interval here rather than in the store is what makes this safe
+   * under StrictMode, which runs an effect's cleanup once during mount:
+   * clearing and restarting a timer is idempotent. The previous version
+   * cleared `openId` from this cleanup instead, which closed the panel the
+   * instant it opened.
+   */
+  useEffect(() => {
+    if (!openId) return undefined;
+    const timer = setInterval(poll, POLL_SECONDS * 1000);
+    return () => clearInterval(timer);
+  }, [openId, poll]);
 
   // Pinned to the newest message. `useLayoutEffect` so it happens before the
   // browser paints — scrolling after a paint is a visible jump.

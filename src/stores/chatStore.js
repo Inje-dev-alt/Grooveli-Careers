@@ -1,26 +1,24 @@
 import { create } from 'zustand';
 import * as chatService from '../services/chatService.js';
-import { POLL_SECONDS } from '../services/chatService.js';
 
 /**
  * Conversations, and the one that is open.
  *
- * POLLING LIVES HERE, AND ONLY WHILE A THREAD IS OPEN. A closed panel costs
- * nothing: there is no socket to keep alive and no interval running in the
- * background, which is the upside of the transport the heartbeat chose. The
- * poll asks for messages `since` the newest one it holds, so a quiet thread
- * costs an empty array every few seconds rather than the whole history.
+ * POLLING IS THE PANEL'S, NOT THIS STORE'S. `poll()` fetches once; the
+ * interval that calls it lives in `ChatPanel`'s own effect, so it starts when
+ * a thread is on screen and is cleared when it is not. A closed panel costs
+ * nothing — no socket, no background timer — which is the upside of the
+ * transport presence chose.
  *
- * The timer is a module variable rather than store state because it is not
- * something anything renders, and putting it in state would re-render every
- * subscriber each time it was replaced.
+ * This used to be a module-level timer here, which meant `open()` started it
+ * and the panel's unmount cleanup stopped it. That cleanup also cleared
+ * `openId`, and in StrictMode React runs an effect's cleanup once DURING mount
+ * before running the effect again — so opening a thread immediately closed it.
+ * A cleanup that mutates shared state is not safe for that reason, and the fix
+ * is not to special-case StrictMode but to let the component own only its own
+ * timer: clearing and restarting an interval is idempotent, where clearing
+ * somebody else's state is not.
  */
-let pollTimer = null;
-
-const stopPolling = () => {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
-};
 
 export const useChatStore = create((set, get) => ({
   /** @type {object[]} threads, newest activity first */
@@ -66,9 +64,8 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  /** Show a thread, load it, mark it read and start polling. */
+  /** Show a thread, load it and mark it read. The panel starts its own poll. */
   open: async (conversationId) => {
-    stopPolling();
     set({ openId: conversationId, messages: [], messagesStatus: 'loading', sendError: null });
 
     try {
@@ -84,14 +81,16 @@ export const useChatStore = create((set, get) => ({
     }
 
     get().markRead(conversationId);
-    pollTimer = setInterval(() => get().poll(), POLL_SECONDS * 1000);
   },
 
-  /** Stop showing a thread. Called when the panel closes. */
-  close: () => {
-    stopPolling();
-    set({ openId: null, messages: [], messagesStatus: 'idle', sendError: null });
-  },
+  /**
+   * Stop showing a thread and go back to the list.
+   *
+   * An explicit action, never an unmount cleanup: it is called by the back
+   * button and by whichever control opens the inbox, both of which are things
+   * a person did.
+   */
+  close: () => set({ openId: null, messages: [], messagesStatus: 'idle', sendError: null }),
 
   /**
    * Ask for anything new in the open thread.
@@ -170,8 +169,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   /** Clear on sign-out, so the next account does not read a stranger's messages. */
-  reset: () => {
-    stopPolling();
+  reset: () =>
     set({
       conversations: [],
       status: 'idle',
@@ -181,8 +179,7 @@ export const useChatStore = create((set, get) => ({
       messagesStatus: 'idle',
       sendError: null,
       sending: false,
-    });
-  },
+    }),
 }));
 
 /** Messages waiting across every thread — what a badge would show. */

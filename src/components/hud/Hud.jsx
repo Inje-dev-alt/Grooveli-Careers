@@ -42,6 +42,7 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const homePath = useCareerPath();
   const unreadMessages = useChatStore(selectUnreadMessages);
   const loadConversations = useChatStore((s) => s.loadConversations);
+  const closeConversation = useChatStore((s) => s.close);
   const chatStatus = useChatStore((s) => s.status);
   const presenceStarted = usePresenceStore((s) => s.started);
   const cityOnline = usePresenceStore((s) => s.cityOnline);
@@ -99,7 +100,13 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
           <button
             type="button"
             className="hud-btn"
-            onClick={() => openModal('messages')}
+            onClick={() => {
+              // Explicitly, because `openId` outlives the panel now: an inbox
+              // button that reopened the last thread would give no way back to
+              // the list on the first press.
+              closeConversation();
+              openModal('messages');
+            }}
             aria-label={`Messages${unreadMessages ? `, ${unreadMessages} unread` : ''}`}
           >
             <IconInbox size={18} />
