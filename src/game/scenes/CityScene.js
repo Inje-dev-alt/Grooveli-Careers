@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { WORLD, cityLocations, doorwayPosition } from '../world/locations.js';
 import { CityRenderer } from '../world/CityRenderer.js';
+import { BackdropRenderer } from '../world/BackdropRenderer.js';
+import { CITY_BACKDROP } from '../world/backdrop.js';
 import { Player } from '../entities/Player.js';
 import { ControlSystem } from '../systems/ControlSystem.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
@@ -21,19 +23,71 @@ export class CityScene extends Phaser.Scene {
     super({ key: 'CityScene' });
   }
 
-  create() {
-    this.physics.world.setBounds(0, 0, WORLD.width, WORLD.height);
+  /**
+   * Art is only loaded when there is art. With no backdrop configured this
+   * does nothing and the city draws itself from shapes, exactly as before.
+   */
+  preload() {
+    if (!CITY_BACKDROP) return;
+    this.load.image('city-base', CITY_BACKDROP.base);
+    this.load.image('city-over', CITY_BACKDROP.over);
+    this.load.image('city-mask', CITY_BACKDROP.mask);
+  }
 
-    this.renderer = new CityRenderer(this);
-    this.renderer.drawEnvironment();
+  create() {
+    /*
+     * Two cities, one scene.
+     *
+     * The painted city and the drawn one share the player, the controls, the
+     * camera, every interaction zone and all of the world's data — they differ
+     * only in what puts pixels on the screen and where the walls come from.
+     * Keeping both means the illustrations can be produced and dropped in one
+     * at a time without the city being broken in between, and means falling
+     * back is setting CITY_BACKDROP to null rather than reverting a merge.
+     */
+    this.painted = Boolean(CITY_BACKDROP) && this.textures.exists('city-base');
+
+    const bounds = this.painted
+      ? { width: CITY_BACKDROP.width, height: CITY_BACKDROP.height }
+      : WORLD;
+    this.physics.world.setBounds(0, 0, bounds.width, bounds.height);
+
+    if (this.painted) {
+      this.backdrop = new BackdropRenderer(this, {
+        base: 'city-base',
+        over: 'city-over',
+        mask: 'city-mask',
+        width: CITY_BACKDROP.width,
+        height: CITY_BACKDROP.height,
+      });
+      this.backdrop.draw();
+    } else {
+      this.renderer = new CityRenderer(this);
+      this.renderer.drawEnvironment();
+    }
 
     this.obstacles = this.physics.add.staticGroup();
     this.interaction = new InteractionSystem(this);
 
-    cityLocations.forEach((location) => {
-      this.renderer.createBuilding(location);
+    if (this.painted) {
+      /*
+       * Walls come from the painting, not from the layout. A rectangle in the
+       * mask is positioned by its top-left corner; a physics body is
+       * positioned by its centre.
+       */
+      this.backdrop.readCollision().forEach((r) => {
+        const body = this.add.rectangle(r.x + r.width / 2, r.y + r.height / 2, r.width, r.height);
+        body.setVisible(false);
+        this.obstacles.add(body);
+      });
+    }
 
-      if (!location.walkable) {
+    cityLocations.forEach((location) => {
+      // A painted building is already in the picture; only the drawn city has
+      // to make one.
+      if (!this.painted) this.renderer.createBuilding(location);
+
+      if (!this.painted && !location.walkable) {
         // Collision uses the footprint, not the drawn roof, so the player can
         // walk "behind" a building without clipping through its face.
         const body = this.add.rectangle(
@@ -74,7 +128,7 @@ export class CityScene extends Phaser.Scene {
     this.physics.add.collider(this.player.container, this.obstacles);
 
     this.controls = new ControlSystem(this);
-    this.cameraSystem = new CameraSystem(this, WORLD);
+    this.cameraSystem = new CameraSystem(this, bounds);
     this.cameraSystem.follow(this.player.container);
     this.cameraSystem.applyViewport(useUiStore.getState().isCompact);
 
@@ -132,6 +186,7 @@ export class CityScene extends Phaser.Scene {
     this.unsubscribers = [];
     this.controls?.destroy();
     this.renderer?.destroy();
+    this.backdrop?.destroy();
     this.interaction?.clear();
     this.player = null;
   }
