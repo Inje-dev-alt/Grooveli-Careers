@@ -14,6 +14,7 @@ import {
 } from '../ui/index.js';
 import { AI_INTENTS } from '../../services/aiService.js';
 import { useOfficeStore } from '../../stores/officeStore.js';
+import { usePlayerStore } from '../../stores/playerStore.js';
 
 /**
  * The interaction registry.
@@ -200,11 +201,27 @@ export const INTERACTIONS = {
     description: 'Back to the city',
     icon: IconHome,
     open: ({ closeAllModals, navigate }) => {
+      /*
+       * Step out onto the street you came in from, not into the plaza.
+       *
+       * The district is the company's, because companies do not have their
+       * own buildings on the map yet — they sit inside a district, and that
+       * district's doorway is the honest answer to "where was I". A company
+       * with no district falls back to the plaza rather than nowhere.
+       */
+      const organization = useOfficeStore.getState().organization;
+      usePlayerStore.getState().setArrival(organization?.districtId ?? null);
       closeAllModals();
       navigate('/city');
     },
   },
 
+  /*
+   * Deliberately NOT given an arrival. An employer reaches their HQ from the
+   * dashboard, so the dashboard is where leaving it should land them —
+   * dropping them into the candidate city would be further from where they
+   * started, not closer.
+   */
   'company-exit': {
     label: 'Leave HQ',
     description: 'Back to the employer dashboard',

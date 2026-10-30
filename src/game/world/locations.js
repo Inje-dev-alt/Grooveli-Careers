@@ -213,6 +213,32 @@ export const WORLD = {
   spawn: { x: 1300, y: 1560 },
 };
 
+/**
+ * How far below a building's centre its doorway stands.
+ *
+ * One constant, because two code paths put the player at a district's door —
+ * the city guide teleporting you there, and arriving back after leaving an
+ * interior. Two numbers would mean the same district had two front doors
+ * depending on how you reached it.
+ *
+ * Tuned against the current top-down art; it will need revisiting when the
+ * city is redrawn.
+ */
+export const DOORWAY_OFFSET = 70;
+
+/**
+ * Where a player stands when they are at this building's door.
+ *
+ * @param {CityLocation} location
+ * @returns {{ x: number, y: number }}
+ */
+export function doorwayPosition(location) {
+  return {
+    x: location.position.x,
+    y: location.position.y + location.size.height / 2 + DOORWAY_OFFSET,
+  };
+}
+
 const byId = Object.fromEntries(cityLocations.map((location) => [location.id, location]));
 
 /** @returns {CityLocation | null} */
