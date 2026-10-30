@@ -60,42 +60,23 @@ export const BAND_HEIGHT = 64;
  *
  * @type {{ base: string, over: string, mask: string, width: number, height: number } | null}
  */
-export const CITY_BACKDROP = {
-  base: '/city/plaza-day.jpg',
-  night: '/city/plaza-night.jpg',
-  // No mask yet. It is the one file that cannot be generated — see the
-  // procedure in public/city/README.md. Until it exists the city is walkable
-  // everywhere inside its bounds, which is the honest state: approximate
-  // collision from the old layout would put invisible walls in the middle of
-  // a plaza that no longer has buildings there.
-  mask: null,
-  width: 2680,
-  height: 1820,
-
-  /*
-   * Where the player starts, IN THE PAINTING.
-   *
-   * `WORLD.spawn` puts them at (1300, 1560), which was the plaza in the drawn
-   * city and is the tarmac at the bottom of this one. The painting's own plaza
-   * centres near here — derived from the art at 1264x848, scaled to the
-   * world's 2680x1820.
-   *
-   * This is the first of the district coordinates that has to be re-derived
-   * from the art, and the reason it comes first is that every other one can be
-   * wrong without anybody noticing, while this one is the first thing a player
-   * sees.
-   */
-  spawn: { x: 1380, y: 1000 },
-
-  /*
-   * How much of the painting is on screen.
-   *
-   * At zoom 1 a desktop viewport shows under a fifth of the art, so a scene
-   * composed as a whole plaza arrives as a patch of pavement. The reference
-   * images are framed on the entire square, and this is what gets near that.
-   */
-  zoom: { desktop: 0.62, compact: 0.42 },
-};
+/*
+ * TURNED OFF while the route decision is made. The city draws itself from
+ * shapes again, exactly as before the redesign began.
+ *
+ * Nothing is lost by this: the pipeline, the art and every measurement
+ * taken from it are still here, and turning it back on is restoring the
+ * object below. The whole point of keeping both cities was that this
+ * switch would be a data change rather than a revert.
+ *
+ * The art is in public/city/, and the values measured off it were:
+ *   base   '/city/plaza-day.jpg'
+ *   night  '/city/plaza-night.jpg'
+ *   spawn  { x: 1380, y: 1000 }   the plaza centre in the painting
+ *   zoom   { desktop: 0.62, compact: 0.42 }
+ *   size   2680 x 1820
+ */
+export const CITY_BACKDROP = null;
 
 /**
  * WHY `mask` IS OPTIONAL TOO.
