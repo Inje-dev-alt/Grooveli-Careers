@@ -53,14 +53,16 @@ export const BAND_HEIGHT = 64;
  * no code change, and reversible by setting it back to null if the art is not
  * ready.
  *
- * Paths are relative to `public/`, so `city/plaza-base.webp` is served at
- * `/city/plaza-base.webp`.
+ * Paths are ABSOLUTE, with a leading slash. Phaser resolves a relative path
+ * against the page's URL, and the city lives at `/city` — so `city/x.jpg`
+ * resolves to `/city/x.jpg` from `/city` but to `/city/city/x.jpg` from
+ * `/city/`, which is a 404 that depends on a trailing slash nobody controls.
  *
  * @type {{ base: string, over: string, mask: string, width: number, height: number } | null}
  */
 export const CITY_BACKDROP = {
-  base: 'city/plaza-day.jpg',
-  night: 'city/plaza-night.jpg',
+  base: '/city/plaza-day.jpg',
+  night: '/city/plaza-night.jpg',
   // No mask yet. It is the one file that cannot be generated — see the
   // procedure in public/city/README.md. Until it exists the city is walkable
   // everywhere inside its bounds, which is the honest state: approximate

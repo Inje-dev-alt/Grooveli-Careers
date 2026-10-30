@@ -29,6 +29,20 @@ export class CityScene extends Phaser.Scene {
    */
   preload() {
     if (!CITY_BACKDROP) return;
+
+    /*
+     * Say so, loudly, when art does not arrive.
+     *
+     * Without this the scene falls back to the drawn city and looks merely
+     * old-fashioned — there is no error, no gap, nothing to search for. A
+     * silent fallback is the worst shape a failure can take, because it costs
+     * someone an afternoon to discover it is not a rendering bug at all.
+     */
+    this.load.on('loaderror', (file) => {
+      console.error(
+        `[city] backdrop asset failed to load: ${file.url} — falling back to the drawn city.`,
+      );
+    });
     this.load.image('city-base', CITY_BACKDROP.base);
     if (CITY_BACKDROP.mask) this.load.image('city-mask', CITY_BACKDROP.mask);
     if (CITY_BACKDROP.over) this.load.image('city-over', CITY_BACKDROP.over);
@@ -46,6 +60,12 @@ export class CityScene extends Phaser.Scene {
      * back is setting CITY_BACKDROP to null rather than reverting a merge.
      */
     this.painted = Boolean(CITY_BACKDROP) && this.textures.exists('city-base');
+
+    if (CITY_BACKDROP && !this.painted) {
+      console.warn(
+        `[city] CITY_BACKDROP is configured but '${CITY_BACKDROP.base}' did not load, so the drawn city is being used instead.`,
+      );
+    }
 
     const bounds = this.painted
       ? { width: CITY_BACKDROP.width, height: CITY_BACKDROP.height }
@@ -169,7 +189,17 @@ export class CityScene extends Phaser.Scene {
     this.player.container.setDepth(this.player.y);
 
     this.interaction.update({ x: this.player.x, y: this.player.y });
-    this.renderer.setHighlighted(this.interaction.nearbyId);
+    /*
+     * Optional, because the painted city has no renderer to highlight —
+     * the glow is a drawn-city affordance over generated geometry, and a
+     * painting cannot light one of its own buildings.
+     *
+     * This ran unguarded and threw on the first frame in painted mode,
+     * which killed the update loop and left the canvas showing nothing but
+     * its background colour. The player still gets the [E] prompt from the
+     * HUD, so nothing is lost but the glow.
+     */
+    this.renderer?.setHighlighted(this.interaction.nearbyId);
 
     const store = usePlayerStore.getState();
     if (store.currentLocationId !== this.interaction.nearbyId) {
