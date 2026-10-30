@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { WORLD, cityLocations } from '../world/locations.js';
+import { WORLD, cityLocations, doorwayPosition } from '../world/locations.js';
 import { CityRenderer } from '../world/CityRenderer.js';
 import { PlateCityRenderer } from '../world/PlateCityRenderer.js';
 import { AmbientLayer } from '../world/ambient.js';
@@ -64,7 +64,19 @@ export class CityScene extends Phaser.Scene {
       }
     });
 
-    this.player = new Player(this, WORLD.spawn.x, WORLD.spawn.y);
+    /*
+     * Where the player comes in.
+     *
+     * Normally the plaza. After leaving a building, the doorway of the
+     * district that building belongs to — read and cleared in one step, so an
+     * arrival is used once and a later visit to the city starts where the
+     * city starts.
+     */
+    const arrival = usePlayerStore.getState().takeArrival();
+    const arrivalDistrict = arrival ? cityLocations.find((l) => l.id === arrival.districtId) : null;
+    const entrance = arrivalDistrict ? doorwayPosition(arrivalDistrict) : WORLD.spawn;
+
+    this.player = new Player(this, entrance.x, entrance.y);
     this.physics.add.collider(this.player.container, this.obstacles);
 
     if (BAKED) {
@@ -83,13 +95,23 @@ export class CityScene extends Phaser.Scene {
     this.cameraSystem = new CameraSystem(this, WORLD);
     this.cameraSystem.follow(this.player.container);
     this.cameraSystem.applyViewport(useUiStore.getState().isCompact);
-    this.cameraSystem.introduce();
+
+    /*
+     * The intro sweep is for arriving in the city, not for stepping out of a
+     * door. Panning from the plaza to the district on every exit would put a
+     * second of waiting between a player and the street they were already
+     * standing on, every single time they leave a building.
+     */
+    if (!arrivalDistrict) this.cameraSystem.introduce();
 
     this.unsubscribers = [
       gameBridge.on(GAME_EVENTS.COMMAND_FOCUS_LOCATION, ({ locationId }) => {
         const location = cityLocations.find((l) => l.id === locationId);
         if (!location) return;
-        this.player.setPosition(location.position.x, location.position.y + location.size.height / 2 + 70);
+        // Same doorway the arrival above uses, so a district has one front
+        // door however the player got to it.
+        const door = doorwayPosition(location);
+        this.player.setPosition(door.x, door.y);
       }),
       // While a panel is open the world stops reading input but keeps rendering.
       useUiStore.subscribe((state) => {

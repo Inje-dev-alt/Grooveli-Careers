@@ -9,6 +9,7 @@ import { Button, IconChevronLeft } from '../components/ui/index.js';
 import { useWorldInteractions, useWorldViewport } from '../hooks/useWorldInteractions.js';
 import { useUiStore } from '../stores/uiStore.js';
 import { usePresencePosition } from '../hooks/usePresencePosition.js';
+import { usePlayerStore } from '../stores/playerStore.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
 
 /**
@@ -43,7 +44,14 @@ export default function Apartment() {
               size={isCompact ? 'sm' : 'md'}
               className="hud-exit"
               icon={<IconChevronLeft size={16} />}
-              onClick={() => navigate('/city')}
+              onClick={() => {
+                // The apartment is itself a building on the map, so leaving it
+                // puts the player at its own door. Wired on the page rather
+                // than in the interaction registry because this exit is a HUD
+                // button, not an interactable.
+                usePlayerStore.getState().setArrival('player-apartment');
+                navigate('/city');
+              }}
             >
               {isCompact ? 'City' : 'Back to the city'}
             </Button>

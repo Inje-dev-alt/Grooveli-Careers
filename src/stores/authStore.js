@@ -6,6 +6,7 @@ import { useJobStore } from './jobStore.js';
 import { useSocialStore } from './socialStore.js';
 import { useEmployerStore } from './employerStore.js';
 import { useNotificationStore } from './notificationStore.js';
+import { usePlayerStore } from './playerStore.js';
 import { usePresenceStore } from './presenceStore.js';
 import { useChatStore } from './chatStore.js';
 
@@ -31,6 +32,7 @@ function clearAccountStores() {
   useNotificationStore.getState().reset();
   usePresenceStore.getState().reset();
   useChatStore.getState().reset();
+  usePlayerStore.getState().reset();
 }
 
 /**
