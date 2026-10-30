@@ -142,7 +142,10 @@ export class CityScene extends Phaser.Scene {
      */
     const arrival = usePlayerStore.getState().takeArrival();
     const arrivalDistrict = arrival ? cityLocations.find((l) => l.id === arrival.districtId) : null;
-    const entrance = arrivalDistrict ? doorwayPosition(arrivalDistrict) : WORLD.spawn;
+    // The painted city has its own front door: the drawn city's spawn is a
+    // coordinate from a layout this art does not share.
+    const defaultSpawn = this.painted && CITY_BACKDROP.spawn ? CITY_BACKDROP.spawn : WORLD.spawn;
+    const entrance = arrivalDistrict ? doorwayPosition(arrivalDistrict) : defaultSpawn;
 
     this.player = new Player(this, entrance.x, entrance.y);
     this.physics.add.collider(this.player.container, this.obstacles);
@@ -151,6 +154,9 @@ export class CityScene extends Phaser.Scene {
     this.cameraSystem = new CameraSystem(this, bounds);
     this.cameraSystem.follow(this.player.container);
     this.cameraSystem.applyViewport(useUiStore.getState().isCompact);
+    if (this.painted && CITY_BACKDROP.zoom) {
+      this.cameraSystem.setZoomRange(CITY_BACKDROP.zoom);
+    }
 
     /*
      * The intro sweep is for arriving in the city, not for stepping out of a

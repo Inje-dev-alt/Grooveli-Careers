@@ -24,8 +24,25 @@ export class CameraSystem {
   }
 
   /** @param {boolean} compact */
+  /**
+   * Override how far the camera pulls back.
+   *
+   * The drawn city is built to be read close up; a painting is composed as
+   * a whole scene and falls apart when you can only see a fifth of it. So
+   * the framing belongs to whatever is being shown rather than being one
+   * number for the whole game.
+   *
+   * @param {{ desktop: number, compact: number }} range
+   */
+  setZoomRange(range) {
+    this.zoomRange = range;
+    this.applyViewport(this.lastCompact ?? false);
+  }
+
   applyViewport(compact) {
-    const zoom = compact ? GAME_SETTINGS.cameraZoom.compact : GAME_SETTINGS.cameraZoom.desktop;
+    this.lastCompact = compact;
+    const range = this.zoomRange ?? GAME_SETTINGS.cameraZoom;
+    const zoom = compact ? range.compact : range.desktop;
     if (Math.abs(this.camera.zoom - zoom) < 0.001) return;
     this.scene.tweens.add({
       targets: this.camera,

@@ -71,6 +71,30 @@ export const CITY_BACKDROP = {
   mask: null,
   width: 2680,
   height: 1820,
+
+  /*
+   * Where the player starts, IN THE PAINTING.
+   *
+   * `WORLD.spawn` puts them at (1300, 1560), which was the plaza in the drawn
+   * city and is the tarmac at the bottom of this one. The painting's own plaza
+   * centres near here — derived from the art at 1264x848, scaled to the
+   * world's 2680x1820.
+   *
+   * This is the first of the district coordinates that has to be re-derived
+   * from the art, and the reason it comes first is that every other one can be
+   * wrong without anybody noticing, while this one is the first thing a player
+   * sees.
+   */
+  spawn: { x: 1380, y: 1000 },
+
+  /*
+   * How much of the painting is on screen.
+   *
+   * At zoom 1 a desktop viewport shows under a fifth of the art, so a scene
+   * composed as a whole plaza arrives as a patch of pavement. The reference
+   * images are framed on the entire square, and this is what gets near that.
+   */
+  zoom: { desktop: 0.62, compact: 0.42 },
 };
 
 /**
