@@ -7,7 +7,8 @@
  *   base   everything the player walks in FRONT of — ground, roads, the far
  *          side of the street, building faces seen head on
  *   over   everything the player can pass BEHIND, on a transparent layer:
- *          the near edges of buildings, foreground trees, parked vehicles
+ *          the near edges of buildings, foreground trees, parked vehicles.
+ *          OPTIONAL — see below
  *   mask   where the player may not stand. Opaque is solid, transparent is
  *          floor; see walkMask.js
  *
@@ -37,7 +38,7 @@ export const BAND_HEIGHT = 64;
 /**
  * @typedef {Object} CityBackdrop
  * @property {string} base   texture key for the ground layer
- * @property {string} over   texture key for the foreground layer
+ * @property {string} [over] texture key for the foreground layer, if there is one
  * @property {string} mask   texture key for the walk mask
  * @property {number} width  the art's width in world pixels
  * @property {number} height the art's height in world pixels
@@ -58,6 +59,21 @@ export const BAND_HEIGHT = 64;
  * @type {{ base: string, over: string, mask: string, width: number, height: number } | null}
  */
 export const CITY_BACKDROP = null;
+
+/**
+ * WHY `over` IS OPTIONAL.
+ *
+ * Image generators produce one flat picture. They cannot export a separate
+ * transparent foreground, so the only ways to get one are to cut it out by
+ * hand afterwards or to not have one. For an open space — a plaza, a park,
+ * a wide junction — not having one is the right answer: there is almost
+ * nothing to walk behind, so the player drawing in front of everything is
+ * correct nearly all of the time.
+ *
+ * Dense streets are the opposite, and those districts will need the cut-out.
+ * Making the layer optional means a district can ship flat and gain depth
+ * later without the engine changing.
+ */
 
 /**
  * Cut the foreground layer into depth-sorted bands.

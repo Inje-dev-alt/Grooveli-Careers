@@ -38,6 +38,11 @@ export class BackdropRenderer {
 
     this.scene.add.image(0, 0, base).setOrigin(0, 0).setDisplaySize(width, height).setDepth(-1000);
 
+    // A flat district has no foreground layer, and the player simply draws in
+    // front of everything. Correct for an open space, and the honest state for
+    // any district whose cut-out has not been made yet.
+    if (!over) return;
+
     /*
      * Each band is the same texture cropped to one horizontal strip, placed
      * where that strip belongs and sorted by its own bottom edge. `setCrop`
