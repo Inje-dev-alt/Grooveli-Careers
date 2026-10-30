@@ -39,7 +39,7 @@ export const BAND_HEIGHT = 64;
  * @typedef {Object} CityBackdrop
  * @property {string} base   texture key for the ground layer
  * @property {string} [over] texture key for the foreground layer, if there is one
- * @property {string} mask   texture key for the walk mask
+ * @property {string} [mask] texture key for the walk mask, if there is one
  * @property {number} width  the art's width in world pixels
  * @property {number} height the art's height in world pixels
  */
@@ -58,7 +58,33 @@ export const BAND_HEIGHT = 64;
  *
  * @type {{ base: string, over: string, mask: string, width: number, height: number } | null}
  */
-export const CITY_BACKDROP = null;
+export const CITY_BACKDROP = {
+  base: 'city/plaza-day.jpg',
+  night: 'city/plaza-night.jpg',
+  // No mask yet. It is the one file that cannot be generated — see the
+  // procedure in public/city/README.md. Until it exists the city is walkable
+  // everywhere inside its bounds, which is the honest state: approximate
+  // collision from the old layout would put invisible walls in the middle of
+  // a plaza that no longer has buildings there.
+  mask: null,
+  width: 2680,
+  height: 1820,
+};
+
+/**
+ * WHY `mask` IS OPTIONAL TOO.
+ *
+ * The art arrives before the mask does, because one is generated in a minute
+ * and the other is painted by hand. Letting the city render without collision
+ * means the art can be looked at, walked through and judged on the day it
+ * lands, rather than waiting on the slowest file.
+ *
+ * It is deliberately not filled in with the old layout's rectangles. Those
+ * describe a city that no longer exists: the painted plaza has buildings in
+ * different places, so the old data would stop the player in the middle of an
+ * open square and let them walk through a tower. No collision reads as
+ * unfinished; wrong collision reads as broken.
+ */
 
 /**
  * WHY `over` IS OPTIONAL.

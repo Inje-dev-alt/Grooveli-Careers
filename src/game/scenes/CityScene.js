@@ -30,7 +30,7 @@ export class CityScene extends Phaser.Scene {
   preload() {
     if (!CITY_BACKDROP) return;
     this.load.image('city-base', CITY_BACKDROP.base);
-    this.load.image('city-mask', CITY_BACKDROP.mask);
+    if (CITY_BACKDROP.mask) this.load.image('city-mask', CITY_BACKDROP.mask);
     if (CITY_BACKDROP.over) this.load.image('city-over', CITY_BACKDROP.over);
   }
 
@@ -56,7 +56,7 @@ export class CityScene extends Phaser.Scene {
       this.backdrop = new BackdropRenderer(this, {
         base: 'city-base',
         over: CITY_BACKDROP.over ? 'city-over' : null,
-        mask: 'city-mask',
+        mask: CITY_BACKDROP.mask ? 'city-mask' : null,
         width: CITY_BACKDROP.width,
         height: CITY_BACKDROP.height,
       });

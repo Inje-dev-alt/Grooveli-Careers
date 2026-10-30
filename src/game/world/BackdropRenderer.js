@@ -89,6 +89,10 @@ export class BackdropRenderer {
    */
   readCollision() {
     const { mask, width, height } = this.art;
+    // No mask painted yet: nothing blocks, and the world bounds are the only
+    // edge. See backdrop.js for why this is better than reusing stale data.
+    if (!mask) return [];
+
     const source = this.scene.textures.get(mask).getSourceImage();
 
     const canvas = this.scene.textures.createCanvas(`${mask}--read`, source.width, source.height);
