@@ -107,7 +107,7 @@ function roundRect(ctx, x, y, w, h, r) {
  * @param {{ world, roads, approaches, parks, crosswalks, trees, lamps, locations }} model
  */
 export function paintGround(ctx, model) {
-  const { world, roads, approaches, parks, crosswalks, trees, lamps } = model;
+  const { world, roads, approaches, parks, crosswalks, trees, lamps, billboards } = model;
   const random = createRandom(20261031);
 
   ctx.fillStyle = nightPalette.ground;
@@ -118,6 +118,7 @@ export function paintGround(ctx, model) {
   paintRoads(ctx, roads, crosswalks, random);
   paintApproaches(ctx, approaches ?? [], random);
   paintPlanting(ctx, trees, random);
+  paintBillboards(ctx, billboards ?? []);
   paintLamps(ctx, lamps);
   paintNightGrade(ctx, world);
 }
@@ -419,6 +420,67 @@ function paintPlanting(ctx, trees, random) {
   });
 }
 
+/**
+ * Roadside hoardings.
+ *
+ * Built the same way as a building: a footprint on the ground, a panel lifted
+ * above it, and a lean away from the middle of the world so it stands up rather
+ * than lying flat. Keeping the construction identical is what makes them look
+ * like they belong to the same city.
+ */
+function paintBillboards(ctx, billboards) {
+  billboards.forEach((board) => {
+    const halfW = board.width / 2;
+    const lean = ((board.x - 1340) / 1340) * board.height * 0.3;
+    const top = board.y - board.height;
+
+    ctx.fillStyle = nightPalette.shadow;
+    ctx.beginPath();
+    ctx.ellipse(board.x + 4, board.y + 3, halfW * 0.8, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Legs, leaning with the panel so they meet its underside.
+    ctx.strokeStyle = rgba('#3c4870', 0.95);
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(board.x - halfW * 0.55, board.y);
+    ctx.lineTo(board.x - halfW * 0.55 + lean, top + board.height * 0.72);
+    ctx.moveTo(board.x + halfW * 0.55, board.y);
+    ctx.lineTo(board.x + halfW * 0.55 + lean, top + board.height * 0.72);
+    ctx.stroke();
+
+    const bl = { x: board.x - halfW + lean, y: top + board.height };
+    const br = { x: board.x + halfW + lean, y: top + board.height };
+    const tr = { x: board.x + halfW + lean, y: top };
+    const tl = { x: board.x - halfW + lean, y: top };
+
+    ctx.fillStyle = rgba('#080d1a', 0.95);
+    quad(ctx, bl, br, tr, tl);
+    ctx.fill();
+    ctx.strokeStyle = rgba(board.accent, 0.85);
+    ctx.lineWidth = 2.5;
+    quad(ctx, bl, br, tr, tl);
+    ctx.stroke();
+
+    const cx = board.x + lean;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.round(board.height * 0.3)}px "Segoe UI", system-ui, sans-serif`;
+    ctx.fillStyle = rgba(board.accent, 0.96);
+    ctx.fillText(board.headline, cx, top + board.height * 0.36);
+    ctx.font = `600 ${Math.round(board.height * 0.15)}px "Segoe UI", system-ui, sans-serif`;
+    ctx.fillStyle = rgba('#c3cde6', 0.85);
+    ctx.fillText(board.sub, cx, top + board.height * 0.64);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, cx, top + board.height * 0.45, board.width * 0.62, board.accent, 0.13);
+    ctx.restore();
+  });
+}
+
 function paintLamps(ctx, lamps) {
   // Light pools first, so every post sits inside its own glow.
   ctx.save();
@@ -593,6 +655,7 @@ export function paintBuilding(ctx, location, opts) {
   ctx.fill();
 
   paintFacadeWindows(ctx, { FL, FR, rFL, rFR }, location, random);
+  paintFacadeSign(ctx, { FL, FR, rFL, rFR }, location, accent, lift);
   paintAccentBand(ctx, { FL, FR, rFL, rFR }, accent);
   paintEntrance(ctx, { FL, FR, rFL, rFR }, accent, location);
 
@@ -605,7 +668,8 @@ export function paintBuilding(ctx, location, opts) {
   roundRect(ctx, rBL.x, rBL.y, tw * 2, th * 2, 14);
   ctx.stroke();
 
-  paintRoofDetail(ctx, { rBL, rBR, rFL, rFR }, location, accent, random);
+  paintRoofDetail(ctx, { rBL, rBR, rFL }, location, accent, random);
+  paintRoofHoarding(ctx, { rBL, rBR, rFL }, location, accent);
 
   // Light the pavement at the foot of the building.
   ctx.save();
@@ -697,6 +761,121 @@ function paintFlankWindows(ctx, [a, b, rb, ra], random) {
       ctx.fill();
     }
   }
+}
+
+/**
+ * The billboard mounted on the face of the building.
+ *
+ * This is the diegetic half of the interface: the district says what it is in
+ * the world, rather than in a panel floating over it. It is baked into the
+ * building sprite, so the text costs nothing at runtime — which is the whole
+ * reason it can be this large and this detailed.
+ *
+ * The facade leans, so the panel is a parallelogram. Its *text* is not
+ * distorted: in this projection horizontal lines on the facade stay horizontal,
+ * and only the verticals shear, so type can be drawn flat at the right point.
+ */
+function paintFacadeSign(ctx, { FL, FR, rFL, rFR }, location, accent, lift) {
+  if (!location.sign) return;
+
+  // Mounted over the upper third, clear of the entrance and the accent band.
+  const u0 = 0.14;
+  const u1 = 0.86;
+  const v0 = 0.56;
+  const v1 = 0.79;
+
+  const at = (u, v) => lerp(lerp(FL, FR, u), lerp(rFL, rFR, u), v);
+  const bl = at(u0, v0);
+  const br = at(u1, v0);
+  const tr = at(u1, v1);
+  const tl = at(u0, v1);
+
+  const height = Math.abs(tl.y - bl.y);
+  const width = br.x - bl.x;
+  if (height < 26 || width < 90) return;
+
+  // Housing, inset border, then the lit face.
+  ctx.fillStyle = rgba('#070b16', 0.93);
+  quad(ctx, bl, br, tr, tl);
+  ctx.fill();
+  ctx.strokeStyle = rgba(accent, 0.75);
+  ctx.lineWidth = 2;
+  quad(ctx, bl, br, tr, tl);
+  ctx.stroke();
+
+  const centreX = (bl.x + br.x) / 2;
+  const headY = (bl.y + tl.y) / 2 - height * 0.1;
+  const subY = headY + height * 0.3;
+
+  const headSize = Math.min(34, Math.max(15, height * 0.4));
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${Math.round(headSize)}px "Segoe UI", system-ui, sans-serif`;
+  ctx.fillStyle = rgba(accent, 0.96);
+  ctx.fillText(location.shortName, centreX, headY);
+
+  const subSize = Math.round(Math.min(14, Math.max(9, height * 0.17)));
+  ctx.font = `600 ${subSize}px "Segoe UI", system-ui, sans-serif`;
+  ctx.fillStyle = rgba('#aab6d8', 0.8);
+  ctx.fillText(location.sign, centreX, subY);
+  ctx.restore();
+
+  // The sign lights the wall around it.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glow(ctx, centreX, headY, Math.max(width * 0.55, 80), accent, 0.11);
+  ctx.restore();
+  void lift;
+}
+
+/**
+ * A hoarding standing on the roof of the taller towers.
+ *
+ * Only the tall ones: on a four-floor building it would sit at the same height
+ * as its neighbours' facade signs and the skyline would turn into a wall of
+ * type.
+ */
+function paintRoofHoarding(ctx, { rBL, rBR, rFL }, location, accent) {
+  if ((location.floors ?? 3) < 5 || !location.sign) return;
+
+  const width = (rBR.x - rBL.x) * 0.76;
+  const height = 26;
+  const x = rBL.x + ((rBR.x - rBL.x) - width) / 2;
+  // Stands on the back edge of the roof, rising above it.
+  const base = rBL.y + (rFL.y - rBL.y) * 0.18;
+  const top = base - height;
+
+  // Legs.
+  ctx.strokeStyle = rgba('#49568a', 0.9);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + width * 0.16, base);
+  ctx.lineTo(x + width * 0.16, base - height * 0.5);
+  ctx.moveTo(x + width * 0.84, base);
+  ctx.lineTo(x + width * 0.84, base - height * 0.5);
+  ctx.stroke();
+
+  ctx.fillStyle = rgba('#0a0f1e', 0.95);
+  roundRect(ctx, x, top, width, height, 4);
+  ctx.fill();
+  ctx.strokeStyle = rgba(accent, 0.8);
+  ctx.lineWidth = 2;
+  roundRect(ctx, x, top, width, height, 4);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${Math.round(height * 0.52)}px "Segoe UI", system-ui, sans-serif`;
+  ctx.fillStyle = rgba(accent, 0.95);
+  ctx.fillText(location.shortName, x + width / 2, top + height / 2 + 1);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glow(ctx, x + width / 2, top + height / 2, width * 0.6, accent, 0.14);
+  ctx.restore();
 }
 
 /** The district's colour, carried as a lit band across the facade. */

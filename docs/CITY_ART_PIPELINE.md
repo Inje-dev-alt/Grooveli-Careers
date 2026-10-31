@@ -118,6 +118,57 @@ node scripts/check-reachable.mjs
 It flood-fills from the spawn point and asserts every location's approach is
 connected.
 
+## Signage
+
+The city carries two kinds of sign, and the split is the useful part: **one is
+art and one is information.**
+
+### Billboards — baked
+
+Facade signs on every district, rooftop hoardings on the towers of five floors
+or more, and four freestanding roadside boards. All of it is painted at bake
+time and baked into the building sprites and the ground plate, so **it costs
+nothing at runtime** — which is exactly why it can be this large and this
+legible. Canvas2D has `fillText`, so baked art can carry type.
+
+A district's copy lives in its own entry in `locations.js` (`shortName` and
+`sign`), because what a building announces is part of what it is, not a lookup
+table somewhere else. Roadside boards are in `cityLayout.js` under `billboards`.
+
+The facade is a parallelogram, so each sign panel is drawn as a quad. The
+*text* on it is not distorted: in this projection horizontal lines on a facade
+stay horizontal and only verticals shear, so type is drawn flat at the right
+point.
+
+Roadside hoardings are **solid** — you walk around a billboard, not through one
+— so the bake writes their footprints into the collision mask next to the
+buildings. Adding one costs 36 blocked cells and `npm run check:city` confirms
+it sealed nothing.
+
+### Notice boards — live
+
+`src/game/world/NoticeBoards.js` puts a board outside each hiring district
+showing how many roles are open in it, read from `jobService` through
+`cityBoardStore`. This is the point of the diegetic-interface idea: walk past
+the Technology Hub and you can see it is hiring without opening anything.
+
+The world never calls a service — Phaser reads stores, React fills them — so
+the boards work the same against mocks or a live backend. `jobService` has
+`countOpenRolesByDistrict()` for exactly this, rather than counting over a full
+job list: the boards need eleven integers, and fetching every published role to
+derive them would be a page of data for a number.
+
+Each board is drawn into a RenderTexture once and then costs one sprite per
+frame. Text objects are cheap to make and expensive to keep — twenty-odd live
+ones would each carry their own texture and draw call — so they are drawn into
+the board and destroyed. A board is redrawn only when its number changes.
+
+**A board shows `—`, not `0`, while the count is unknown.** A district missing
+from a loaded response has no open roles, which is zero; a district missing
+because nothing has loaded is unknown, which is not. Treating an absent key as
+zero either way makes every board confidently announce "0 ROLES OPEN" for the
+second before data arrives, and keep announcing it if the request failed.
+
 ## People
 
 **Everyone in the city is drawn by `src/game/entities/characterArt.js`** — the

@@ -24,6 +24,7 @@
  * @property {boolean} [walkable]      true for open spaces that should not block movement
  * @property {number} [floors]         visual height of the extrusion
  * @property {string} [glyph]          two-to-three character mark drawn on the facade
+ * @property {string} [sign]           short strapline for the facade billboard
  */
 
 /** @type {CityLocation[]} */
@@ -43,6 +44,7 @@ export const cityLocations = [
     interactions: ['city-guide', 'missions', 'leaderboard'],
     walkable: true,
     glyph: 'GC',
+    sign: 'THE CENTRE OF THE CITY',
   },
   {
     id: 'player-apartment',
@@ -59,6 +61,7 @@ export const cityLocations = [
     interactions: ['enter-apartment', 'career-dashboard', 'notifications'],
     floors: 3,
     glyph: 'HM',
+    sign: 'YOUR HQ',
   },
   {
     id: 'ai-career-center',
@@ -75,6 +78,7 @@ export const cityLocations = [
     interactions: ['career-ai', 'career-discovery', 'assessment', 'interview-sim'],
     floors: 5,
     glyph: 'AI',
+    sign: 'YOUR CAREER AGENT',
   },
   {
     id: 'recruitment-agency',
@@ -91,6 +95,7 @@ export const cityLocations = [
     interactions: ['jobs', 'missions', 'career-ai', 'companies'],
     floors: 4,
     glyph: 'RA',
+    sign: 'MATCHING · SHORTLISTING',
   },
   {
     id: 'university-campus',
@@ -107,6 +112,7 @@ export const cityLocations = [
     interactions: ['courses', 'missions', 'jobs'],
     floors: 3,
     glyph: 'UT',
+    sign: 'COURSES · CERTIFICATIONS',
   },
   {
     id: 'technology-hub',
@@ -123,6 +129,7 @@ export const cityLocations = [
     interactions: ['jobs', 'missions', 'career-discovery', 'companies'],
     floors: 6,
     glyph: 'TH',
+    sign: 'ENGINEERING · AI · DATA',
   },
   {
     id: 'creative-district',
@@ -139,6 +146,7 @@ export const cityLocations = [
     interactions: ['jobs', 'companies', 'career-ai'],
     floors: 4,
     glyph: 'CD',
+    sign: 'DESIGN · MEDIA · CONTENT',
   },
   {
     id: 'healthcare-district',
@@ -155,6 +163,7 @@ export const cityLocations = [
     interactions: ['jobs', 'companies', 'missions'],
     floors: 5,
     glyph: 'HC',
+    sign: 'CLINICAL · NURSING · HEALTH',
   },
   {
     id: 'finance-district',
@@ -171,6 +180,7 @@ export const cityLocations = [
     interactions: ['jobs', 'companies', 'career-ai'],
     floors: 7,
     glyph: 'FD',
+    sign: 'BANKING · FINTECH · AUDIT',
   },
   {
     id: 'corporate-district',
@@ -187,6 +197,7 @@ export const cityLocations = [
     interactions: ['companies', 'jobs', 'missions'],
     floors: 6,
     glyph: 'CO',
+    sign: 'EMPLOYERS · OPEN ROLES',
   },
   {
     id: 'hospitality-district',
@@ -203,6 +214,7 @@ export const cityLocations = [
     interactions: ['jobs', 'companies', 'missions'],
     floors: 4,
     glyph: 'HD',
+    sign: 'HOTELS · EVENTS · TOURISM',
   },
 ];
 

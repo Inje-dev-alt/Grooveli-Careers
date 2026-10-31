@@ -190,6 +190,32 @@ export function listSavedJobIds() {
 }
 
 /** Distinct values for the filter facets, derived rather than hardcoded. */
+/**
+ * How many roles are open in each district.
+ *
+ * Backed by `GET /jobs/by-district`. The city's notice boards read this, so it
+ * is deliberately its own call rather than a count taken over a full job list:
+ * the boards need eleven integers, and making the world fetch every published
+ * role to derive them would be a page of data for a number.
+ *
+ * @returns {Promise<Record<string, number>>} keyed by district id
+ */
+export function countOpenRolesByDistrict() {
+  return withMock(
+    async () => {
+      await delay(140);
+      const counts = {};
+      db.jobs
+        .filter((job) => job.status === 'published' && job.districtId)
+        .forEach((job) => {
+          counts[job.districtId] = (counts[job.districtId] ?? 0) + 1;
+        });
+      return counts;
+    },
+    () => apiClient.get('/jobs/by-district'),
+  );
+}
+
 export function getJobFacets() {
   return withMock(
     async () => {

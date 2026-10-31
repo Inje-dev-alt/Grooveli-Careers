@@ -42,6 +42,22 @@ export const parks = [
   { x: 2150, y: 1180, width: 420, height: 160, shape: 'rounded' },
 ];
 
+/**
+ * Freestanding roadside billboards.
+ *
+ * The city's own advertising, and the only signage not attached to a building.
+ * `x, y` is the centre of the footprint the hoarding stands on; `height` is how
+ * far the panel rises above it. They are solid — you walk around a billboard,
+ * not through one — so the bake writes them into the collision mask alongside
+ * the buildings.
+ */
+export const billboards = [
+  { x: 152, y: 980, width: 186, height: 74, accent: '#5be3c8', headline: 'YOUR NEXT JOB', sub: 'COULD BE HERE' },
+  { x: 2498, y: 690, width: 196, height: 76, accent: '#6fe0ff', headline: 'GROOVELI', sub: 'BUILD YOUR CAREER' },
+  { x: 1004, y: 1712, width: 180, height: 70, accent: '#ffc46b', headline: 'HIRING NOW', sub: 'ACROSS 9 DISTRICTS' },
+  { x: 2156, y: 1706, width: 182, height: 70, accent: '#d98cff', headline: 'LEVEL UP', sub: 'COURSES · MISSIONS' },
+];
+
 /** Pedestrian crossings where a road meets a landmark approach. */
 export const crosswalks = [
   { x: 440, y: 580, width: 120, height: 118, orientation: 'h' },
@@ -76,6 +92,13 @@ function overlapsAnything(x, y, radius) {
     );
   });
   if (hitsLocation) return true;
+
+  const hitsBillboard = billboards.some(
+    (board) =>
+      Math.abs(x - board.x) < board.width / 2 + radius + 20 &&
+      Math.abs(y - board.y) < 40 + radius,
+  );
+  if (hitsBillboard) return true;
 
   return [...roads, ...approaches].some(
     (way) =>

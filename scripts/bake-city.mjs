@@ -40,7 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { WORLD, cityLocations } from '../src/game/world/locations.js';
-import { roads, approaches, parks, crosswalks, generateTrees, generateStreetLamps } from '../src/game/world/cityLayout.js';
+import { roads, approaches, parks, crosswalks, billboards, generateTrees, generateStreetLamps } from '../src/game/world/cityLayout.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -113,6 +113,7 @@ async function main() {
     roads,
     approaches,
     parks,
+    billboards,
     crosswalks,
     trees: generateTrees(),
     lamps: generateStreetLamps(),
@@ -225,6 +226,10 @@ async function main() {
             loc.size.width,
             loc.size.height,
           );
+        });
+        // Hoardings are solid: you walk around a billboard, not through one.
+        m.billboards.forEach((board) => {
+          ctx.fillRect(board.x - board.width / 2, board.y - 12, board.width, 24);
         });
         // Keep the player off the carriageway; the ambient traffic lives there.
         ctx.fillStyle = '#fff';

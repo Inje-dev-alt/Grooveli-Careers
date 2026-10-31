@@ -3,6 +3,7 @@ import { WORLD, cityLocations } from '../world/locations.js';
 import { CityRenderer } from '../world/CityRenderer.js';
 import { PlateCityRenderer } from '../world/PlateCityRenderer.js';
 import { AmbientLayer } from '../world/ambient.js';
+import { NoticeBoards } from '../world/NoticeBoards.js';
 import { buildCollisionRects } from '../world/collisionMap.js';
 import cityManifest from '../world/cityManifest.json';
 import { Player } from '../entities/Player.js';
@@ -71,6 +72,11 @@ export class CityScene extends Phaser.Scene {
       // nothing here is interactive.
       this.ambient = new AmbientLayer(this);
       this.ambient.create();
+
+      // Live signage: the open-role count outside each district, read from the
+      // store that the React layer fills from jobService.
+      this.noticeBoards = new NoticeBoards(this);
+      this.noticeBoards.create();
     }
 
     this.controls = new ControlSystem(this);
@@ -161,6 +167,8 @@ export class CityScene extends Phaser.Scene {
     this.controls?.destroy();
     this.ambient?.destroy();
     this.ambient = null;
+    this.noticeBoards?.destroy();
+    this.noticeBoards = null;
     this.renderer?.destroy();
     this.interaction?.clear();
     this.player = null;
