@@ -103,11 +103,23 @@ export class CityRenderer {
     });
 
     generateStreetLamps().forEach((lamp) => {
+      /*
+       * The pool first, under everything else: a lamp with no light on the
+       * ground is a pole. Three stacked circles approximate a falloff far more
+       * cheaply than a radial gradient, and this is baked once.
+       */
+      g.fillStyle(worldPalette.lampPool, 0.07);
+      g.fillCircle(lamp.x, lamp.y + 4, 46);
+      g.fillStyle(worldPalette.lampPool, 0.06);
+      g.fillCircle(lamp.x, lamp.y + 2, 30);
+      g.fillStyle(worldPalette.lampPool, 0.07);
+      g.fillCircle(lamp.x, lamp.y, 16);
+
       g.fillStyle(worldPalette.lamp, 1);
       g.fillRect(lamp.x - 1.5, lamp.y - 18, 3, 18);
-      g.fillStyle(worldPalette.lampGlow, 0.04);
-      g.fillCircle(lamp.x, lamp.y - 20, 14);
-      g.fillStyle(worldPalette.lampGlow, 0.65);
+      g.fillStyle(worldPalette.lampGlow, 0.05);
+      g.fillCircle(lamp.x, lamp.y - 20, 15);
+      g.fillStyle(worldPalette.lampGlow, 0.8);
       g.fillCircle(lamp.x, lamp.y - 20, 3.4);
     });
 
@@ -259,17 +271,39 @@ export class CityRenderer {
     const windowRows = Math.max(1, Math.floor(lift / 22));
     const windowCols = Math.max(3, Math.floor(width / 46));
     const cellW = (width - 36) / windowCols;
+    /*
+     * Two interleaved patterns rather than one.
+     *
+     * A single `% 3` lights every third window in a perfect diagonal, which
+     * the eye reads as wallpaper. Mixing a second stride breaks the lattice
+     * without needing randomness — and randomness would be wrong here anyway,
+     * because the facade is baked once and must look the same every visit.
+     */
+    const seed = location.name.length + location.id.length;
     for (let row = 0; row < windowRows; row += 1) {
       for (let col = 0; col < windowCols; col += 1) {
-        const lit = (row * windowCols + col + location.name.length) % 3 === 0;
-        g.fillStyle(lit ? accentColor : worldPalette.windowDark, lit ? 0.7 : 1);
-        g.fillRoundedRect(
-          -halfW + 18 + col * cellW,
-          halfH - lift + 8 + row * 22,
-          cellW - 10,
-          12,
-          3,
-        );
+        const n = row * windowCols + col + seed;
+        const lit = n % 3 === 0 || n % 7 === 0;
+        // A minority keep the district's accent, so a tower still signals
+        // which part of the market it belongs to.
+        const accentWindow = lit && n % 11 === 0;
+
+        const x = -halfW + 18 + col * cellW;
+        const y = halfH - lift + 8 + row * 22;
+
+        if (lit) {
+          // Bloom: a larger, fainter rectangle behind the pane. Baked into the
+          // texture, so it costs nothing per frame.
+          g.fillStyle(accentWindow ? accentColor : worldPalette.windowGlow, 0.16);
+          g.fillRoundedRect(x - 4, y - 4, cellW - 2, 20, 6);
+        }
+
+        let colour = worldPalette.windowDark;
+        if (accentWindow) colour = accentColor;
+        else if (lit) colour = n % 2 === 0 ? worldPalette.windowLit : worldPalette.windowLitAlt;
+
+        g.fillStyle(colour, lit ? 0.92 : 1);
+        g.fillRoundedRect(x, y, cellW - 10, 12, 3);
       }
     }
 

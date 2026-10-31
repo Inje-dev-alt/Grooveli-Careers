@@ -127,24 +127,37 @@ export function generateStreetLamps() {
 
 /** Palette for the world renderer. Mirrors the interface tokens. */
 export const worldPalette = {
-  ground: 0x151d33,
-  groundAlt: 0x1a2340,
-  grid: 0x222d4c,
-  road: 0x242e49,
-  roadEdge: 0x323e60,
-  roadMark: 0x5d6c92,
-  park: 0x1b3d2a,
-  parkEdge: 0x2a6240,
-  tree: [0x2f8458, 0x379a66, 0x44b377],
+  ground: 0x0c1324,
+  groundAlt: 0x111a30,
+  grid: 0x1a2440,
+  road: 0x1b2440,
+  roadEdge: 0x3a4870,
+  roadMark: 0x8294c4,
+  park: 0x16452c,
+  parkEdge: 0x2f7a4c,
+  tree: [0x35996a, 0x3fb078, 0x4ecb8c],
   treeShade: 0x1f5c3c,
   lamp: 0x55638a,
   lampGlow: 0xffe9b8,
-  buildingShadow: 0x070b16,
-  buildingSide: 0x2a3454,
-  buildingFace: 0x36426a,
-  buildingTop: 0x44527e,
-  buildingEdge: 0x5a6a9c,
-  windowDark: 0x1d2742,
-  plaza: 0x26314f,
-  plazaInlay: 0x3a4871,
+  buildingShadow: 0x04070f,
+  buildingSide: 0x27325a,
+  buildingFace: 0x3b4a7d,
+  buildingTop: 0x4e5e98,
+  buildingEdge: 0x6f82c4,
+  windowDark: 0x151d33,
+  /*
+   * Lit windows are WARM, not the district's accent.
+   *
+   * Accent-coloured windows read as signage; warm ones read as somebody
+   * working late, which is the whole subject of this product. The accent
+   * stays, used on a minority of windows, so a district still has a colour
+   * signature without the city looking lit by LEDs.
+   */
+  windowLit: 0xffd9a0,
+  windowLitAlt: 0xffc46b,
+  windowGlow: 0xffb45c,
+  /* Pooled light on the pavement under a lamp. */
+  lampPool: 0xffd9a0,
+  plaza: 0x222e52,
+  plazaInlay: 0x46589a,
 };
