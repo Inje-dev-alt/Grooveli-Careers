@@ -17,10 +17,12 @@ import {
   IconUser,
   IconAward,
   IconCheck,
+  IconSend,
 } from '../components/ui/index.js';
 import { useAsync } from '../hooks/useAsync.js';
 import { useEmployerStore } from '../stores/employerStore.js';
 import { useUiStore } from '../stores/uiStore.js';
+import { useChatStore } from '../stores/chatStore.js';
 import * as candidateService from '../services/candidateService.js';
 import { statusLabel, statusTone, PIPELINE_ORDER } from '../utils/applicationStatus.js';
 import { formatRelativeTime } from '../utils/format.js';
@@ -45,17 +47,21 @@ const TERMINAL = new Set(['rejected', 'withdrawn', 'declined', 'hired']);
  * no that stings.
  */
 export default function EmployerCandidates() {
+  const startWith = useChatStore((s) => s.startWith);
+  const [messaging, setMessaging] = useState(null);
   const [tab, setTab] = useState('pipeline');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [feedbackDraft, setFeedbackDraft] = useState('');
 
+  const organization = useEmployerStore((s) => s.organization);
   const status = useEmployerStore((s) => s.status);
   const applications = useEmployerStore((s) => s.applications);
   const load = useEmployerStore((s) => s.load);
   const setApplicationStatus = useEmployerStore((s) => s.setApplicationStatus);
   const pushToast = useUiStore((s) => s.pushToast);
+  const openModal = useUiStore((s) => s.openModal);
 
   const poolQuery = useAsync(() => candidateService.listCandidates({ search }), [search]);
 
@@ -92,6 +98,32 @@ export default function EmployerCandidates() {
       setFeedbackDraft('');
     } catch (error) {
       pushToast({ title: 'Could not reject', body: error.message, tone: 'danger' });
+    }
+  };
+
+  /*
+   * Open a conversation with somebody found through discovery.
+   *
+   * The thread records where it started, so a week later it still says this
+   * began from the hiring screen rather than from a lobby — the same context
+   * an office visit carries.
+   *
+   * Nothing here enforces politeness: the one-message invite already applies
+   * to everyone, so an employer gets a single message until the candidate
+   * answers. That is the correct policy for a cold approach and it needed no
+   * new code.
+   */
+  const messageCandidate = async (candidate) => {
+    setMessaging(candidate.id);
+    try {
+      const thread = await startWith(candidate.id, {
+        metScene: 'company',
+        metLocationId: organization?.id ?? null,
+      });
+      if (thread) openModal('messages');
+      else pushToast({ title: `Could not open a conversation with ${candidate.name}`, tone: 'danger' });
+    } finally {
+      setMessaging(null);
     }
   };
 
@@ -236,9 +268,20 @@ export default function EmployerCandidates() {
                             ))}
                           </div>
 
-                          <Button size="sm" variant="ghost" onClick={() => setSelected(candidate)}>
-                            View full profile
-                          </Button>
+                          <div className="g-row" style={{ gap: 6 }}>
+                            <Button size="sm" variant="ghost" onClick={() => setSelected(candidate)}>
+                              View full profile
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              icon={<IconSend size={13} />}
+                              loading={messaging === candidate.id}
+                              onClick={() => messageCandidate(candidate)}
+                            >
+                              Message
+                            </Button>
+                          </div>
                         </Panel>
                       </li>
                     ))}

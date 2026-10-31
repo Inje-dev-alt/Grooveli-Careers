@@ -1,9 +1,12 @@
+import { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import './employer.css';
-import { Button, CompanyMark, IconMenu, IconUser } from '../ui/index.js';
+import { Button, CompanyMark, IconBell, IconInbox, IconMenu, IconUser } from '../ui/index.js';
 import { useEmployerStore } from '../../stores/employerStore.js';
 import { useAuthStore, selectCanSwitchRole } from '../../stores/authStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
+import { useNotificationStore } from '../../stores/notificationStore.js';
+import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
 
 const EMPLOYER_NAV = [
   { to: '/employer', label: 'Dashboard', end: true },
@@ -27,8 +30,23 @@ export function EmployerShell({ children }) {
   const organization = useEmployerStore((s) => s.organization);
   const membership = useEmployerStore((s) => s.membership);
   const toggleMenu = useUiStore((s) => s.toggleMenu);
+  const openModal = useUiStore((s) => s.openModal);
+  const unreadNotices = useNotificationStore((s) => s.items.filter((n) => !n.read).length);
+  const loadNotifications = useNotificationStore((s) => s.load);
+  const noticeStatus = useNotificationStore((s) => s.status);
+  const unreadMessages = useChatStore(selectUnreadMessages);
+  const loadConversations = useChatStore((s) => s.loadConversations);
+  const chatStatus = useChatStore((s) => s.status);
+  const closeConversation = useChatStore((s) => s.close);
   const switchRole = useAuthStore((s) => s.switchRole);
   const canSwitchRole = useAuthStore(selectCanSwitchRole);
+
+  // Lazily, like the candidate shell: both badges need a count before anyone
+  // opens the panel behind them.
+  useEffect(() => {
+    if (noticeStatus === 'idle') loadNotifications();
+    if (chatStatus === 'idle') loadConversations();
+  }, [noticeStatus, loadNotifications, chatStatus, loadConversations]);
 
   const goToCandidate = async () => {
     await switchRole('candidate');
@@ -62,6 +80,33 @@ export function EmployerShell({ children }) {
         </nav>
 
         <div className="employer__actions">
+          {/*
+            An employer could be messaged, asked to connect and have their
+            pipeline move without being able to see any of it: this shell
+            carried neither an inbox nor a bell, while the candidate's carried
+            both. Every panel behind these already worked for either role.
+          */}
+          <button
+            type="button"
+            className="hud-btn"
+            onClick={() => {
+              closeConversation();
+              openModal('messages');
+            }}
+            aria-label={`Messages${unreadMessages ? `, ${unreadMessages} unread` : ''}`}
+          >
+            <IconInbox size={18} />
+            {unreadMessages > 0 ? <span className="hud-btn__count">{unreadMessages}</span> : null}
+          </button>
+          <button
+            type="button"
+            className="hud-btn"
+            onClick={() => openModal('notifications')}
+            aria-label={`Notifications${unreadNotices ? `, ${unreadNotices} unread` : ''}`}
+          >
+            <IconBell size={18} />
+            {unreadNotices > 0 ? <span className="hud-btn__count">{unreadNotices}</span> : null}
+          </button>
           {canSwitchRole ? (
             <Button variant="ghost" size="sm" icon={<IconUser size={15} />} onClick={goToCandidate}>
               Candidate space
