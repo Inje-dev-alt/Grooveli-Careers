@@ -1,28 +1,27 @@
 import Phaser from 'phaser';
 import { GAME_SETTINGS } from '../config.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
+import { CHARACTER_PALETTES, drawCharacter } from './characterArt.js';
 
 /**
  * The player avatar.
  *
  * Drawn procedurally rather than from a sprite sheet: the city has its own
  * visual identity and no borrowed assets, and a vector avatar stays crisp at
- * any zoom. The shapes are deliberately simple — a professional silhouette, not
- * a character creator.
+ * any zoom.
+ *
+ * The drawing itself lives in `characterArt.js`, which also draws the crowd.
+ * That is deliberate — when the two had their own painters the avatar ended up
+ * twice the height of the pedestrians it walked past. Sharing the painter means
+ * the player is visibly one of the people in the city rather than a different
+ * species.
  *
  * Rendering lives here; the authoritative player state lives in `playerStore`.
  * This class writes to the store (throttled) and never reads UI state.
  */
-const COLORS = {
-  shadow: 0x05080f,
-  suit: 0x2b3a63,
-  suitDark: 0x22304f,
-  shirt: 0xe7eefc,
-  accent: 0x5be3c8,
-  skin: 0xc98a5e,
-  hair: 0x201a18,
-  shoe: 0x161c2c,
-};
+
+/** The player wears the navy suit; the crowd gets the rest of the wardrobe. */
+const PLAYER_PALETTE = CHARACTER_PALETTES[0];
 
 export class Player {
   /**
@@ -40,12 +39,11 @@ export class Player {
     this.container = scene.add.container(x, y);
     this.container.setDepth(0); // depth is sorted per-frame against buildings
 
-    this.shadow = scene.add.ellipse(0, 14, 34, 14, COLORS.shadow, 0.42);
-    this.legs = scene.add.graphics();
-    this.body = scene.add.graphics();
-    this.head = scene.add.graphics();
-
-    this.container.add([this.shadow, this.legs, this.body, this.head]);
+    // One Graphics object for the whole figure. The walk cycle moves the legs,
+    // the arms and the body's bob together, so splitting them across objects
+    // only made it harder to keep them in step.
+    this.art = scene.add.graphics();
+    this.container.add([this.art]);
 
     scene.physics.add.existing(this.container);
     /** @type {Phaser.Physics.Arcade.Body} */
@@ -55,8 +53,7 @@ export class Player {
     // Velocity is set explicitly every frame, so the body needs no drag or
     // damping — adding either only fights the controller.
 
-    this.drawBody();
-    this.drawHead();
+    this.redraw();
   }
 
   get x() {
@@ -67,80 +64,19 @@ export class Player {
     return this.container.y;
   }
 
-  drawBody() {
-    const g = this.body;
-    g.clear();
-
-    const facingSide = this.direction === 'left' || this.direction === 'right';
-    const width = facingSide ? 20 : 26;
-
-    // Jacket
-    g.fillStyle(COLORS.suit, 1);
-    g.fillRoundedRect(-width / 2, -10, width, 24, 6);
-    // Shaded side for a hint of volume
-    g.fillStyle(COLORS.suitDark, 1);
-    g.fillRoundedRect(width / 2 - 5, -10, 5, 24, { tl: 0, tr: 6, bl: 0, br: 6 });
-
-    if (this.direction === 'down') {
-      // Shirt and collar
-      g.fillStyle(COLORS.shirt, 1);
-      g.fillTriangle(-4, -10, 4, -10, 0, 2);
-      g.fillStyle(COLORS.accent, 1);
-      g.fillRect(-1.5, -8, 3, 9);
-    }
-
-    // Shoulder line
-    g.lineStyle(1, 0x3c4f80, 0.8);
-    g.strokeRoundedRect(-width / 2, -10, width, 24, 6);
-  }
-
-  drawHead() {
-    const g = this.head;
-    g.clear();
-
-    const offsetX = this.direction === 'left' ? -2 : this.direction === 'right' ? 2 : 0;
-
-    // Neck
-    g.fillStyle(COLORS.skin, 1);
-    g.fillRect(-3 + offsetX, -14, 6, 5);
-
-    // Head
-    g.fillStyle(COLORS.skin, 1);
-    g.fillCircle(offsetX, -20, 9);
-
-    // Hair — shaped by facing so the avatar reads as turned around
-    g.fillStyle(COLORS.hair, 1);
-    if (this.direction === 'up') {
-      g.fillCircle(offsetX, -21, 9);
-    } else {
-      g.slice(offsetX, -20, 9, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
-      g.fillPath();
-    }
-
-    if (this.direction === 'down') {
-      g.fillStyle(0x2a2320, 1);
-      g.fillCircle(-3.2, -20.5, 1.2);
-      g.fillCircle(3.2, -20.5, 1.2);
-    } else if (this.direction === 'left' || this.direction === 'right') {
-      g.fillStyle(0x2a2320, 1);
-      g.fillCircle(offsetX + (this.direction === 'right' ? 3 : -3), -20.5, 1.2);
-    }
-  }
-
-  drawLegs() {
-    const g = this.legs;
-    g.clear();
-
-    const swing = this.animationState === 'walking' ? Math.sin(this.walkPhase) * 4.5 : 0;
-    g.fillStyle(COLORS.shoe, 1);
-
-    if (this.direction === 'left' || this.direction === 'right') {
-      g.fillRoundedRect(-4 + swing, 12, 8, 9, 3);
-      g.fillRoundedRect(-4 - swing, 12, 8, 9, 3);
-    } else {
-      g.fillRoundedRect(-9, 12 + swing * 0.5, 8, 9, 3);
-      g.fillRoundedRect(1, 12 - swing * 0.5, 8, 9, 3);
-    }
+  /**
+   * Redraw the figure in its current pose.
+   *
+   * About thirty fill commands, which is cheap enough to run every frame while
+   * walking — the previous implementation already redrew the legs that often.
+   */
+  redraw() {
+    drawCharacter(this.art, {
+      palette: PLAYER_PALETTE,
+      direction: this.direction,
+      phase: this.walkPhase,
+      moving: this.animationState === 'walking',
+    });
   }
 
   /**
@@ -171,23 +107,12 @@ export class Player {
     this.direction = nextDirection;
     this.animationState = nextState;
 
-    if (directionChanged) {
-      this.drawBody();
-      this.drawHead();
-    }
+    if (moving) this.walkPhase += delta * 0.011;
+    else if (stateChanged) this.walkPhase = 0;
 
-    if (moving) {
-      this.walkPhase += delta * 0.014;
-      this.container.y += 0; // position is driven by physics
-      this.head.y = Math.sin(this.walkPhase * 2) * 0.8;
-      this.body.y = Math.sin(this.walkPhase * 2) * 0.6;
-    } else if (stateChanged) {
-      this.walkPhase = 0;
-      this.head.y = 0;
-      this.body.y = 0;
-    }
+    // Idle costs one redraw when something changes; walking costs one a frame.
+    if (moving || directionChanged || stateChanged) this.redraw();
 
-    this.drawLegs();
     this.syncStore(directionChanged || stateChanged);
   }
 

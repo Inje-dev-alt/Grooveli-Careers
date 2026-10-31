@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { roads, approaches } from './cityLayout.js';
+import { cityLocations } from './locations.js';
 import { createRandom } from './platePainter.js';
+import { CHARACTER, CHARACTER_PALETTES, drawCharacter } from '../entities/characterArt.js';
 
 /**
  * Ambient life: traffic on the roads, people on the pavements.
@@ -22,7 +24,16 @@ const LANES = [
 ];
 
 const CAR_COLOURS = [0xf0f4ff, 0x4b6ef5, 0xffd166, 0xef5f5f, 0x2bd4a8, 0x8d6bff, 0x9fb2d8];
-const COAT_COLOURS = [0x2b3a63, 0x3c4f7d, 0x5a4a6e, 0x2f5d52, 0x6b4a3a, 0x44526f];
+
+/**
+ * The player wears palette 0, so the crowd draws from the rest. Someone
+ * wearing the player's exact suit standing still is read as the avatar, and
+ * the player then spends a moment working out which figure they are driving.
+ */
+const CROWD_PALETTES = CHARACTER_PALETTES.map((_, index) => index).slice(1);
+
+/** Frames in the walk cycle. Two are enough at the distance the camera sits. */
+const WALK_PHASES = { a: Math.PI / 2, b: (Math.PI * 3) / 2 };
 
 /**
  * Cars, spaced along every carriageway.
@@ -83,9 +94,11 @@ export function generateCrowd(random) {
       max,
       direction: random() < 0.5 ? 1 : -1,
       speed: 17 + random() * 16,
-      // Phase keeps the whole crowd from bobbing in lockstep.
+      // Phase keeps the whole crowd from stepping in lockstep.
       phase: random() * Math.PI * 2,
-      colour: COAT_COLOURS[Math.floor(random() * COAT_COLOURS.length)],
+      palette: CROWD_PALETTES[Math.floor(random() * CROWD_PALETTES.length)],
+      facing: null,
+      frame: null,
     });
   };
 
@@ -94,7 +107,7 @@ export function generateCrowd(random) {
     const length = horizontal ? road.width : road.height;
     const count = Math.max(2, Math.round(length / 330));
 
-    [-18, (horizontal ? road.height : road.width) + 18].forEach((edge) => {
+    [-20, (horizontal ? road.height : road.width) + 20].forEach((edge) => {
       for (let i = 0; i < count; i += 1) {
         const t = (i + random() * 0.8) / count;
         const along = (horizontal ? road.x : road.y) + t * length;
@@ -111,9 +124,9 @@ export function generateCrowd(random) {
     for (let i = 0; i < count; i += 1) {
       const t = (i + random() * 0.8) / count;
       if (vertical) {
-        addWalker(way.x + 24 + random() * (way.width - 48), way.y + t * way.height, false, way.y + 16, way.y + way.height - 16);
+        addWalker(way.x + 26 + random() * (way.width - 52), way.y + t * way.height, false, way.y + 16, way.y + way.height - 16);
       } else {
-        addWalker(way.x + t * way.width, way.y + 24 + random() * (way.height - 48), true, way.x + 16, way.x + way.width - 16);
+        addWalker(way.x + t * way.width, way.y + 26 + random() * (way.height - 52), true, way.x + 16, way.x + way.width - 16);
       }
     }
   });
@@ -122,28 +135,79 @@ export function generateCrowd(random) {
 }
 
 /**
+ * People standing still: pairs in conversation on the plaza, and a few
+ * loitering beside each district entrance.
+ *
+ * A crowd that is entirely in transit reads as a conveyor belt. Pairs facing
+ * each other are what make a square look like somewhere people choose to be,
+ * and they cost nothing — a standing figure is one sprite that never updates.
+ */
+export function generateGatherings(random) {
+  const standing = [];
+  const pick = () => CROWD_PALETTES[Math.floor(random() * CROWD_PALETTES.length)];
+
+  const addPair = (x, y) => {
+    // Turned toward each other, and offset slightly in Y so the depth sort
+    // puts one in front rather than leaving them to z-fight.
+    standing.push({ x: x - 11, y: y + 2, facing: 'right', palette: pick() });
+    standing.push({ x: x + 11, y: y - 2, facing: 'left', palette: pick() });
+  };
+
+  cityLocations
+    .filter((location) => location.walkable)
+    .forEach((plaza) => {
+      const insetX = plaza.size.width * 0.33;
+      const insetY = plaza.size.height * 0.29;
+      addPair(plaza.position.x - insetX, plaza.position.y - insetY);
+      addPair(plaza.position.x - insetX, plaza.position.y + insetY);
+      standing.push({ x: plaza.position.x + insetX, y: plaza.position.y - insetY, facing: 'down', palette: pick() });
+      standing.push({ x: plaza.position.x + insetX, y: plaza.position.y + insetY, facing: 'down', palette: pick() });
+    });
+
+  cityLocations
+    .filter((location) => !location.walkable && location.id !== 'player-apartment')
+    .forEach((location) => {
+      // Beside the doors rather than across them, so nobody appears to be
+      // blocking the entrance the player is being invited to walk into.
+      const y = location.position.y + location.size.height / 2 + 26;
+      const offset = location.size.width * 0.3;
+      standing.push({ x: location.position.x - offset, y, facing: 'down', palette: pick() });
+      if (random() < 0.6) {
+        standing.push({ x: location.position.x + offset, y: y + 6, facing: 'left', palette: pick() });
+      }
+    });
+
+  return standing;
+}
+
+/**
  * Creates the sprites and moves them.
  *
- * Textures are baked once per scene, not per actor: eighty sprites share about
- * a dozen textures, so the whole layer draws in a handful of batches.
+ * Car and person textures are baked once per scene and shared: a hundred
+ * actors draw from a few dozen textures, so the whole layer batches into a
+ * handful of draw calls. Person textures are baked on demand — only the
+ * combinations of outfit, facing and step that actually appear get made.
  */
 export class AmbientLayer {
   /** @param {Phaser.Scene} scene */
   constructor(scene) {
     this.scene = scene;
-    this.textureKeys = [];
+    this.textureKeys = new Set();
     this.cars = [];
     this.people = [];
+    this.standing = [];
     this.carSprites = [];
     this.personSprites = [];
+    this.standingSprites = [];
   }
 
   create() {
     const random = createRandom(20261101);
-    this.bakeTextures();
+    this.bakeCarTextures();
 
     this.cars = generateTraffic(random);
     this.people = generateCrowd(random);
+    this.standing = generateGatherings(random);
 
     this.carSprites = this.cars.map((car) => {
       const sprite = this.scene.add.image(car.x, car.y, car.key);
@@ -155,18 +219,56 @@ export class AmbientLayer {
     });
 
     this.personSprites = this.people.map((person) => {
-      const sprite = this.scene.add.image(person.x, person.y, this.personKeyFor(person.colour));
+      person.facing = this.facingFor(person);
+      person.frame = 'a';
+      const sprite = this.scene.add.image(person.x, person.y, this.personTexture(person.palette, person.facing, 'a'));
+      sprite.setOrigin(CHARACTER.originX, CHARACTER.originY);
       sprite.setDepth(person.y);
       return sprite;
     });
+
+    // Standing figures never update, so they need no bookkeeping beyond this.
+    this.standing.forEach((person) => {
+      const sprite = this.scene.add.image(person.x, person.y, this.personTexture(person.palette, person.facing, 'idle'));
+      sprite.setOrigin(CHARACTER.originX, CHARACTER.originY);
+      sprite.setDepth(person.y);
+      this.standingSprites.push(sprite);
+    });
   }
 
-  personKeyFor(colour) {
-    return `amb-person-${COAT_COLOURS.indexOf(colour)}`;
+  facingFor(person) {
+    if (person.horizontal) return person.direction > 0 ? 'right' : 'left';
+    return person.direction > 0 ? 'down' : 'up';
   }
 
-  /** One texture per car colour and one per coat colour. */
-  bakeTextures() {
+  /**
+   * Bake one person, if that exact outfit, facing and step has not been drawn
+   * before. The figure comes from the same painter as the player's avatar, so
+   * the crowd is the player's size by construction rather than by agreement.
+   */
+  personTexture(paletteIndex, facing, frame) {
+    const key = `npc-${paletteIndex}-${facing}-${frame}`;
+    if (this.textureKeys.has(key)) return key;
+
+    const g = this.scene.make.graphics({ add: false });
+    drawCharacter(g, {
+      palette: CHARACTER_PALETTES[paletteIndex],
+      direction: facing,
+      moving: frame !== 'idle',
+      phase: WALK_PHASES[frame] ?? 0,
+      // The painter works around an origin at the middle of the body, which
+      // runs negative; a texture starts at (0,0), so the figure is shifted
+      // onto it. The painter applies this itself — see drawCharacter.
+      offset: { x: -CHARACTER.left, y: -CHARACTER.top },
+    });
+    g.generateTexture(key, CHARACTER.width, CHARACTER.height);
+    g.destroy();
+
+    this.textureKeys.add(key);
+    return key;
+  }
+
+  bakeCarTextures() {
     CAR_COLOURS.forEach((colour, index) => {
       const key = `amb-car-${index}`;
       if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
@@ -189,26 +291,7 @@ export class AmbientLayer {
 
       g.generateTexture(key, 50, 32);
       g.destroy();
-      this.textureKeys.push(key);
-    });
-
-    COAT_COLOURS.forEach((colour, index) => {
-      const key = `amb-person-${index}`;
-      if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
-      const g = this.scene.make.graphics({ add: false });
-
-      g.fillStyle(0x05080f, 0.38);
-      g.fillEllipse(9, 21, 15, 6);
-      g.fillStyle(colour, 1);
-      g.fillRoundedRect(3, 7, 12, 13, 4);
-      g.fillStyle(0xc98a5e, 1);
-      g.fillCircle(9, 5, 4.4);
-      g.fillStyle(0x201a18, 1);
-      g.fillCircle(9, 3.4, 4.4);
-
-      g.generateTexture(key, 20, 26);
-      g.destroy();
-      this.textureKeys.push(key);
+      this.textureKeys.add(key);
     });
   }
 
@@ -254,20 +337,28 @@ export class AmbientLayer {
         sprite.setDepth(person.y);
       }
 
-      // A shallow bob sells walking without an animation frame budget.
-      person.phase += step * 7;
-      sprite.y += Math.sin(person.phase) * 0.6;
+      // Step rate follows walking speed, so nobody moonwalks.
+      person.phase += step * person.speed * 0.34;
+      const facing = this.facingFor(person);
+      const frame = Math.floor(person.phase) % 2 === 0 ? 'a' : 'b';
+      if (facing !== person.facing || frame !== person.frame) {
+        person.facing = facing;
+        person.frame = frame;
+        sprite.setTexture(this.personTexture(person.palette, facing, frame));
+      }
     }
   }
 
   destroy() {
     this.carSprites.forEach((sprite) => sprite.destroy());
     this.personSprites.forEach((sprite) => sprite.destroy());
+    this.standingSprites.forEach((sprite) => sprite.destroy());
     this.textureKeys.forEach((key) => {
       if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
     });
     this.carSprites = [];
     this.personSprites = [];
-    this.textureKeys = [];
+    this.standingSprites = [];
+    this.textureKeys.clear();
   }
 }

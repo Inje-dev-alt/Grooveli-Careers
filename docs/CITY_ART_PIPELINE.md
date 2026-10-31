@@ -118,16 +118,49 @@ node scripts/check-reachable.mjs
 It flood-fills from the spawn point and asserts every location's approach is
 connected.
 
+## People
+
+**Everyone in the city is drawn by `src/game/entities/characterArt.js`** — the
+player's avatar and every pedestrian, from one function.
+
+This is not tidiness for its own sake. When the avatar and the crowd had their
+own painters, the player was a 50-pixel figure walking past 26-pixel
+pedestrians, which read as the player being a giant. Sharing the painter makes
+a size mismatch structurally impossible: `CHARACTER` declares the bounds, both
+paths use it, and there is no second set of numbers to fall out of step.
+
+The two paths differ only in how the output is used:
+
+- The **player** draws into a live Graphics object, redrawn each frame while
+  walking (about thirty fill commands — the previous implementation already
+  redrew the legs that often).
+- The **crowd** bakes the same output into textures, one per outfit, facing and
+  step, created on demand so only combinations that actually appear get made.
+
+To restyle everyone, edit that one file. To change the wardrobe, edit
+`CHARACTER_PALETTES`. Palette 0 is reserved for the player — a bystander in the
+player's exact suit standing still gets mistaken for the avatar.
+
+### A trap worth knowing about
+
+`drawCharacter` applies its own `offset` via `translateCanvas` **after** calling
+`clear()`. A translation pushed by the caller beforehand is silently discarded,
+because `clear()` empties the command buffer the translation lives in. The
+figure is then drawn around a (0,0) origin, and baking that into a texture
+clips everything above the waist — leaving a shoe and a scrap of jacket.
+
 ## Ambient life
 
-`src/game/world/ambient.js` puts traffic on the roads and people on the
-pavements. None of it collides and none of it is interactive — it exists because
-an empty city reads as a diagram.
+`src/game/world/ambient.js` puts traffic on the roads, pedestrians on the
+pavements, and standing pairs on the plaza and beside each district entrance.
+None of it collides and none of it is interactive — it exists because an empty
+city reads as a diagram, and a city where everyone is in transit reads as a
+conveyor belt.
 
-Actors share about a dozen baked textures and are moved by arithmetic: no
-physics bodies, no pathfinding, no per-frame allocation. Cars wrap around their
-lane rather than turning, which needs no junction logic. Pedestrians walk a
-segment and turn around, which is enough motion at the distance the camera sits.
+Actors are moved by arithmetic: no physics bodies, no pathfinding, no per-frame
+allocation. Cars wrap around their lane rather than turning, which needs no
+junction logic. Pedestrians walk a segment and turn around, which is enough
+motion at the distance the camera sits. Standing figures never update at all.
 
 ## Switching back
 
