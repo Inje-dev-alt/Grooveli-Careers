@@ -158,6 +158,21 @@ export const worldPalette = {
   windowGlow: 0xffb45c,
   /* Pooled light on the pavement under a lamp. */
   lampPool: 0xffd9a0,
+
+  /*
+   * Second tones.
+   *
+   * A gradient needs two colours; a flat fill is the single clearest signal
+   * that something was drawn rather than rendered. Each of these is the same
+   * hue as its partner, darker, so a surface falls away from its lit edge
+   * instead of changing colour.
+   */
+  groundDeep: 0x070c18,
+  roadDeep: 0x121a30,
+  buildingFaceDeep: 0x29345c,
+  buildingTopDeep: 0x3a4876,
+  parkDeep: 0x0f3020,
+  plazaDeep: 0x18213c,
   plaza: 0x222e52,
   plazaInlay: 0x46589a,
 };

@@ -15,6 +15,46 @@ import { roads, parks, crosswalks, generateTrees, generateStreetLamps, worldPale
  */
 const LIFT_PER_FLOOR = 13;
 
+/**
+ * A tile of speckle, laid over the ground so it reads as a surface.
+ *
+ * Large flat areas are what make generated geometry look like plastic. A
+ * little grain is what the eye uses to decide something is asphalt or concrete
+ * rather than a coloured rectangle, and at this alpha it is not consciously
+ * visible — removing it is far more noticeable than adding it.
+ *
+ * One 128px tile, generated once and repeated. Deterministic, because the
+ * world is baked and grain that differed between visits would be a texture
+ * nobody could place.
+ */
+const NOISE_TILE = 128;
+
+function bakeNoiseTexture(scene) {
+  const key = 'grooveli-grain';
+  if (scene.textures.exists(key)) return key;
+
+  const g = scene.make.graphics({ add: false });
+  // A cheap deterministic sequence — no seeded RNG dependency, and the same
+  // speckle every run.
+  let seed = 20261031;
+  const next = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+
+  for (let i = 0; i < 1400; i += 1) {
+    const x = next() * NOISE_TILE;
+    const y = next() * NOISE_TILE;
+    const light = next() > 0.5;
+    g.fillStyle(light ? 0xffffff : 0x000000, light ? 0.028 : 0.05);
+    g.fillRect(x, y, 1 + Math.round(next()), 1 + Math.round(next()));
+  }
+
+  g.generateTexture(key, NOISE_TILE, NOISE_TILE);
+  g.destroy();
+  return key;
+}
+
 export class CityRenderer {
   /** @param {Phaser.Scene} scene */
   constructor(scene) {
@@ -36,7 +76,21 @@ export class CityRenderer {
   drawEnvironment() {
     const g = this.scene.make.graphics({ add: false });
 
-    g.fillStyle(worldPalette.ground, 1);
+    /*
+     * The ground falls away toward the bottom of the map.
+     *
+     * `fillGradientStyle` takes a colour per corner, so a vertical falloff is
+     * the top pair light and the bottom pair dark. This one change does more
+     * against the flat look than any amount of extra detail: a single solid
+     * fill across 2680x1820 is the most obvious thing in the scene.
+     */
+    g.fillGradientStyle(
+      worldPalette.ground,
+      worldPalette.ground,
+      worldPalette.groundDeep,
+      worldPalette.groundDeep,
+      1,
+    );
     g.fillRect(0, 0, WORLD.width, WORLD.height);
 
     // A faint grid gives the eye a sense of scale while moving.
@@ -49,14 +103,28 @@ export class CityRenderer {
     }
 
     parks.forEach((park) => {
-      g.fillStyle(worldPalette.park, 1);
+      g.fillGradientStyle(
+        worldPalette.park,
+        worldPalette.park,
+        worldPalette.parkDeep,
+        worldPalette.parkDeep,
+        1,
+      );
       g.fillRoundedRect(park.x, park.y, park.width, park.height, 40);
       g.lineStyle(2, worldPalette.parkEdge, 0.9);
       g.strokeRoundedRect(park.x, park.y, park.width, park.height, 40);
     });
 
     roads.forEach((road) => {
-      g.fillStyle(worldPalette.road, 1);
+      // Across the carriageway rather than down it, so the camber reads.
+      const across = road.orientation === 'h';
+      g.fillGradientStyle(
+        across ? worldPalette.roadDeep : worldPalette.road,
+        across ? worldPalette.roadDeep : worldPalette.roadDeep,
+        across ? worldPalette.road : worldPalette.road,
+        across ? worldPalette.roadDeep : worldPalette.roadDeep,
+        1,
+      );
       g.fillRect(road.x, road.y, road.width, road.height);
       g.lineStyle(2, worldPalette.roadEdge, 1);
       g.strokeRect(road.x, road.y, road.width, road.height);
@@ -128,6 +196,20 @@ export class CityRenderer {
     baked.setDepth(-1000);
     baked.draw(g);
     g.destroy();
+
+    /*
+     * Grain over the whole ground plane, drawn INTO the same render texture so
+     * it stays one quad per frame. A repeating sprite layer would cost a
+     * second draw and scroll independently of the world; this is baked in and
+     * then forgotten about.
+     */
+    const grain = bakeNoiseTexture(this.scene);
+    for (let x = 0; x < WORLD.width; x += NOISE_TILE) {
+      for (let y = 0; y < WORLD.height; y += NOISE_TILE) {
+        baked.draw(grain, x, y);
+      }
+    }
+    this.textureKeys.push(grain);
 
     this.environment = baked;
     return baked;
@@ -216,7 +298,13 @@ export class CityRenderer {
 
   /** Open space: an inlaid plaza rather than a building. */
   drawPlaza(g, halfW, halfH, accentColor) {
-    g.fillStyle(worldPalette.plaza, 1);
+    g.fillGradientStyle(
+      worldPalette.plaza,
+      worldPalette.plaza,
+      worldPalette.plazaDeep,
+      worldPalette.plazaDeep,
+      1,
+    );
     g.fillRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, 26);
 
     g.lineStyle(2, worldPalette.plazaInlay, 1);
@@ -242,18 +330,46 @@ export class CityRenderer {
     const width = halfW * 2;
     const height = halfH * 2;
 
-    // Ground shadow
+    /*
+     * Contact shadow: three offset layers rather than one.
+     *
+     * A single flat shadow reads as a sticker behind the building. Stacking a
+     * wide faint one, a tighter darker one and a tight dark core approximates
+     * the falloff of real occlusion and is what makes the tower feel like it
+     * has weight rather than being pasted onto the ground.
+     */
+    g.fillStyle(worldPalette.buildingShadow, 0.22);
+    g.fillRoundedRect(-halfW + 4, -halfH + 8, width + 16, height + 18, 22);
+    g.fillStyle(worldPalette.buildingShadow, 0.34);
+    g.fillRoundedRect(-halfW + 8, -halfH + 12, width + 6, height + 10, 18);
     g.fillStyle(worldPalette.buildingShadow, 0.5);
     g.fillRoundedRect(-halfW + 10, -halfH + 14, width, height, 16);
 
-    // Front facade — the band between the lifted roof and the footprint base.
-    g.fillStyle(worldPalette.buildingFace, 1);
+    // Front facade, darkening toward its base where it meets the street.
+    g.fillGradientStyle(
+      worldPalette.buildingFace,
+      worldPalette.buildingFace,
+      worldPalette.buildingFaceDeep,
+      worldPalette.buildingFaceDeep,
+      1,
+    );
     g.fillRect(-halfW, halfH - lift, width, lift);
     g.fillStyle(worldPalette.buildingSide, 1);
     g.fillRect(halfW - 16, halfH - lift, 16, lift);
 
-    // Roof
-    g.fillStyle(worldPalette.buildingTop, 1);
+    // Occlusion where the facade meets the pavement — the darkest line in the
+    // scene, and the one that grounds everything above it.
+    g.fillStyle(worldPalette.buildingShadow, 0.45);
+    g.fillRect(-halfW, halfH - 6, width, 6);
+
+    // Roof, lit from the top-left like everything else.
+    g.fillGradientStyle(
+      worldPalette.buildingTop,
+      worldPalette.buildingTop,
+      worldPalette.buildingTopDeep,
+      worldPalette.buildingTopDeep,
+      1,
+    );
     g.fillRoundedRect(-halfW, -halfH - lift, width, height, 14);
     g.lineStyle(2, worldPalette.buildingEdge, 1);
     g.strokeRoundedRect(-halfW, -halfH - lift, width, height, 14);
