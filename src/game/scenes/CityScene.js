@@ -6,6 +6,8 @@ import { CITY_BACKDROP } from '../world/backdrop.js';
 import { Player } from '../entities/Player.js';
 import { Pedestrian, bakePedestrianTextures, PEDESTRIAN_PALETTES } from '../entities/Pedestrian.js';
 import { pedestrianRoutes } from '../world/pedestrianRoutes.js';
+import { Vehicle, bakeVehicleTextures, VEHICLE_TYPES } from '../entities/Vehicle.js';
+import { trafficRoutes } from '../world/trafficRoutes.js';
 import { ControlSystem } from '../systems/ControlSystem.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
 import { CameraSystem } from '../systems/CameraSystem.js';
@@ -153,6 +155,7 @@ export class CityScene extends Phaser.Scene {
     this.physics.add.collider(this.player.container, this.obstacles);
 
     this.spawnCrowd();
+    this.spawnTraffic();
 
     this.controls = new ControlSystem(this);
     this.cameraSystem = new CameraSystem(this, bounds);
@@ -223,10 +226,42 @@ export class CityScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Put vehicles on the two circuits.
+   *
+   * Eight of them, which is enough that a street is never empty and few
+   * enough that the city does not read as a traffic jam. Spread by offset so
+   * they are already distributed on the first frame.
+   */
+  spawnTraffic() {
+    this.vehicleTextures = bakeVehicleTextures(this);
+    this.vehicles = [];
+
+    const PER_ROUTE = 4;
+    trafficRoutes.forEach((route, routeIndex) => {
+      for (let i = 0; i < PER_ROUTE; i += 1) {
+        const n = routeIndex * PER_ROUTE + i;
+        this.vehicles.push(
+          new Vehicle(this, route, {
+            type: n % VEHICLE_TYPES,
+            // 95-145 px/s: clearly faster than someone walking, slow enough
+            // to follow with the eye.
+            speed: 95 + ((n * 13) % 50),
+            offset: (i / PER_ROUTE) * 2000 + n * 90,
+            // The outer circuit runs the other way, so the two lanes of each
+            // road carry opposing traffic.
+            reverse: routeIndex === 1,
+          }),
+        );
+      }
+    });
+  }
+
   update(time, delta) {
     if (!this.player) return;
 
     this.pedestrians?.forEach((person) => person.update(delta));
+    this.vehicles?.forEach((vehicle) => vehicle.update(delta));
 
     this.player.update(this.controls.getAxis(), delta);
     // Depth-sort the player against the buildings by world Y.
@@ -267,6 +302,10 @@ export class CityScene extends Phaser.Scene {
     // the city would otherwise bake a second set over the first.
     this.pedestrianTextures?.forEach((key) => this.textures.remove(key));
     this.pedestrianTextures = [];
+    this.vehicles?.forEach((vehicle) => vehicle.destroy());
+    this.vehicles = [];
+    this.vehicleTextures?.forEach((key) => this.textures.remove(key));
+    this.vehicleTextures = [];
     this.interaction?.clear();
     this.player = null;
   }
