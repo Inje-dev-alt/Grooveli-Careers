@@ -144,6 +144,43 @@ export class CityRenderer {
       }
     });
 
+    /*
+     * Kerbs and bays.
+     *
+     * The ground between buildings was bare, which is most of why the city
+     * read as a diagram. A kerb line along each carriageway and parking bays
+     * on the long roads cost nothing baked and give the eye something to
+     * measure distance against while walking.
+     */
+    roads.forEach((road) => {
+      const horizontal = road.orientation === 'h';
+      g.lineStyle(3, worldPalette.roadEdge, 0.8);
+      if (horizontal) {
+        g.lineBetween(road.x, road.y - 2, road.x + road.width, road.y - 2);
+        g.lineBetween(road.x, road.y + road.height + 2, road.x + road.width, road.y + road.height + 2);
+      } else {
+        g.lineBetween(road.x - 2, road.y, road.x - 2, road.y + road.height);
+        g.lineBetween(road.x + road.width + 2, road.y, road.x + road.width + 2, road.y + road.height);
+      }
+
+      // Bays, only on the long runs — a short connector lined with parking
+      // looks like a car park rather than a street.
+      const runs = horizontal ? road.width : road.height;
+      if (runs < 700) return;
+      g.lineStyle(2, worldPalette.roadMark, 0.3);
+      if (horizontal) {
+        for (let x = road.x + 60; x < road.x + road.width - 60; x += 46) {
+          g.lineBetween(x, road.y + 6, x, road.y + 24);
+          g.lineBetween(x, road.y + road.height - 24, x, road.y + road.height - 6);
+        }
+      } else {
+        for (let y = road.y + 60; y < road.y + road.height - 60; y += 46) {
+          g.lineBetween(road.x + 6, y, road.x + 24, y);
+          g.lineBetween(road.x + road.width - 24, y, road.x + road.width - 6, y);
+        }
+      }
+    });
+
     crosswalks.forEach((walk) => {
       g.fillStyle(worldPalette.roadMark, 0.3);
       if (walk.orientation === 'h') {
@@ -374,14 +411,59 @@ export class CityRenderer {
     g.lineStyle(2, worldPalette.buildingEdge, 1);
     g.strokeRoundedRect(-halfW, -halfH - lift, width, height, 14);
 
-    // Roof detailing: an accent strip and a plant deck, so the tops are not flat.
+    /*
+     * Rooftops, varied by building.
+     *
+     * Every tower previously carried the same accent strip, the same deck in
+     * the same corner and the same two shrubs, which is what made a skyline of
+     * eleven buildings read as one building eleven times. Each now gets one of
+     * three treatments, chosen from its own id so it is the same on every
+     * visit and different from its neighbours.
+     */
+    const roofTop = -halfH - lift;
+    const variant = (location.id.charCodeAt(0) + location.id.length) % 3;
+
     g.fillStyle(accentColor, 0.16);
-    g.fillRoundedRect(-halfW + 18, -halfH - lift + 18, width - 36, 26, 8);
-    g.fillStyle(worldPalette.buildingSide, 1);
-    g.fillRoundedRect(-halfW + 18, -halfH - lift + 56, width * 0.38, height - 96, 10);
-    g.fillStyle(worldPalette.tree[1], 0.5);
-    g.fillCircle(-halfW + 44, -halfH - lift + 86, 11);
-    g.fillCircle(-halfW + 72, -halfH - lift + 104, 9);
+    g.fillRoundedRect(-halfW + 18, roofTop + 18, width - 36, 26, 8);
+
+    if (variant === 0) {
+      // Plant deck and shrubs.
+      g.fillStyle(worldPalette.buildingSide, 1);
+      g.fillRoundedRect(-halfW + 18, roofTop + 56, width * 0.38, height - 96, 10);
+      g.fillStyle(worldPalette.tree[1], 0.5);
+      g.fillCircle(-halfW + 44, roofTop + 86, 11);
+      g.fillCircle(-halfW + 72, roofTop + 104, 9);
+    } else if (variant === 1) {
+      // Plant room and vents — the back of house nobody designs but every
+      // building has.
+      g.fillStyle(worldPalette.buildingSide, 1);
+      g.fillRoundedRect(halfW - width * 0.42, roofTop + 54, width * 0.3, height * 0.3, 6);
+      g.fillStyle(worldPalette.buildingTopDeep, 1);
+      for (let i = 0; i < 3; i += 1) {
+        g.fillCircle(halfW - width * 0.34 + i * 22, roofTop + 54 + height * 0.3 + 18, 7);
+      }
+      g.fillStyle(worldPalette.buildingShadow, 0.25);
+      g.fillRoundedRect(halfW - width * 0.42 + 4, roofTop + 58, width * 0.3, height * 0.3, 6);
+    } else {
+      // A setback: a smaller upper storey, which is the cheapest way to make a
+      // silhouette stop being a rectangle.
+      const inset = Math.min(width, height) * 0.22;
+      g.fillGradientStyle(
+        worldPalette.buildingTop,
+        worldPalette.buildingTop,
+        worldPalette.buildingTopDeep,
+        worldPalette.buildingTopDeep,
+        1,
+      );
+      g.fillRoundedRect(-halfW + inset, roofTop + inset - 14, width - inset * 2, height - inset * 2, 10);
+      g.lineStyle(2, worldPalette.buildingEdge, 0.9);
+      g.strokeRoundedRect(-halfW + inset, roofTop + inset - 14, width - inset * 2, height - inset * 2, 10);
+      // Mast on the upper storey.
+      g.fillStyle(worldPalette.buildingEdge, 0.9);
+      g.fillRect(-2, roofTop + inset - 44, 4, 30);
+      g.fillStyle(accentColor, 0.9);
+      g.fillCircle(0, roofTop + inset - 46, 3.5);
+    }
 
     // Facade windows
     const windowRows = Math.max(1, Math.floor(lift / 22));
