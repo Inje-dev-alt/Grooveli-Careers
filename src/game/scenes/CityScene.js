@@ -4,6 +4,8 @@ import { CityRenderer } from '../world/CityRenderer.js';
 import { BackdropRenderer } from '../world/BackdropRenderer.js';
 import { CITY_BACKDROP } from '../world/backdrop.js';
 import { Player } from '../entities/Player.js';
+import { Pedestrian, bakePedestrianTextures, PEDESTRIAN_PALETTES } from '../entities/Pedestrian.js';
+import { pedestrianRoutes } from '../world/pedestrianRoutes.js';
 import { ControlSystem } from '../systems/ControlSystem.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
 import { CameraSystem } from '../systems/CameraSystem.js';
@@ -150,6 +152,8 @@ export class CityScene extends Phaser.Scene {
     this.player = new Player(this, entrance.x, entrance.y);
     this.physics.add.collider(this.player.container, this.obstacles);
 
+    this.spawnCrowd();
+
     this.controls = new ControlSystem(this);
     this.cameraSystem = new CameraSystem(this, bounds);
     this.cameraSystem.follow(this.player.container);
@@ -187,8 +191,42 @@ export class CityScene extends Phaser.Scene {
     gameBridge.emit(GAME_EVENTS.WORLD_READY, { scene: 'CityScene' });
   }
 
+  /**
+   * Fill the pavements.
+   *
+   * Spread across the routes rather than piled onto one, with each walker
+   * started at its own offset so the city is busy on the first frame instead
+   * of filling up over a minute. Speeds vary because a crowd moving in step
+   * reads as a parade.
+   */
+  spawnCrowd() {
+    this.pedestrianTextures = bakePedestrianTextures(this);
+    this.pedestrians = [];
+
+    const PER_ROUTE = 4;
+    pedestrianRoutes.forEach((route, routeIndex) => {
+      for (let i = 0; i < PER_ROUTE; i += 1) {
+        const n = routeIndex * PER_ROUTE + i;
+        this.pedestrians.push(
+          new Pedestrian(this, route, {
+            palette: n % PEDESTRIAN_PALETTES,
+            // 38-62 px/s. Slower than the player, who should feel purposeful
+            // next to people going about their day.
+            speed: 38 + ((n * 7) % 25),
+            // Spread around the loop, not clustered at its first corner.
+            offset: (i / PER_ROUTE) * 1000 + n * 37,
+            // Half of them walk the other way, so pavements have two streams.
+            reverse: n % 2 === 1,
+          }),
+        );
+      }
+    });
+  }
+
   update(time, delta) {
     if (!this.player) return;
+
+    this.pedestrians?.forEach((person) => person.update(delta));
 
     this.player.update(this.controls.getAxis(), delta);
     // Depth-sort the player against the buildings by world Y.
@@ -223,6 +261,12 @@ export class CityScene extends Phaser.Scene {
     this.controls?.destroy();
     this.renderer?.destroy();
     this.backdrop?.destroy();
+    this.pedestrians?.forEach((person) => person.destroy());
+    this.pedestrians = [];
+    // Textures outlive the scene unless released, and a route change back into
+    // the city would otherwise bake a second set over the first.
+    this.pedestrianTextures?.forEach((key) => this.textures.remove(key));
+    this.pedestrianTextures = [];
     this.interaction?.clear();
     this.player = null;
   }
