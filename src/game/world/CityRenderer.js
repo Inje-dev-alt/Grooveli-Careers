@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { WORLD } from './locations.js';
 import { roads, parks, crosswalks, generateTrees, generateStreetLamps, worldPalette } from './cityLayout.js';
+import { createLocationLabel } from './locationLabel.js';
 
 /**
  * Draws Grooveli City.
@@ -286,40 +287,7 @@ export class CityRenderer {
 
   /** Floating name plate above each location. */
   createLabel(location, halfH, lift, accentColor) {
-    const container = this.scene.add.container(
-      location.position.x,
-      location.position.y - halfH - lift - 34,
-    );
-    container.setDepth(9000);
-
-    const text = this.scene.add
-      .text(0, 0, location.shortName, {
-        fontFamily: 'Sora, Inter, sans-serif',
-        fontSize: '15px',
-        fontStyle: '600',
-        color: '#eef2fb',
-        resolution: 2,
-      })
-      .setOrigin(0.5);
-    text.setLetterSpacing(1.4);
-
-    const padX = 16;
-    const width = text.width + padX * 2 + 16;
-    const height = 30;
-
-    const plate = this.scene.add.graphics();
-    plate.fillStyle(0x0b1020, 0.9);
-    plate.fillRoundedRect(-width / 2, -height / 2, width, height, 15);
-    plate.lineStyle(1, accentColor, 0.5);
-    plate.strokeRoundedRect(-width / 2, -height / 2, width, height, 15);
-    plate.fillStyle(accentColor, 1);
-    plate.fillCircle(-width / 2 + 13, 0, 4);
-
-    text.setX(6);
-    container.add([plate, text]);
-    container.setAlpha(0.9);
-
-    return container;
+    return createLocationLabel(this.scene, location, location.position.y - halfH - lift, accentColor);
   }
 
   /**

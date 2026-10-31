@@ -16,7 +16,18 @@ export const roads = [
   { x: 40, y: 1148, width: WORLD.width - 80, height: 118, orientation: 'h' },
   { x: 690, y: 110, width: 118, height: WORLD.height - 220, orientation: 'v' },
   { x: 2010, y: 110, width: 118, height: WORLD.height - 220, orientation: 'v' },
-  // Short connectors into the central landmarks
+];
+
+/**
+ * Pedestrian approaches into the central landmarks.
+ *
+ * These were carriageways once, which put the AI Career Center's front door in
+ * the middle of a road: there was no crossing, so the entrance could not be
+ * walked to at all. They dead-end at a building, so they were never streets —
+ * they are promenades. Being approaches rather than roads means they are paved
+ * instead of surfaced, they carry no traffic, and they stay walkable.
+ */
+export const approaches = [
   { x: 1372, y: 110, width: 104, height: 490, orientation: 'v' },
   { x: 1248, y: 1028, width: 104, height: 300, orientation: 'v' },
 ];
@@ -66,10 +77,10 @@ function overlapsAnything(x, y, radius) {
   });
   if (hitsLocation) return true;
 
-  return roads.some(
-    (road) =>
-      x > road.x - radius && x < road.x + road.width + radius &&
-      y > road.y - radius && y < road.y + road.height + radius,
+  return [...roads, ...approaches].some(
+    (way) =>
+      x > way.x - radius && x < way.x + way.width + radius &&
+      y > way.y - radius && y < way.y + way.height + radius,
   );
 }
 
@@ -108,7 +119,7 @@ export function generateStreetLamps() {
   const lamps = [];
   const spacing = 260;
 
-  roads.forEach((road) => {
+  [...roads, ...approaches].forEach((road) => {
     if (road.orientation === 'h') {
       for (let x = road.x + 90; x < road.x + road.width - 60; x += spacing) {
         lamps.push({ x, y: road.y - 14 });

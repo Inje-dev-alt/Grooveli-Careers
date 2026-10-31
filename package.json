@@ -3,12 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Grooveli Careers — AI-powered career marketplace experienced through an interactive browser city.",
+  "description": "Grooveli Careers \u2014 AI-powered career marketplace experienced through an interactive browser city.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "bake:city": "node scripts/bake-city.mjs",
+    "check:city": "node scripts/check-reachable.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

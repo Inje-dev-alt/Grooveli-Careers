@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import { WORLD, cityLocations } from '../world/locations.js';
 import { CityRenderer } from '../world/CityRenderer.js';
+import { PlateCityRenderer } from '../world/PlateCityRenderer.js';
+import { AmbientLayer } from '../world/ambient.js';
+import { buildCollisionRects } from '../world/collisionMap.js';
+import cityManifest from '../world/cityManifest.json';
 import { Player } from '../entities/Player.js';
 import { ControlSystem } from '../systems/ControlSystem.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
@@ -15,36 +19,37 @@ import { useUiStore } from '../../stores/uiStore.js';
  * The scene assembles systems and data; it contains no knowledge of any
  * individual district. Every building comes from `cityLocations`, every
  * behaviour from the shared systems.
+ *
+ * The city can be drawn two ways. By default it uses the baked assets that
+ * `npm run bake:city` produces: a ground plate, one sprite per location, and a
+ * collision grid. Setting VITE_CITY_RENDERER=vector falls back to the original
+ * runtime renderer, which draws everything from shapes on each start — slower
+ * and far plainer, but it needs no assets, so it is worth keeping as the thing
+ * to compare against.
  */
+const BAKED = (import.meta.env.VITE_CITY_RENDERER ?? 'plate') !== 'vector';
 export class CityScene extends Phaser.Scene {
   constructor() {
     super({ key: 'CityScene' });
   }
 
+  preload() {
+    if (BAKED) PlateCityRenderer.preload(this);
+  }
+
   create() {
     this.physics.world.setBounds(0, 0, WORLD.width, WORLD.height);
 
-    this.renderer = new CityRenderer(this);
+    this.renderer = BAKED ? new PlateCityRenderer(this) : new CityRenderer(this);
     this.renderer.drawEnvironment();
 
     this.obstacles = this.physics.add.staticGroup();
     this.interaction = new InteractionSystem(this);
 
+    this.buildCollision();
+
     cityLocations.forEach((location) => {
       this.renderer.createBuilding(location);
-
-      if (!location.walkable) {
-        // Collision uses the footprint, not the drawn roof, so the player can
-        // walk "behind" a building without clipping through its face.
-        const body = this.add.rectangle(
-          location.position.x,
-          location.position.y,
-          location.size.width,
-          location.size.height,
-        );
-        body.setVisible(false);
-        this.obstacles.add(body);
-      }
 
       if (location.interactions.length > 0) {
         this.interaction.register({
@@ -60,6 +65,13 @@ export class CityScene extends Phaser.Scene {
 
     this.player = new Player(this, WORLD.spawn.x, WORLD.spawn.y);
     this.physics.add.collider(this.player.container, this.obstacles);
+
+    if (BAKED) {
+      // Traffic and pedestrians. Scenery only — nothing here collides, and
+      // nothing here is interactive.
+      this.ambient = new AmbientLayer(this);
+      this.ambient.create();
+    }
 
     this.controls = new ControlSystem(this);
     this.cameraSystem = new CameraSystem(this, WORLD);
@@ -85,8 +97,46 @@ export class CityScene extends Phaser.Scene {
     gameBridge.emit(GAME_EVENTS.WORLD_READY, { scene: 'CityScene' });
   }
 
+  /**
+   * Static bodies for everything the player cannot walk through.
+   *
+   * With the baked city that comes from the collision grid, which is painted by
+   * the same bake step as the artwork — so the walkable space can describe a
+   * courtyard or an archway, and it can never drift out of step with what is
+   * drawn. The grid is decomposed into a few dozen rectangles rather than one
+   * body per cell.
+   *
+   * The runtime renderer has no mask, so it falls back to one rectangle per
+   * building footprint, which is all its artwork can justify.
+   */
+  buildCollision() {
+    const rects = BAKED
+      ? buildCollisionRects(cityManifest.collision)
+      : cityLocations
+          .filter((location) => !location.walkable)
+          .map((location) => ({
+            x: location.position.x - location.size.width / 2,
+            y: location.position.y - location.size.height / 2,
+            width: location.size.width,
+            height: location.size.height,
+          }));
+
+    rects.forEach((rect) => {
+      const body = this.add.rectangle(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+        rect.width,
+        rect.height,
+      );
+      body.setVisible(false);
+      this.obstacles.add(body);
+    });
+  }
+
   update(time, delta) {
     if (!this.player) return;
+
+    this.ambient?.update(delta);
 
     this.player.update(this.controls.getAxis(), delta);
     // Depth-sort the player against the buildings by world Y.
@@ -109,6 +159,8 @@ export class CityScene extends Phaser.Scene {
     this.unsubscribers?.forEach((off) => off());
     this.unsubscribers = [];
     this.controls?.destroy();
+    this.ambient?.destroy();
+    this.ambient = null;
     this.renderer?.destroy();
     this.interaction?.clear();
     this.player = null;
