@@ -13,6 +13,7 @@ import { db, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { suggestedPeople } from '../mock/social.js';
 import { resolveProgression } from '../utils/progression.js';
+import { appearanceOf } from '../utils/appearance.js';
 
 function entryFromPool(person) {
   const pooled = db.candidates.find((c) => c.id === person.id);
@@ -38,7 +39,7 @@ function entryFromAccount(account) {
     headline: profile.headline || 'Grooveli candidate',
     careerLevel: resolveProgression(progress.xp ?? 0).level,
     reputation: progress.reputation ?? 0,
-    color: '#5be3c8',
+    ...appearanceOf(account?.id),
     isMe: account.id === currentUserId(),
   };
 }

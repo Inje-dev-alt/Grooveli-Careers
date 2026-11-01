@@ -8,6 +8,7 @@ import { delay } from '../utils/delay.js';
 import { resolveProgression } from '../utils/progression.js';
 import { achievementCatalog } from '../mock/users.js';
 import { resolvePathForProfile } from '../data/careerPaths.js';
+import { appearanceOf } from '../utils/appearance.js';
 
 /** What a complete career identity contains, and what each part is worth. */
 const COMPLETENESS_FIELDS = [
@@ -171,7 +172,7 @@ export function candidateFromAccount(account) {
     location: profile.location || 'Location not set',
     careerLevel: resolveProgression(progress.xp ?? 0).level,
     reputation: progress.reputation ?? 0,
-    color: '#5be3c8',
+    ...appearanceOf(account?.id),
     skills: (profile.skills ?? []).map((s) => ({
       name: s.name,
       level: s.level,

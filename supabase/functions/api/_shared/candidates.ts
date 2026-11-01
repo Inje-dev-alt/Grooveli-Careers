@@ -15,6 +15,7 @@
  */
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { resolveProgression } from './progression.ts';
+import { appearanceOf } from './palette.ts';
 
 type Row = Record<string, unknown>;
 
@@ -87,9 +88,7 @@ export async function candidateCards(
       location: str(profile.location) || 'Location not set',
       careerLevel: level,
       reputation,
-      // A fixed accent, as the mock has it: a real account has no brand colour
-      // and inventing one per person would read as data it is not.
-      color: '#5be3c8',
+      ...appearanceOf(userId),
       skills: arr(profile.skills).map((s) => {
         const skill = s as Row;
         return {

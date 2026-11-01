@@ -25,6 +25,7 @@ import { requireUser } from '../_shared/auth.ts';
 import { authorIdOf, authorsFor, blockedBy, otherSide, toPosts } from '../_shared/social.ts';
 import { homeRouteFor, notify } from '../_shared/notify.ts';
 import { userPayload } from '../_shared/users.ts';
+import { colorFor } from '../_shared/palette.ts';
 
 type Row = Record<string, unknown>;
 
@@ -278,7 +279,7 @@ route('GET', '/social/connections', async (req) => {
         status: row.status,
         name: person?.name ?? 'Connection',
         headline: person?.headline ?? 'Professional',
-        color: person?.color ?? '#5be3c8',
+        color: person?.color ?? colorFor(userId),
         // Which way the request went, so a UI can tell "they asked you" from
         // "you asked them" without a second call.
         incoming: String(row.addressee_id) === authUser.id,
@@ -371,7 +372,7 @@ route('GET', '/social/connections/suggestions', async (req) => {
       id: userId,
       name: person?.name ?? 'Grooveli member',
       headline: person?.headline ?? 'Professional',
-      color: person?.color ?? '#5be3c8',
+      color: person?.color ?? colorFor(userId),
       mutual: mutualOf.get(userId) ?? 0,
       // The UI renders this to decide between "Connect" and "Pending".
       status: null,

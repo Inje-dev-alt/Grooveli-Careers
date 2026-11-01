@@ -18,6 +18,7 @@ import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { resolveProgression } from '../_shared/progression.ts';
+import { appearanceOf } from '../_shared/palette.ts';
 
 type Row = Record<string, unknown>;
 
@@ -69,7 +70,7 @@ route('GET', '/leaderboard', async (req) => {
         headline: headlineOf.get(userId) || 'Grooveli candidate',
         careerLevel: resolveProgression(num(row.xp)).level,
         reputation: num(row.reputation),
-        color: '#5be3c8',
+        ...appearanceOf(userId),
         isMe: userId === authUser.id,
       };
     })

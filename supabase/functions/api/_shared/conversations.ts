@@ -9,6 +9,7 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { badRequest, forbidden, notFound } from './errors.ts';
 import { resolveProgression } from './progression.ts';
+import { appearanceOf } from './palette.ts';
 
 type Row = Record<string, unknown>;
 
@@ -164,7 +165,7 @@ export type ConversationCard = {
   createdAt: string;
 };
 
-const PERSON_COLOR = '#5be3c8';
+
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 /**
@@ -227,7 +228,7 @@ export async function toConversations(
           id: partnerId,
           name: nameOf.get(partnerId) || 'Grooveli member',
           headline: headlineOf.get(partnerId) || 'Grooveli member',
-          color: PERSON_COLOR,
+          ...appearanceOf(partnerId),
           careerLevel: resolveProgression(xpOf.get(partnerId) ?? 0).level,
         },
         metScene: row.met_scene === null ? null : String(row.met_scene),

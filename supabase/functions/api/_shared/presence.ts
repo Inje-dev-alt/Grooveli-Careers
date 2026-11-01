@@ -17,6 +17,7 @@
  */
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { resolveProgression } from './progression.ts';
+import { appearanceOf } from './palette.ts';
 
 type Row = Record<string, unknown>;
 
@@ -32,8 +33,7 @@ export const ONLINE_WINDOW_SECONDS = 45;
 /** What the client is told to beat at, so the interval is the server's call. */
 export const HEARTBEAT_SECONDS = 15;
 
-/** The roster colour, matching the leaderboard's. Avatars are initials, not art. */
-const PERSON_COLOR = '#5be3c8';
+
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -129,7 +129,7 @@ async function cardsFor(admin: SupabaseClient, ids: string[]) {
       // still real — they are a person standing in a room — so they get the
       // generic line rather than being dropped from the roster.
       headline: headlineOf.get(id) || 'Grooveli member',
-      color: PERSON_COLOR,
+      ...appearanceOf(id),
       careerLevel: resolveProgression(xpOf.get(id) ?? 0).level,
     });
   }

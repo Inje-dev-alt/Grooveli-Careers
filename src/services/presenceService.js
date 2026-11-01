@@ -24,6 +24,7 @@ import { delay } from '../utils/delay.js';
 import { presenceFixtures } from '../mock/presence.js';
 import { suggestedPeople } from '../mock/social.js';
 import { resolveProgression } from '../utils/progression.js';
+import { appearanceOf } from '../utils/appearance.js';
 
 /**
  * How long a heartbeat counts for, and how often to send one.
@@ -61,7 +62,7 @@ function mockCard(userId) {
     id: userId,
     name: person?.name ?? pooled?.name ?? 'Grooveli member',
     headline: person?.headline ?? pooled?.headline ?? 'Grooveli member',
-    color: person?.color ?? pooled?.color ?? '#5be3c8',
+    ...appearanceOf(userId),
     careerLevel: pooled?.careerLevel ?? resolveProgression(0).level,
   };
 }

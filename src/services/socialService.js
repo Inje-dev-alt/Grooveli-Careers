@@ -14,6 +14,7 @@ import { apiClient, withMock } from './apiClient.js';
 import { db, nextId, currentAccount, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { suggestedPeople } from '../mock/social.js';
+import { appearanceOf } from '../utils/appearance.js';
 
 /** The signed-in person as a post author. */
 function selfAuthor() {
@@ -24,7 +25,7 @@ function selfAuthor() {
     kind: 'user',
     name: account?.displayName || 'You',
     headline: profile?.headline || 'Building a career on Grooveli',
-    color: '#5be3c8',
+    ...appearanceOf(account?.id ?? 'anonymous'),
   };
 }
 
@@ -217,7 +218,7 @@ export function listConnections() {
             status: connection.status,
             name: person?.name ?? 'Connection',
             headline: person?.headline ?? 'Professional',
-            color: person?.color ?? '#5be3c8',
+            ...appearanceOf(userId),
             incoming: connection.addresseeId === me,
             createdAt: connection.createdAt,
           };

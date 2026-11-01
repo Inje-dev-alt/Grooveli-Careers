@@ -8,11 +8,12 @@
  * length of the feed.
  */
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+import { appearanceOf } from './palette.ts';
 
 type Row = Record<string, unknown>;
 
 /** The accent a person's card and posts share. Organizations have their own. */
-const PERSON_COLOR = '#5be3c8';
+
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
@@ -64,7 +65,7 @@ export async function authorsFor(
       kind: 'user',
       name: str(row.display_name) || 'Grooveli member',
       headline: headlineOf.get(id) || 'Building a career on Grooveli',
-      color: PERSON_COLOR,
+      ...appearanceOf(id),
       verified: false,
     });
   }

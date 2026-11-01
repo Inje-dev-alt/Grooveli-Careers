@@ -20,6 +20,7 @@ import { db, currentUserId, nextId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { suggestedPeople } from '../mock/social.js';
 import { resolveProgression } from '../utils/progression.js';
+import { appearanceOf } from '../utils/appearance.js';
 
 /** How long the panel waits between polls while it is open. */
 export const POLL_SECONDS = 3;
@@ -41,7 +42,7 @@ function mockPartnerCard(userId) {
     id: userId,
     name: person?.name ?? pooled?.name ?? 'Grooveli member',
     headline: person?.headline ?? pooled?.headline ?? 'Grooveli member',
-    color: person?.color ?? pooled?.color ?? '#5be3c8',
+    ...appearanceOf(userId),
     careerLevel: pooled?.careerLevel ?? resolveProgression(0).level,
   };
 }
