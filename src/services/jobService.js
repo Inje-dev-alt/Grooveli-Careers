@@ -193,10 +193,15 @@ export function listSavedJobIds() {
 /**
  * How many roles are open in each district.
  *
- * Backed by `GET /jobs/by-district`. The city's notice boards read this, so it
- * is deliberately its own call rather than a count taken over a full job list:
- * the boards need eleven integers, and making the world fetch every published
- * role to derive them would be a page of data for a number.
+ * Backed by `GET /jobs/by-district`, which aggregates over the `jobs` table
+ * server-side. The city's notice boards read this, so it is deliberately its
+ * own call rather than a count taken over a full job list: the boards need
+ * eleven integers, and making the world fetch every published role to derive
+ * them would be a page of data for a number.
+ *
+ * Both branches count the same thing — published roles with a district — so a
+ * board shows the same number whether it came from the mock layer or from the
+ * database.
  *
  * @returns {Promise<Record<string, number>>} keyed by district id
  */

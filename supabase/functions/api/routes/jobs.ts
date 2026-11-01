@@ -126,6 +126,36 @@ route('GET', '/jobs/facets', async () => {
   };
 });
 
+// GET /jobs/by-district — how many roles are open in each district.
+//
+// Feeds the notice boards standing outside every district in the city, which
+// is the one place the product reports on itself in the world rather than in a
+// panel over it. Public and unauthenticated, like the rest of job browsing.
+//
+// Registered above `/jobs/:id` deliberately: the router matches in
+// registration order, so declaring this later would let `by-district` be
+// swallowed as a job id.
+//
+// Selects the district column alone rather than whole rows. The boards need
+// one integer each, and `select('*')` here would ship every published role's
+// full body to derive eleven numbers.
+route('GET', '/jobs/by-district', async () => {
+  const { data, error } = await adminClient()
+    .from('jobs')
+    .select('district_id')
+    .eq('status', 'published');
+  // No message: `ApiError.message` is rendered to the user verbatim, and a
+  // raw Postgres string is neither useful to them nor ours to show.
+  if (error) throw serverError();
+
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as { district_id: string | null }[]) {
+    if (!row.district_id) continue;
+    counts[row.district_id] = (counts[row.district_id] ?? 0) + 1;
+  }
+  return { body: counts };
+});
+
 async function savedIds(admin: ReturnType<typeof adminClient>, userId: string) {
   const { data } = await admin.from('saved_jobs').select('job_id').eq('user_id', userId);
   return (data ?? []).map((r: { job_id: string }) => r.job_id);

@@ -158,6 +158,15 @@ the boards work the same against mocks or a live backend. `jobService` has
 job list: the boards need eleven integers, and fetching every published role to
 derive them would be a page of data for a number.
 
+The live branch is backed by a real route, `GET /jobs/by-district`, which
+aggregates over the `jobs` table in the Edge Function. It is registered *above*
+`GET /jobs/:id` because the router matches in registration order, and it selects
+the district column alone rather than whole rows. Verified both ways: against
+the mock layer a board reads the fixture's count, and built with
+`VITE_USE_MOCKS=false` against a server returning different numbers it reads the
+server's. `node scripts/audit-endpoints.mjs .` confirms every client call has a
+route behind it.
+
 Each board is drawn into a RenderTexture once and then costs one sprite per
 frame. Text objects are cheap to make and expensive to keep — twenty-odd live
 ones would each carry their own texture and draw call — so they are drawn into
