@@ -14,6 +14,41 @@ import { requireUser } from '../_shared/auth.ts';
 
 type Row = Record<string, unknown>;
 
+/**
+ * What a public ticker is allowed to announce, and how to say it.
+ *
+ * `shareable` is the right flag for somebody's OWN activity feed, where the
+ * audience is them. It is far too broad for a strip every signed-in person
+ * can read, for two separate reasons.
+ *
+ * PRIVACY. `application.suitable` is shareable, so without this the ticker
+ * would announce "Tester T. applied to a suitable role" to everybody —
+ * including, on a platform with employers on it, the one she currently works
+ * for. Broadcasting that somebody is job hunting is a real-world consequence,
+ * and no career platform should do it as a side effect of a scrolling strip.
+ * Offers are excluded for the same reason: accepting one says you are leaving.
+ *
+ * SIGNAL. Visiting a district and viewing a job are the most repeatable
+ * actions in the product and mean nothing to anybody else. A ticker full of
+ * them is what a dead city looks like with the lights on.
+ *
+ * What remains is verified capability — the thing this product claims to
+ * exist for. Proof rather than promises, and nothing about who is looking.
+ *
+ * The phrasing is per type rather than taken from the row, because the
+ * labels in EVENT_LABELS are written as ledger entries ("Course completed")
+ * and read badly after a name. Richer sentences would need the progression
+ * write to carry the course or skill through to the activity row.
+ */
+const TICKER_EVENTS = {
+  'skill.challenge': 'passed a skill challenge',
+  'course.completed': 'finished a course',
+  'interview.simulated': 'completed an interview simulation',
+  'assessment.completed': 'finished their career assessment',
+  'mission.completed': 'completed a mission',
+} as Record<string, string>;
+
+
 /** How many of each half to send. */
 const PER_SIDE = 8;
 
@@ -50,8 +85,9 @@ route('GET', '/ticker', async (req) => {
      */
     admin
       .from('career_activity')
-      .select('id, user_id, label, xp, created_at')
+      .select('id, user_id, type, xp, created_at')
       .eq('shareable', true)
+      .in('type', Object.keys(TICKER_EVENTS))
       .order('created_at', { ascending: false })
       .limit(PER_SIDE * 4),
     admin.from('leaderboard_opt_out').select('user_id'),
@@ -93,7 +129,7 @@ route('GET', '/ticker', async (req) => {
    */
   const seen = new Set<string>();
   const distinct = rows.filter((row) => {
-    const key = `${row.user_id}|${row.label}`;
+    const key = `${row.user_id}|${row.type}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -102,8 +138,7 @@ route('GET', '/ticker', async (req) => {
   const milestones = distinct.slice(0, PER_SIDE).map((row) => ({
     kind: 'milestone' as const,
     id: String(row.id),
-    text: `${shortName(nameOf.get(String(row.user_id)) || '')} ${String(row.label)
-      .replace(/^(Completed|Applied for|Visited|Passed)\b/i, (m) => m.toLowerCase())}`,
+    text: `${shortName(nameOf.get(String(row.user_id)) || '')} ${TICKER_EVENTS[String(row.type)]}`,
     xp: typeof row.xp === 'number' ? row.xp : 0,
     at: String(row.created_at),
   }));

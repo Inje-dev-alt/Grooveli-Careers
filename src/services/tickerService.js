@@ -12,6 +12,22 @@ import { db, currentUserId } from './mockDb.js';
 import { delay } from '../utils/delay.js';
 import { suggestedPeople } from '../mock/social.js';
 
+/**
+ * What the strip may announce, mirroring the server's allowlist.
+ *
+ * Kept in step deliberately: if the mock announced things the live endpoint
+ * refuses, the ticker would change character the day a deployment caught up
+ * and nobody would connect the two.
+ */
+const TICKER_EVENTS = {
+  'skill.challenge': 'passed a skill challenge',
+  'course.completed': 'finished a course',
+  'interview.simulated': 'completed an interview simulation',
+  'assessment.completed': 'finished their career assessment',
+  'mission.completed': 'completed a mission',
+};
+
+
 /** How often the strip re-reads. Milestones arrive at human speed. */
 export const REFRESH_SECONDS = 90;
 
@@ -39,7 +55,7 @@ export function getTicker() {
       const me = currentUserId();
 
       const milestones = (db.activity[me] ?? [])
-        .filter((a) => a.shareable)
+        .filter((a) => a.shareable && TICKER_EVENTS[a.type])
         .slice(0, 6)
         .map((a, i) => ({
           kind: 'milestone',
@@ -47,8 +63,7 @@ export function getTicker() {
           // The mock has one account's activity, so other people's milestones
           // are attributed to the suggested people — otherwise the strip would
           // read as one person achieving everything.
-          text: `${shortName(suggestedPeople[i % suggestedPeople.length]?.name)} ${String(a.label)
-            .replace(/^(Completed|Applied for|Visited|Passed)\b/i, (m) => m.toLowerCase())}`,
+          text: `${shortName(suggestedPeople[i % suggestedPeople.length]?.name)} ${TICKER_EVENTS[a.type]}`,
           xp: a.xp ?? 0,
           at: a.createdAt,
         }));
