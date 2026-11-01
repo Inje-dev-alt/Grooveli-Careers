@@ -21,6 +21,7 @@ import './social.ts';
 import './interviews.ts';
 import './learning.ts';
 import './leaderboard.ts';
+import './responsiveness.ts';
 import './presence.ts';
 import './conversations.ts';
 import './ticker.ts';

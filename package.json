@@ -3,14 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Grooveli Careers \u2014 AI-powered career marketplace experienced through an interactive browser city.",
+  "description": "Grooveli Careers — AI-powered career marketplace experienced through an interactive browser city.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "bake:city": "node scripts/bake-city.mjs",
-    "check:city": "node scripts/check-reachable.mjs"
+    "check:city": "node scripts/check-reachable.mjs",
+    "check:hrs": "node scripts/check-hrs.mjs",
+    "_comment:check:functions": "--node-modules-dir=auto because the Edge Functions import supabase-js from JSR, which pulls npm packages that are not in this package.json; without it Deno resolves against whatever npm happens to have left in node_modules and fails after any install.",
+    "check:functions": "npx --yes deno@2 check --node-modules-dir=auto supabase/functions/api/index.ts supabase/functions/scheduler/index.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0",
@@ -20,6 +23,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
     "@eslint/js": "^9.36.0",
     "@vitejs/plugin-react": "^5.0.2",
     "eslint": "^9.36.0",
