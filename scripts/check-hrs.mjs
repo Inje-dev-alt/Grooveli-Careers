@@ -16,13 +16,27 @@
  * are not a second schema to maintain, and if the real ones drift the
  * migration will fail to apply here, which is the signal.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MIGRATION = join(REPO, 'supabase/migrations/20261102120000_employer_responsiveness.sql');
+const MIGRATIONS = join(REPO, 'supabase/migrations');
+
+/*
+ * Every migration from the one that introduces the score onwards, in order.
+ *
+ * Not just the first file. The view has already been corrected once, and a
+ * check that applied only the original would go on passing against a
+ * definition nobody runs — which is worse than no check. Selecting by date
+ * means the next correction is covered without anyone remembering to come
+ * back here and add it.
+ */
+const FIRST = '20261102120000';
+const MIGRATION_FILES = readdirSync(MIGRATIONS)
+  .filter((f) => f.endsWith('.sql') && f.slice(0, 14) >= FIRST)
+  .sort();
 
 const db = await PGlite.create();
 let f = 0;
@@ -56,13 +70,15 @@ await db.exec(`
 `);
 
 /* ---- the migration, verbatim ---- */
-try {
-  await db.exec(readFileSync(MIGRATION, 'utf8'));
-  ok('the migration applies to a real PostgreSQL', true);
-} catch (error) {
-  ok('the migration applies to a real PostgreSQL', false, error.message);
-  console.log('\nCannot continue.');
-  process.exit(1);
+for (const file of MIGRATION_FILES) {
+  try {
+    await db.exec(readFileSync(join(MIGRATIONS, file), 'utf8'));
+    ok(`applies to real PostgreSQL: ${file}`, true);
+  } catch (error) {
+    ok(`applies to real PostgreSQL: ${file}`, false, error.message);
+    console.log('\nCannot continue.');
+    process.exit(1);
+  }
 }
 
 /* ---- fixtures ---- */
@@ -73,6 +89,7 @@ const orgs = {
   unrated: 'org-unrated',  // perfect process, nobody has rated it
   slow: 'org-slow',        // answers at exactly the 7.5-day midpoint
   thin: 'org-thin',        // one closed application only
+  hirer: 'org-hirer',      // makes offers and hires — must not be punished for it
   limbo: 'org-limbo',      // leaves people hanging without ever rejecting them
 };
 for (const [key, id] of Object.entries(orgs)) {
@@ -125,6 +142,24 @@ for (let i = 0; i < 6; i += 1) {
 }
 /* thin: one closed application */
 await apply('thin', { appliedDaysAgo: 40, replyHours: 1, status: 'hired', note: 'Welcome.' });
+
+/*
+ * hirer: six people taken all the way to an offer and hired.
+ *
+ * MODELLED ON WHAT THE API ACTUALLY WRITES, which is the point of this case.
+ * `POST /applications/:id/respond` records the hire with actor='candidate' —
+ * the candidate is the one accepting — and the employer's own last act is the
+ * offer, whose note is optional and in practice null. An employer who hires
+ * everybody must not score worse than one who rejects everybody.
+ */
+for (let i = 0; i < 6; i += 1) {
+  const id = await apply('hirer', { appliedDaysAgo: 40, replyHours: 1, status: 'hired', note: null });
+  await db.query(
+    `insert into public.application_events (application_id, from_status, to_status, actor, note, at)
+     values ($1, 'offer', 'hired', 'candidate', 'Offer accepted.', now() - interval '35 days')`,
+    [id],
+  );
+}
 /* limbo: answered fast, then left them hanging, never terminal, 40 days old */
 for (let i = 0; i < 6; i += 1) {
   await apply('limbo', { appliedDaysAgo: 40, replyHours: 1, status: 'under-review', note: null });
@@ -182,6 +217,13 @@ ok('  non-terminal applications over 30 days count as unanswered',
 ok('a thin record is scored but falls under the ranking threshold',
   Number(rows.thin.closed_count) === 1 && Number(rows.thin.hrs) > 0,
   `closed=${rows.thin.closed_count} — the route requires 5`);
+
+ok('an employer that hires people is not punished for it',
+  near(rows.hirer.feedback_rate, 1),
+  `feedback=${Number(rows.hirer.feedback_rate).toFixed(2)} — a hire is recorded by the candidate accepting, not by an employer note`);
+ok('  so hiring scores as well as rejecting well',
+  near(rows.hirer.hrs, rows.unrated.hrs),
+  `hirer=${Number(rows.hirer.hrs).toFixed(3)} vs rejecter=${Number(rows.unrated.hrs).toFixed(3)}`);
 
 /* opt-out and ratings behave */
 await db.query("insert into public.organization_opt_out (organization_id) values ('org-fast')");
