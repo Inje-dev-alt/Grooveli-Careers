@@ -270,6 +270,25 @@ export function runSkillChallenge(mission) {
 /* ----------------------------------------- mission reminders --- */
 
 /**
+ * The browser's own IANA zone, e.g. `Europe/London`.
+ *
+ * Quiet hours are two hour numbers and mean nothing without one. Asking the
+ * browser is both exact and free, and far better than asking a person to pick
+ * their own zone from a list of six hundred — the one question in this panel
+ * nobody should have to answer.
+ *
+ * Falls back to UTC where `Intl` cannot say, which matches the column's
+ * default rather than inventing a different wrong answer.
+ */
+export function browserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+/**
  * Reminder preferences for the signed-in account.
  * Backed by `GET /users/me/notification-preferences`.
  */
@@ -281,6 +300,7 @@ export function getNotificationPreferences() {
       return {
         missionReminders: true,
         quietHours: null,
+        timezone: browserTimezone(),
         ...(id ? db.notificationPreferences[id] ?? {} : {}),
       };
     },
@@ -301,13 +321,20 @@ export function saveNotificationPreferences(patch) {
       const current = {
         missionReminders: true,
         quietHours: null,
+        timezone: browserTimezone(),
         ...(id ? db.notificationPreferences[id] ?? {} : {}),
       };
       const next = { ...current, ...patch };
       if (id) db.notificationPreferences[id] = next;
       return { ...next };
     },
-    () => apiClient.put('/users/me/notification-preferences', patch),
+    /*
+     * The zone rides along with every save, so it corrects itself when
+     * somebody moves or travels without anyone having to notice. Sending it
+     * only at onboarding would leave an account permanently wrong the first
+     * time its owner relocated.
+     */
+    () => apiClient.put('/users/me/notification-preferences', { timezone: browserTimezone(), ...patch }),
   );
 }
 

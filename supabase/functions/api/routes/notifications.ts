@@ -12,13 +12,14 @@ import { adminClient } from '../_shared/supabase.ts';
 import { badRequest, notFound, serverError } from '../_shared/errors.ts';
 import { requireUser } from '../_shared/auth.ts';
 import { toNotification } from '../_shared/notify.ts';
+import { isValidTimezone } from '../_shared/quietHours.ts';
 
 type Row = Record<string, unknown>;
 
 const FEED_LIMIT = 50;
 
 /** Defaults for an account that has never set preferences. */
-const DEFAULT_PREFERENCES = { missionReminders: true, quietHours: null };
+const DEFAULT_PREFERENCES = { missionReminders: true, quietHours: null, timezone: 'UTC' };
 
 function toPreferences(row: Row | null) {
   if (!row) return DEFAULT_PREFERENCES;
@@ -115,12 +116,22 @@ route('POST', '/notifications/read-all', async (req) => {
 route('GET', '/users/me/notification-preferences', async (req) => {
   const admin = adminClient();
   const authUser = await requireUser(req);
-  const { data } = await admin
-    .from('notification_preferences')
-    .select('*')
-    .eq('user_id', authUser.id)
-    .maybeSingle();
-  return { body: toPreferences(data as Row | null) };
+  const [{ data }, { data: profile }] = await Promise.all([
+    admin.from('notification_preferences').select('*').eq('user_id', authUser.id).maybeSingle(),
+    admin.from('profiles').select('timezone').eq('id', authUser.id).maybeSingle(),
+  ]);
+  /*
+   * The zone lives on the profile rather than here, because it is a fact
+   * about the person and not about notifications — the scheduler needs it,
+   * but so would anything else that has to know what time it is for them.
+   * It is served alongside because this is the only screen that sets it.
+   */
+  return {
+    body: {
+      ...toPreferences(data as Row | null),
+      timezone: String(profile?.timezone ?? 'UTC'),
+    },
+  };
 });
 
 /**
@@ -143,6 +154,20 @@ route('PUT', '/users/me/notification-preferences', async (req) => {
     .eq('user_id', authUser.id)
     .maybeSingle();
   const current = toPreferences(existing as Row | null);
+
+  /*
+   * A timezone the runtime does not recognise is refused rather than stored.
+   * Quiet hours against an unknown zone silently fall back to UTC, which
+   * looks exactly like quiet hours not working — and the person who set them
+   * has no way to discover why.
+   */
+  if ('timezone' in body) {
+    const timezone = String(body.timezone ?? '').trim();
+    if (!isValidTimezone(timezone)) {
+      throw badRequest('That is not a timezone we recognise.', { field: 'timezone' });
+    }
+    await admin.from('profiles').update({ timezone }).eq('id', authUser.id);
+  }
 
   const next: Row = {
     user_id: authUser.id,
@@ -183,5 +208,15 @@ route('PUT', '/users/me/notification-preferences', async (req) => {
     console.error('[notifications] save preferences failed:', error?.message);
     throw serverError();
   }
-  return { body: toPreferences(data as Row) };
+  // The zone comes back with it, so the panel never has to assume a write
+  // landed — the same bargain every other write in this API makes.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('timezone')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  return {
+    body: { ...toPreferences(data as Row), timezone: String(profile?.timezone ?? 'UTC') },
+  };
 });

@@ -1,6 +1,22 @@
 /** Presentation helpers. Pure, no state, safe to call during render. */
 
-const CURRENCY_SYMBOLS = { NGN: '₦', USD: '$', EUR: '€', GBP: '£' };
+/*
+ * Symbols for the currencies the market actually posts in. Anything else
+ * falls through to its ISO code, which is correct rather than clever — a
+ * made-up glyph for an unknown currency is worse than three honest letters.
+ */
+const CURRENCY_SYMBOLS = {
+  NGN: '₦',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  KES: 'KSh',
+  CAD: 'C$',
+  SGD: 'S$',
+  ZAR: 'R',
+  GHS: '₵',
+  INR: '₹',
+};
 
 /** Compact money: 500000 -> "₦500k", 1400000 -> "₦1.4m" */
 export function formatCompactMoney(amount, currency = 'NGN') {
