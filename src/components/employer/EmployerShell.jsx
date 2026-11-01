@@ -7,6 +7,7 @@ import { useAuthStore, selectCanSwitchRole } from '../../stores/authStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
+import { Ticker } from '../shell/Ticker.jsx';
 
 const EMPLOYER_NAV = [
   { to: '/employer', label: 'Dashboard', end: true },
@@ -119,6 +120,8 @@ export function EmployerShell({ children }) {
       </header>
 
       {children}
+
+      <Ticker />
     </div>
   );
 }

@@ -83,7 +83,23 @@ route('GET', '/ticker', async (req) => {
     ((profiles ?? []) as Row[]).map((r) => [String(r.id), String(r.display_name ?? '')]),
   );
 
-  const milestones = rows.slice(0, PER_SIDE).map((row) => ({
+  /*
+   * One line per person per kind of achievement.
+   *
+   * Visiting districts is shareable and repeatable, so without this a player
+   * exploring the map fills the entire strip with their own name saying the
+   * same thing five times. The newest of each wins, because the rows arrive
+   * newest first.
+   */
+  const seen = new Set<string>();
+  const distinct = rows.filter((row) => {
+    const key = `${row.user_id}|${row.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const milestones = distinct.slice(0, PER_SIDE).map((row) => ({
     kind: 'milestone' as const,
     id: String(row.id),
     text: `${shortName(nameOf.get(String(row.user_id)) || '')} ${String(row.label)

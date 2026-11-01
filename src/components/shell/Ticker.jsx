@@ -15,7 +15,7 @@ import * as tickerService from '../../services/tickerService.js';
  * deployment, before anybody has achieved anything and before the first news
  * fetch, this is simply absent.
  */
-export function Ticker() {
+export function Ticker({ inWorld = false }) {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -56,7 +56,11 @@ export function Ticker() {
    * technology, which should hear each item once.
    */
   return (
-    <div className="ticker" role="region" aria-label="Live activity">
+    <div
+      className={`ticker${inWorld ? ' ticker--world' : ''}`}
+      role="region"
+      aria-label="Live activity"
+    >
       <div className="ticker__track">
         <TickerRun items={items} />
         <TickerRun items={items} ariaHidden />

@@ -354,3 +354,16 @@ a.ticker__text:hover { color: var(--g-text); text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .ticker__track { animation: none; }
 }
+
+/* In the world the strip floats over the canvas rather than sitting under
+   the page, and clicks fall through everywhere except on the strip itself —
+   otherwise an invisible band across the bottom would eat movement taps. */
+.ticker--world {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  border-top: 1px solid var(--g-glass-border);
+  pointer-events: auto;
+}

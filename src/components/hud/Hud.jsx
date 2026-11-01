@@ -10,6 +10,7 @@ import {
   IconUser,
 } from '../ui/index.js';
 import { InteractionPrompt } from './InteractionPrompt.jsx';
+import { Ticker } from '../shell/Ticker.jsx';
 import { useAuthStore } from '../../stores/authStore.js';
 import { useCareerStore, selectProgression } from '../../stores/careerStore.js';
 import { usePlayerStore } from '../../stores/playerStore.js';
@@ -40,6 +41,7 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
   const loadNotifications = useNotificationStore((s) => s.load);
   const notificationStatus = useNotificationStore((s) => s.status);
   const homePath = useCareerPath();
+  const isCompact = useUiStore((s) => s.isCompact);
   const unreadMessages = useChatStore(selectUnreadMessages);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const closeConversation = useChatStore((s) => s.close);
@@ -169,6 +171,14 @@ export function Hud({ scene = 'city', action = null, locationLabel = null }) {
       </div>
 
       <InteractionPrompt scene={scene} />
+
+      {/*
+        The world is where people spend their time, so the strip belongs here
+        too — but only with room for it. On a phone the bottom of the screen
+        is the joystick, and a ticker over the controls is worse than no
+        ticker.
+      */}
+      {!isCompact ? <Ticker inWorld /> : null}
     </div>
   );
 }
