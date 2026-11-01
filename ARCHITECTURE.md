@@ -100,11 +100,22 @@ product.
   `y`; a building's is its front edge. Any new drawn thing must follow this.
 - **`InteriorScene`** — parameterised by `{key, room, objects, locationId}`. A
   new room is a data file and a six-line subclass.
-- **The city has two renderers.** `CityRenderer` draws from shapes;
-  `BackdropRenderer` shows a painted illustration with collision read from a
-  mask image. `CITY_BACKDROP` in `world/backdrop.js` selects between them and is
-  currently `null`. In painted mode `this.renderer` does not exist — anything
-  outside `create()` must use `this.renderer?.`.
+- **The city has two renderers, and they are interchangeable.** `CityRenderer`
+  draws the city from shapes when the scene starts. `PlateCityRenderer` loads
+  images that `npm run bake:city` drew earlier, described by
+  `world/cityManifest.json`, with collision from `world/collisionMap.js`.
+  Both settle at a comparable per-frame cost because the vector renderer bakes
+  its output into textures too; what the plate buys is a detail ceiling, since
+  the bake runs once on a build machine rather than on every player's machine
+  on every visit.
+- **`world/ambient.js` owns the street life** — traffic, crowds and gatherings,
+  generated from the road layout and drawn through the shared character
+  painter in `entities/characterArt.js`, so a pedestrian and the player are
+  drawn by the same code.
+- **Only one renderer exists at a time.** Any use of a renderer outside
+  `CityScene.create()` must be optional-chained; an unguarded call throws on
+  the first frame, the update loop stops, and the canvas shows nothing but its
+  background colour — which looks like a rendering bug and is not one.
 
 ## 6. Data model, in one pass
 
