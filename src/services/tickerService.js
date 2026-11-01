@@ -31,7 +31,13 @@ const TICKER_EVENTS = {
 /** How often the strip re-reads. Milestones arrive at human speed. */
 export const REFRESH_SECONDS = 90;
 
-/** Headlines for the mock, so the strip has both halves without a backend. */
+/*
+ * Headlines for the mock, so the strip has both halves without a backend.
+ *
+ * Deliberately plausible labour-market stories rather than lorem: the point
+ * of the mock is to show what the real thing will look like, and a ticker is
+ * one of the few surfaces whose content IS its design.
+ */
 const MOCK_NEWS = [
   { title: 'Remote hiring climbs for a third quarter', source: 'Market Watch' },
   { title: 'Employers put verified skills above degrees in new survey', source: 'Work Weekly' },

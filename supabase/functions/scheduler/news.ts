@@ -1,137 +1,122 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
 /**
- * Pulling career headlines into the cache.
+ * Pulling headlines into the cache, from Free News API.
  *
  * Runs on the same schedule as the reminder sweep because both want a timer
- * and neither wants its own function. The sweep is cheap and this is not, so
- * it is rate-limited by its own freshness check rather than by the cron
- * interval: the sweep can keep running every half hour while the feeds are
- * only read every couple of hours.
+ * and neither wants its own function. It rate-limits itself on the cache's
+ * own freshness rather than on the cron interval, so the sweep keeps running
+ * every half hour while the news is fetched every couple of hours.
+ *
+ * THE KEY IS SERVER-SIDE AND NOWHERE ELSE. `FREENEWS_API_KEY` is read from
+ * this function's environment. It must never reach the browser: anything in
+ * a `VITE_` variable is inlined into the public bundle, and a free tier with
+ * a daily quota is exactly the kind of credential that gets harvested.
+ *
+ *   supabase secrets set FREENEWS_API_KEY=... --project-ref <ref>
  */
+
+const API = 'https://api.freenewsapi.io/v1/news';
 
 /** How long cached news stays fresh enough not to re-fetch. */
 const FRESH_FOR_HOURS = 2;
 
-/** How many items to keep. Older ones are dropped on each successful fetch. */
+/** How many items to keep. Anything older is dropped on a successful fetch. */
 const KEEP = 40;
 
 /**
- * The feeds.
+ * What to ask for.
  *
- * ABOUT WORK, NOT ABOUT TECHNOLOGY. The first pass here pointed at general
- * tech and business headlines, which filled a career platform's ticker with
- * product launches. These are labour-market sources: who is hiring, what
- * roles are growing, what employers are paying and how work is changing.
+ * Several narrow queries rather than one broad one, because this is a career
+ * platform and unfiltered news is mostly not about work. Each slice is its
+ * own request; the free tier allows five thousand a day at two a second, so
+ * four every couple of hours is nothing.
  *
- * Every one was fetched and parsed before being listed — a feed URL that
- * looks plausible and 404s, redirects to a login page, or serves evergreen
- * marketing as "news" is the normal case rather than the exception.
- *
- * Kept in code rather than a table because a feed is a third party we send
- * traffic to and quote on our own pages. That is an editorial decision, not
- * configuration, and it should go through review like one.
- *
- * Deliberately not all American: the market this product serves is spread
- * across four continents, and a ticker that only reports on one of them
- * contradicts the platform underneath it.
+ * The countries follow the market the platform now seeds roles in, so the
+ * ticker is not reporting one hemisphere to people working in another.
  */
-const FEEDS = [
-  // Indeed's labour-market research arm. Hiring rates, wage growth, which
-  // sectors are posting — the closest thing here to primary data.
-  { source: 'Indeed Hiring Lab', url: 'https://hiringlab.indeed.com/feed/' },
-  // Hiring, recruitment and workplace policy, US-centred.
-  { source: 'HR Dive', url: 'https://www.hrdive.com/feeds/news/' },
-  // Work and careers desk, UK and international.
-  { source: 'The Guardian', url: 'https://www.theguardian.com/money/work-and-careers/rss' },
-  // Employment law, pay and HR practice, UK.
-  { source: 'Personnel Today', url: 'https://www.personneltoday.com/feed/' },
-  // African business and employment, so the ticker is not reporting one
-  // hemisphere to a platform that seeds roles in seven cities.
-  { source: 'African Business', url: 'https://african.business/feed' },
+const QUERIES = [
+  { label: 'hiring', params: { q: 'hiring OR recruitment OR "job market"', language: 'en' } },
+  { label: 'business-us', params: { topic: 'business', language: 'en', country: 'us' } },
+  { label: 'business-gb', params: { topic: 'business', language: 'en', country: 'gb' } },
+  { label: 'workforce', params: { q: 'employment OR workforce OR "remote work"', language: 'en' } },
 ];
 
 type Item = { url: string; title: string; source: string; published_at: string | null };
 
-/** Decode the handful of XML entities that actually appear in feed titles. */
-function decode(text: string): string {
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    /*
-     * Numeric entities, decimal and hex.
-     *
-     * Found by parsing the real feeds rather than by imagination: Personnel
-     * Today writes its curly quotes as `&#8216;`, so a hand-picked list of
-     * named entities left headlines reading "Government &#8216;ready to
-     * support&#8217; staff". Anything outside the Unicode range is left as
-     * written rather than throwing — a mangled headline beats a failed fetch.
-     */
-    .replace(/&#(\d+);/g, (whole, code) => {
-      const point = Number(code);
-      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (whole, code) => {
-      const point = Number.parseInt(code, 16);
-      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
-    })
-    // Ampersand last, or it would re-break everything decoded above.
-    .replace(/&amp;/g, '&')
-    .trim();
-}
-
-const tag = (block: string, name: string): string => {
-  const match = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
-  return match ? decode(match[1]) : '';
-};
-
 /**
- * Parse RSS or Atom without a library.
+ * Read one article out of a response.
  *
- * Deliberately forgiving and deliberately small. A real XML parser would be
- * stricter and correct about documents these feeds do not produce; what
- * actually breaks here is a missing date or an entity nobody decoded, and
- * both are handled. Anything this cannot read is skipped rather than throwing
- * — one malformed item must not cost the whole fetch.
+ * DELIBERATELY TOLERANT ABOUT FIELD NAMES. The listing response is not
+ * documented field by field and this was written without a key to probe
+ * with, so rather than guess one spelling and ship something that silently
+ * returns nothing, it accepts the handful of names this kind of service
+ * uses. The first live fetch logs the real keys — see `refreshNews` — after
+ * which this can be narrowed to exactly what is sent.
  */
-export function parseFeed(xml: string, source: string): Item[] {
-  const blocks = xml.match(/<(item|entry)[\s\S]*?<\/\1>/gi) ?? [];
+export function readArticle(raw: unknown): Item | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
 
-  return blocks
-    .map((block) => {
-      const title = tag(block, 'title');
+  const str = (...names: string[]): string => {
+    for (const name of names) {
+      const value = row[name];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+  };
 
-      // RSS puts the link in the element; Atom puts it in an href attribute.
-      let url = tag(block, 'link');
-      if (!url) {
-        const href = block.match(/<link[^>]*href=["']([^"']+)["']/i);
-        url = href ? decode(href[1]) : '';
-      }
+  const title = str('title', 'headline');
 
-      const raw = tag(block, 'pubDate') || tag(block, 'published') || tag(block, 'updated');
-      const parsed = raw ? new Date(raw) : null;
-      const published_at =
-        parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null;
+  // A link is required: the ticker renders headlines as anchors, and one
+  // that goes nowhere is worse than one that is absent.
+  const url = str('original_url', 'url', 'link', 'source_url');
 
-      return { url, title, source, published_at };
-    })
-    .filter((item) => item.url.startsWith('http') && item.title.length > 0);
+  /*
+   * The publisher may be a string or an object carrying a name, which is the
+   * usual shape when an API also exposes publishers as their own resource.
+   */
+  let source = str('publisher', 'source', 'source_name', 'domain');
+  if (!source && row.publisher && typeof row.publisher === 'object') {
+    const publisher = row.publisher as Record<string, unknown>;
+    if (typeof publisher.name === 'string') source = publisher.name;
+  }
+
+  const rawDate = str('published_at', 'publishedAt', 'pub_date', 'date');
+  const parsed = rawDate ? new Date(rawDate) : null;
+  const published_at = parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null;
+
+  if (!title || !url.startsWith('http')) return null;
+  return { title, url, source: source || 'Free News', published_at };
+}
+
+/** Pull the article array out of whatever envelope the response uses. */
+export function readArticles(payload: unknown): Item[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const body = payload as Record<string, unknown>;
+  const list = [body.data, body.articles, body.results, body.news].find(Array.isArray) as
+    | unknown[]
+    | undefined;
+  return (list ?? []).map(readArticle).filter((item): item is Item => item !== null);
 }
 
 /**
- * Fetch every feed and refresh the cache.
+ * Fetch every slice and refresh the cache.
  *
  * Returns a summary rather than throwing: this runs beside the reminder
- * sweep, and a feed being down must not stop people being reminded about
- * their missions.
+ * sweep, and the news being unavailable must not stop people being reminded
+ * about their missions.
  */
 export async function refreshNews(admin: SupabaseClient, now = new Date()) {
-  const cutoff = new Date(now.getTime() - FRESH_FOR_HOURS * 3600 * 1000).toISOString();
+  const key = Deno.env.get('FREENEWS_API_KEY') ?? '';
+  if (!key) {
+    // Loud, because an unset secret and an empty cache look identical from
+    // outside, and this is the likeliest reason the ticker is bare.
+    console.error('[news] FREENEWS_API_KEY is not set — no headlines will be fetched.');
+    return { skipped: 'no api key' as const };
+  }
 
+  const cutoff = new Date(now.getTime() - FRESH_FOR_HOURS * 3600 * 1000).toISOString();
   const { data: recent } = await admin
     .from('news_items')
     .select('fetched_at')
@@ -142,34 +127,69 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
 
   const items: Item[] = [];
   const failed: string[] = [];
+  let loggedShape = false;
 
-  for (const feed of FEEDS) {
+  for (const query of QUERIES) {
+    const url = new URL(API);
+    Object.entries(query.params).forEach(([name, value]) => url.searchParams.set(name, value));
+
     try {
-      // A feed that hangs must not hold the whole run open.
-      const response = await fetch(feed.url, {
-        signal: AbortSignal.timeout(8000),
-        headers: { 'User-Agent': 'GrooveliCareers/1.0 (+https://grooveli.example)' },
+      const response = await fetch(url, {
+        headers: { 'x-api-key': key, Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
       });
+
       if (!response.ok) {
-        failed.push(`${feed.source} ${response.status}`);
+        failed.push(`${query.label} ${response.status}`);
         continue;
       }
-      items.push(...parseFeed(await response.text(), feed.source));
+
+      const payload = await response.json();
+
+      /*
+       * Log the real shape once, the first time this runs against the live
+       * service. The schema is undocumented, so this is how the tolerant
+       * reader above gets narrowed to what is actually sent rather than
+       * staying permanently defensive.
+       */
+      if (!loggedShape) {
+        loggedShape = true;
+        const envelope = payload as Record<string, unknown>;
+        const list = [envelope?.data, envelope?.articles, envelope?.results].find(Array.isArray) as
+          | unknown[]
+          | undefined;
+        const first = list?.[0];
+        console.log(
+          '[news] response keys:',
+          payload && typeof payload === 'object' ? Object.keys(envelope).join(', ') : typeof payload,
+          '| article keys:',
+          first && typeof first === 'object' ? Object.keys(first).join(', ') : '(none)',
+        );
+      }
+
+      items.push(...readArticles(payload));
     } catch (error) {
-      failed.push(`${feed.source} ${(error as Error).message}`);
+      failed.push(`${query.label} ${(error as Error).message}`);
     }
+
+    // Two requests a second is the free tier's ceiling; this stays well under.
+    await new Promise((resolve) => setTimeout(resolve, 400));
   }
 
-  if (!items.length) {
+  // The slices overlap, and the same story can arrive from more than one.
+  const unique = new Map<string, Item>();
+  for (const item of items) if (!unique.has(item.url)) unique.set(item.url, item);
+
+  if (unique.size === 0) {
     // Nothing read: leave the cache exactly as it was. Stale headlines are a
     // far better ticker than an empty one.
-    console.warn('[news] no items fetched, keeping the existing cache:', failed.join('; '));
+    console.warn('[news] nothing fetched, keeping the existing cache:', failed.join('; '));
     return { fetched: 0, failed };
   }
 
-  // Newest first, then trimmed — the cache is a window, not an archive.
-  items.sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''));
-  const keep = items.slice(0, KEEP);
+  const keep = [...unique.values()]
+    .sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''))
+    .slice(0, KEEP);
 
   const { error } = await admin
     .from('news_items')
@@ -183,12 +203,12 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
     return { fetched: 0, failed: [...failed, error.message] };
   }
 
-  // Drop anything that did not come back this time, so the ticker does not
-  // slowly fill with a year of headlines.
+  // Drop anything that did not come back, so the cache stays a window on the
+  // news rather than an archive of everything ever fetched.
   await admin
     .from('news_items')
     .delete()
-    .not('url', 'in', `(${keep.map((i) => `"${i.url}"`).join(',')})`);
+    .not('url', 'in', `(${keep.map((item) => `"${item.url}"`).join(',')})`);
 
   return { fetched: keep.length, failed };
 }

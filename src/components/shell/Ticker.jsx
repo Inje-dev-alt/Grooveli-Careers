@@ -37,11 +37,11 @@ export function Ticker({ inWorld = false }) {
            * scheduler has not run, nobody has earned a milestone the
            * allowlist admits, or the endpoint is not deployed yet.
            */
-          if (import.meta.env.DEV && next.length < 2) {
+          if (import.meta.env.DEV && next.length === 0) {
             const news = next.filter((item) => item.kind === 'news').length;
             console.info(
               `[ticker] hidden: ${next.length} item(s) — ${news} headline(s), ` +
-                `${next.length - news} milestone(s). Needs at least 2. ` +
+                `${next.length - news} milestone(s). ` +
                 'No headlines means the news cache is empty; no milestones means ' +
                 'nobody has completed a course, challenge, interview, assessment or mission.',
             );
@@ -68,7 +68,18 @@ export function Ticker({ inWorld = false }) {
     };
   }, []);
 
-  if (items.length < 2) return null;
+  /*
+   * ALWAYS ON once there is anything to show.
+   *
+   * It used to need two items, on the reasoning that one headline looping
+   * forever reads worse than no strip. With news fetched on a schedule
+   * there are always dozens, so that guard only ever fired when something
+   * was wrong — and hid the evidence while it did.
+   *
+   * Zero still hides it. An empty bar scrolling nothing is not a ticker
+   * that is 'on', it is a dead strip, and the console below says why.
+   */
+  if (items.length === 0) return null;
 
   /*
    * The list is rendered twice, back to back.
