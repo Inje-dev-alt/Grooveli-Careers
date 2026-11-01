@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { inQuietHours } from '../api/_shared/quietHours.ts';
-import { refreshNews } from './news.ts';
+import { refreshNews } from '../api/_shared/news.ts';
 
 /**
  * The reminder sweep.

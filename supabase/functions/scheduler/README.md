@@ -12,6 +12,13 @@ supabase functions deploy scheduler --project-ref <ref>
 
 It will not do anything until something calls it on a schedule.
 
+**The ticker's news does not depend on this.** `GET /ticker` fetches headlines
+itself when its cache has gone stale, so the footer fills the first time
+anybody opens the app whether or not the cron below is ever set up — see
+`api/_shared/news.ts`. Scheduling the sweep makes the news *better* (more pages,
+and every headline's link resolved up front instead of a few per page load),
+but the mission reminders are the only thing that genuinely requires it.
+
 ## Scheduling it
 
 This is a **one-time setup step, done once per project**, and it is deliberately

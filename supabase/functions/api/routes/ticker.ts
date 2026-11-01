@@ -1,6 +1,7 @@
 import { route } from '../router.ts';
 import { adminClient } from '../_shared/supabase.ts';
 import { requireUser } from '../_shared/auth.ts';
+import { ensureHeadlines } from '../_shared/news.ts';
 
 /**
  * The live ticker (handoff item 8).
@@ -76,7 +77,7 @@ route('GET', '/ticker', async (req) => {
   const admin = adminClient();
   await requireUser(req);
 
-  const [{ data: activity }, { data: optedOut }, { data: news }] = await Promise.all([
+  const [{ data: activity }, { data: optedOut }, news] = await Promise.all([
     /*
      * `shareable` is already set per event by the progression write — an
      * application is shareable, a one-off like finishing onboarding is not —
@@ -91,11 +92,23 @@ route('GET', '/ticker', async (req) => {
       .order('created_at', { ascending: false })
       .limit(PER_SIDE * 4),
     admin.from('leaderboard_opt_out').select('user_id'),
-    admin
-      .from('news_items')
-      .select('uuid, title, source, published_at, fetched_at, url')
-      .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(PER_SIDE),
+    /*
+     * A DIRECT FEED, NOT A CACHE LOOKUP.
+     *
+     * This reads the cache when it is fresh and fetches from the news API
+     * when it is not, so the strip fills the first time anybody opens the
+     * app. It used to be a plain select against a table that only the
+     * scheduled sweep ever wrote to — and that sweep needs a vault secret
+     * and a `pg_cron` statement run by hand, so wherever that was skipped
+     * the news half was empty forever and nothing said why.
+     *
+     * It never throws: if the fetch fails it serves whatever is cached,
+     * however old. A ticker is not worth failing a page over.
+     */
+    ensureHeadlines(admin, new Date(), PER_SIDE).catch((error) => {
+      console.error('[ticker] headlines unavailable:', error?.message);
+      return [];
+    }),
   ]);
 
   /*
@@ -143,11 +156,11 @@ route('GET', '/ticker', async (req) => {
     at: String(row.created_at),
   }));
 
-  const headlines = ((news ?? []) as Row[]).map((row) => ({
+  const headlines = news.map((row) => ({
     kind: 'news' as const,
     // The source's own article id. `url` was the key when these came from
     // RSS; the news API's listing does not return one, and the link is a
-    // best-effort second lookup that may be null — see scheduler/news.ts.
+    // best-effort second lookup that may be null — see _shared/news.ts.
     id: String(row.uuid),
     text: String(row.title),
     source: String(row.source ?? ''),

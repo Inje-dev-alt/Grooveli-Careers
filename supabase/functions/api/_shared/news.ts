@@ -1,19 +1,33 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
 /**
- * Pulling headlines into the cache, from the Free News API.
+ * Headlines for the ticker, from the Free News API.
  *
- * Runs on the same schedule as the reminder sweep because both want a timer
- * and neither wants its own function. It rate-limits itself on the cache's
- * own freshness rather than on the cron interval, so the sweep keeps running
- * every half hour while the news is fetched every couple of hours.
+ * TWO WAYS IN, AND THE FIRST IS THE ONE THAT MATTERS.
+ *
+ * `ensureHeadlines` is called by `GET /ticker` on a page load. If the cache
+ * has gone stale it fetches immediately, writes it, and returns the fresh
+ * rows — so the footer fills the first time somebody opens the app, with no
+ * cron, no vault entry and no manual SQL. That is the whole point: the news
+ * half of the ticker used to depend on a scheduled sweep that had to be set
+ * up by hand, so on any project where that step was skipped the footer was
+ * permanently empty and nothing said why.
+ *
+ * `refreshNews` is the scheduled sweep, kept because it does a more thorough
+ * job than a page load can afford to — more pages, and every link resolved.
+ * It is now a bonus rather than a dependency.
  *
  * THE KEY IS SERVER-SIDE AND NOWHERE ELSE. `FREENEWS_API_KEY` is read from
- * this function's environment. It must never reach the browser: anything in
- * a `VITE_` variable is inlined into the public bundle, and a free tier with
- * a daily quota is exactly the kind of credential that gets harvested.
+ * this function's environment, which is what `supabase secrets set` writes.
  *
- *   supabase secrets set FREENEWS_API_KEY=... --project-ref <ref>
+ *   supabase secrets set --env-file supabase/.env --project-ref <ref>
+ *
+ * It must never go in the project's root `.env`. Not as a matter of taste:
+ * every variable there prefixed `VITE_` is inlined verbatim into the public
+ * browser bundle, where anyone can read it out of view-source. And it would
+ * not even work — the API sends no `Access-Control-Allow-Origin` header, so
+ * a browser `fetch` to it is blocked by CORS before the key is considered.
+ * Calling it from a server is the only way to call it at all.
  *
  * THE API, AS IT ACTUALLY BEHAVES (probed, not assumed):
  *
@@ -41,8 +55,15 @@ import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
 const BASE = 'https://api.freenewsapi.io/v1';
 
-/** How long cached news stays fresh enough not to re-fetch. */
-const FRESH_FOR_HOURS = 2;
+/**
+ * How long cached news stays fresh enough not to re-fetch.
+ *
+ * Half an hour. Short enough that a ticker claiming to be live is not
+ * scrolling this morning's news this evening, long enough that the fetch
+ * cost is bounded no matter how many people are using the app — a page load
+ * inside the window costs one indexed query and nothing else.
+ */
+const FRESH_FOR_MINUTES = 30;
 
 /** How many items to keep. Anything older is dropped on a successful fetch. */
 const KEEP = 24;
@@ -243,37 +264,50 @@ export function spreadByTopic(items: Item[], keep: number, perPublisher = PER_PU
   if (out.length < keep) pass(Number.POSITIVE_INFINITY);
   return out;
 }
-
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Fetch every slice and refresh the cache.
+ * What a page load is willing to fetch.
  *
- * Returns a summary rather than throwing: this runs beside the reminder
- * sweep, and the news being unavailable must not stop people being reminded
- * about their missions.
+ * Two pages, not four. This runs inside a request somebody is waiting on, so
+ * it costs two sequential API calls — a little over a second — rather than
+ * four. Twenty articles is already more than twice what the ticker shows.
  */
-export async function refreshNews(admin: SupabaseClient, now = new Date()) {
+const ON_DEMAND_SLICES = [{ topic: 'jobs', pages: 2 }];
+
+/** How many links one background top-up resolves. */
+const LINK_BATCH = 6;
+
+/** The cached row shape the ticker route reads. */
+export type NewsRow = {
+  uuid: string;
+  title: string;
+  source: string;
+  published_at: string | null;
+  fetched_at: string;
+  url: string | null;
+};
+
+/**
+ * The key, or null with a reason said out loud.
+ *
+ * An unset secret and an empty cache are indistinguishable from the outside,
+ * and an unset secret is by far the likeliest reason a ticker is bare — so it
+ * is the one thing in this module that always logs.
+ */
+function apiKey(): string | null {
   const key = Deno.env.get('FREENEWS_API_KEY') ?? '';
-  if (!key) {
-    // Loud, because an unset secret and an empty cache look identical from
-    // outside, and this is the likeliest reason the ticker is bare.
-    console.error('[news] FREENEWS_API_KEY is not set — no headlines will be fetched.');
-    return { skipped: 'no api key' as const };
-  }
+  if (key) return key;
+  console.error(
+    '[news] FREENEWS_API_KEY is not set — no headlines will be fetched. ' +
+      'Set it with: supabase secrets set --env-file supabase/.env --project-ref <ref>',
+  );
+  return null;
+}
 
-  const cutoff = new Date(now.getTime() - FRESH_FOR_HOURS * 3600 * 1000).toISOString();
-  const { data: recent } = await admin
-    .from('news_items')
-    .select('fetched_at')
-    .gte('fetched_at', cutoff)
-    .limit(1);
-
-  if ((recent ?? []).length > 0) return { skipped: 'still fresh' as const };
-
-  const failed: string[] = [];
-
-  const get = async (path: string, params: Record<string, string>) => {
+/** A bound caller for the API, so the key is read once per refresh. */
+function caller(key: string) {
+  return async (path: string, params: Record<string, string>) => {
     const url = new URL(`${BASE}/${path}`);
     Object.entries(params).forEach(([name, value]) => url.searchParams.set(name, value));
     const response = await fetch(url, {
@@ -283,11 +317,29 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   };
+}
 
-  /* ---- the listings ---- */
+type Get = ReturnType<typeof caller>;
 
+/** Has anything been fetched recently enough to serve as is? */
+async function cacheIsFresh(admin: SupabaseClient, now: Date): Promise<boolean> {
+  const cutoff = new Date(now.getTime() - FRESH_FOR_MINUTES * 60_000).toISOString();
+  const { data } = await admin
+    .from('news_items')
+    .select('fetched_at')
+    .gte('fetched_at', cutoff)
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
+/** Walk the listing pages of each slice. */
+async function fetchListing(
+  get: Get,
+  slices: { topic: string; pages: number }[],
+  failed: string[],
+): Promise<Item[]> {
   const pool: Item[] = [];
-  for (const slice of SLICES) {
+  for (const slice of slices) {
     for (let page = 0; page < slice.pages; page += 1) {
       const label = `${slice.topic}+${page * 10}`;
       try {
@@ -307,18 +359,20 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
       await wait(SPACING_MS);
     }
   }
+  return pool;
+}
 
-  /*
-   * Two rounds of de-duplication, because there are two distinct duplicates.
-   *
-   * By id, for the same article arriving from two overlapping topics — a
-   * story can be both `jobs` and `economy`, and the first slice to claim it
-   * keeps it.
-   *
-   * By title, for the same STORY arriving as two or three different articles,
-   * which this API does do. Only the id dedupe would let one headline scroll
-   * past three times in a row.
-   */
+/**
+ * Two rounds of de-duplication, because there are two distinct duplicates.
+ *
+ * By id, for the same article arriving from two overlapping topics — a story
+ * can be both `jobs` and `economy`, and the first slice to claim it keeps it.
+ *
+ * By title, for the same STORY arriving as two or three different articles,
+ * which this API does do. Only the id dedupe would let one headline scroll
+ * past three times in a row.
+ */
+export function dedupe(pool: Item[]): Item[] {
   const unique = new Map<string, Item>();
   const titles = new Set<string>();
   for (const item of pool) {
@@ -328,26 +382,180 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
     titles.add(key);
     unique.set(item.uuid, item);
   }
+  return [...unique.values()];
+}
 
-  if (unique.size === 0) {
-    // Nothing read: leave the cache exactly as it was. Stale headlines are a
-    // far better ticker than an empty one.
+/** Write the kept articles and drop whatever did not come back. */
+async function writeCache(
+  admin: SupabaseClient,
+  keep: Item[],
+  now: Date,
+  failed: string[],
+): Promise<number> {
+  const rows = keep.map((item) => ({
+    uuid: item.uuid,
+    title: item.title,
+    source: item.source,
+    published_at: item.published_at,
+    url: item.url,
+    fetched_at: now.toISOString(),
+  }));
+
+  const { error } = await admin.from('news_items').upsert(rows, { onConflict: 'uuid' });
+  if (error) {
+    console.error('[news] could not write the cache:', error.message);
+    failed.push(error.message);
+    return 0;
+  }
+
+  // Keep the cache a window on the news rather than an archive of everything
+  // ever fetched.
+  const { error: pruneError } = await admin
+    .from('news_items')
+    .delete()
+    .not('uuid', 'in', `(${keep.map((item) => `"${item.uuid}"`).join(',')})`);
+  if (pruneError) failed.push(`prune ${pruneError.message}`);
+
+  return rows.length;
+}
+
+/** The newest cached headlines, as the ticker route wants them. */
+async function readCache(admin: SupabaseClient, limit: number): Promise<NewsRow[]> {
+  const { data } = await admin
+    .from('news_items')
+    .select('uuid, title, source, published_at, fetched_at, url')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data ?? []) as NewsRow[];
+}
+
+/**
+ * Fill in missing links, after the response has gone out.
+ *
+ * The listing carries no link and `/details` serves one article at a time, so
+ * resolving a strip's worth costs as many requests as there are headlines.
+ * That is far too slow to do inside a request somebody is waiting on — hence
+ * a few at a time, in the background, so links accumulate over the first
+ * handful of page loads while the headlines themselves are never delayed.
+ *
+ * Nothing here is allowed to fail loudly or to reject: it is decoration on a
+ * response that has already been sent. `EdgeRuntime.waitUntil` keeps the
+ * worker alive for it where it exists; without it the work is simply started
+ * and may be cut short when the isolate goes, which costs nothing because the
+ * next page load tries again.
+ */
+function topUpLinks(admin: SupabaseClient, rows: NewsRow[]): void {
+  const missing = rows.filter((row) => !row.url).slice(0, LINK_BATCH);
+  if (missing.length === 0) return;
+
+  const key = Deno.env.get('FREENEWS_API_KEY') ?? '';
+  if (!key) return;
+  const get = caller(key);
+
+  const work = (async () => {
+    for (const row of missing) {
+      try {
+        const url = readLink(await get('details', { uuid: row.uuid }));
+        if (url) await admin.from('news_items').update({ url }).eq('uuid', row.uuid);
+      } catch {
+        // Expected often enough not to be worth a line in the log: the strip
+        // reads perfectly well without a link.
+      }
+      await wait(SPACING_MS);
+    }
+  })().catch(() => {});
+
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } })
+    .EdgeRuntime;
+  runtime?.waitUntil?.(work);
+}
+
+/**
+ * The headlines for a page load, fetching them if the cache has gone stale.
+ *
+ * THIS IS WHY THE FOOTER WORKS WITHOUT A CRON. The scheduled sweep is a
+ * one-time manual setup step — a vault secret and a `pg_cron` statement run
+ * by hand — so on any project where that was skipped, the news half of the
+ * ticker was empty forever and nothing explained it. Fetching here means the
+ * first person to open the app fills the strip.
+ *
+ * The cost is bounded by the cache, not by traffic: inside the freshness
+ * window this is one indexed query. At the moment the window closes a few
+ * concurrent requests may each fetch, which wastes a handful of the daily
+ * allowance and is harmless — the writes are keyed on the article id, so they
+ * converge rather than conflict.
+ */
+export async function ensureHeadlines(
+  admin: SupabaseClient,
+  now = new Date(),
+  limit = 8,
+): Promise<NewsRow[]> {
+  if (await cacheIsFresh(admin, now)) {
+    const rows = await readCache(admin, limit);
+    topUpLinks(admin, rows);
+    return rows;
+  }
+
+  const key = apiKey();
+  // No key: serve whatever is cached, however old. A stale strip beats none,
+  // and `apiKey` has already said why in the log.
+  if (!key) return await readCache(admin, limit);
+
+  const failed: string[] = [];
+  const pool = await fetchListing(caller(key), ON_DEMAND_SLICES, failed);
+  const keep = spreadByTopic(dedupe(pool), KEEP);
+
+  if (keep.length === 0) {
+    // Leave the cache exactly as it was. Stale headlines are a far better
+    // ticker than an empty one.
+    console.warn('[news] on-demand fetch read nothing, keeping the cache:', failed.join('; '));
+    return await readCache(admin, limit);
+  }
+
+  await writeCache(admin, keep, now, failed);
+  if (failed.length) console.warn('[news] on-demand fetch, with failures:', failed.join('; '));
+
+  const rows = await readCache(admin, limit);
+  topUpLinks(admin, rows);
+  return rows;
+}
+
+/**
+ * The scheduled sweep: more pages, and every link resolved.
+ *
+ * A BONUS, NOT A DEPENDENCY. `ensureHeadlines` keeps the ticker fed on its
+ * own, so nothing breaks when this never runs. What it adds is depth — four
+ * pages rather than two — and links for the whole strip at once instead of a
+ * few per page load.
+ *
+ * Returns a summary rather than throwing: it runs beside the reminder sweep,
+ * and the news being unavailable must not stop people being reminded about
+ * their missions.
+ */
+export async function refreshNews(admin: SupabaseClient, now = new Date()) {
+  const key = apiKey();
+  if (!key) return { skipped: 'no api key' as const };
+
+  if (await cacheIsFresh(admin, now)) return { skipped: 'still fresh' as const };
+
+  const failed: string[] = [];
+  const get = caller(key);
+
+  const pool = await fetchListing(get, SLICES, failed);
+  const keep = spreadByTopic(dedupe(pool), KEEP);
+
+  if (keep.length === 0) {
     console.warn('[news] nothing fetched, keeping the existing cache:', failed.join('; '));
     return { fetched: 0, links: 0, failed };
   }
 
-  const keep = spreadByTopic([...unique.values()], KEEP);
-
-  /* ---- the links ---- */
-
   /*
-   * One request per article, because the listing has none and `/details` is
-   * the only place they live.
+   * Every link, up front.
    *
-   * BEST EFFORT, DELIBERATELY. A failure here leaves `url` null and the
-   * headline still goes in — the ticker renders it as text instead of a
-   * link. Dropping articles whose secondary lookup timed out would make the
-   * strip's contents depend on the slowest part of the pipeline.
+   * BEST EFFORT, DELIBERATELY. A failure leaves `url` null and the headline
+   * still goes in — the ticker renders it as text instead of a link.
+   * Dropping articles whose secondary lookup timed out would make the strip's
+   * contents depend on the slowest part of the pipeline.
    */
   let links = 0;
   for (const item of keep) {
@@ -360,32 +568,6 @@ export async function refreshNews(admin: SupabaseClient, now = new Date()) {
     await wait(SPACING_MS);
   }
 
-  /* ---- the cache ---- */
-
-  const rows = keep.map((item) => ({
-    uuid: item.uuid,
-    title: item.title,
-    source: item.source,
-    published_at: item.published_at,
-    url: item.url,
-    fetched_at: now.toISOString(),
-  }));
-
-  const { error } = await admin.from('news_items').upsert(rows, { onConflict: 'uuid' });
-
-  if (error) {
-    console.error('[news] could not write the cache:', error.message);
-    return { fetched: 0, links, failed: [...failed, error.message] };
-  }
-
-  // Drop anything that did not come back, so the cache stays a window on the
-  // news rather than an archive of everything ever fetched.
-  const { error: pruneError } = await admin
-    .from('news_items')
-    .delete()
-    .not('uuid', 'in', `(${keep.map((item) => `"${item.uuid}"`).join(',')})`);
-
-  if (pruneError) failed.push(`prune ${pruneError.message}`);
-
-  return { fetched: rows.length, links, failed };
+  const fetched = await writeCache(admin, keep, now, failed);
+  return { fetched, links, failed };
 }
