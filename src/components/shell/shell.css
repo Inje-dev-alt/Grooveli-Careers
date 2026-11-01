@@ -292,3 +292,65 @@
   .page__title { font-size: var(--g-text-xl); }
   .page__lede { font-size: var(--g-text-base); }
 }
+
+
+/* ---------- Live ticker ---------- */
+
+.ticker {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid var(--g-glass-border);
+  background: var(--g-glass-strong);
+  backdrop-filter: blur(var(--g-blur));
+  -webkit-backdrop-filter: blur(var(--g-blur));
+}
+
+/* The track holds two identical runs and slides exactly half its own width,
+   so the second copy arrives as the first leaves and the belt never snaps. */
+.ticker__track {
+  display: flex;
+  width: max-content;
+  animation: ticker-slide 70s linear infinite;
+}
+
+@keyframes ticker-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Hovering holds it still, so a headline can actually be read and clicked. */
+.ticker:hover .ticker__track { animation-play-state: paused; }
+
+.ticker__run {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-6);
+  padding: 9px var(--g-space-6) 9px 0;
+  margin: 0;
+  list-style: none;
+}
+
+.ticker__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  white-space: nowrap;
+  font-size: var(--g-text-xs);
+  color: var(--g-text-muted);
+}
+
+.ticker__dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.ticker__dot--milestone { background: var(--g-accent); }
+.ticker__dot--news { background: var(--g-accent-2); }
+
+.ticker__text { color: inherit; }
+a.ticker__text:hover { color: var(--g-text); text-decoration: underline; }
+
+.ticker__source { margin-left: 6px; color: var(--g-text-dim); }
+.ticker__xp { margin-left: 6px; color: var(--g-accent); font-weight: 600; }
+
+/* A strip of text sliding past forever is exactly what this setting is for.
+   Stopped, it is a readable row that happens to be cut off at the edge. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker__track { animation: none; }
+}

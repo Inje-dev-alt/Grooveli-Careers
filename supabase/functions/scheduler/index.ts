@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { inQuietHours } from '../api/_shared/quietHours.ts';
+import { refreshNews } from './news.ts';
 
 /**
  * The reminder sweep.
@@ -182,6 +183,22 @@ Deno.serve(async (req) => {
       .eq('mission_id', row.mission_id);
   }
 
+  /*
+   * The news cache rides the same timer.
+   *
+   * Last, and awaited rather than fired and forgotten, so a run's summary
+   * describes everything it did. It rate-limits itself on the cache's own
+   * freshness, so the sweep can stay on a half-hourly cron while the feeds
+   * are only read every couple of hours.
+   *
+   * Failures here are reported, never thrown: somebody else's feed being
+   * down must not stop people being reminded about their missions.
+   */
+  const news = await refreshNews(admin, now).catch((error) => {
+    console.error('[scheduler] news refresh threw:', error?.message);
+    return { fetched: 0, failed: ['threw'] };
+  });
+
   const summary = {
     ok: true,
     swept: byUser.size,
@@ -189,6 +206,7 @@ Deno.serve(async (req) => {
     skippedQuiet,
     skippedOff,
     stamped: stamped.length,
+    news,
   };
   console.log('[scheduler]', JSON.stringify(summary));
   return json(summary);

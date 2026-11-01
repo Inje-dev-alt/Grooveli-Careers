@@ -8,6 +8,7 @@ import { useAuthStore, selectCanSwitchRole } from '../../stores/authStore.js';
 import { useUiStore } from '../../stores/uiStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import { useChatStore, selectUnreadMessages } from '../../stores/chatStore.js';
+import { Ticker } from './Ticker.jsx';
 
 /**
  * Chrome for the non-world routes.
@@ -127,6 +128,12 @@ export function AppShell({ children }) {
       </header>
 
       {children}
+
+      {/*
+        Below the content and above the tab bar on phones, so it never
+        covers navigation. It removes itself when there is nothing to say.
+      */}
+      <Ticker />
 
       <nav className="tabbar" aria-label="Primary">
         {COMPACT_NAV.map((item) => {
