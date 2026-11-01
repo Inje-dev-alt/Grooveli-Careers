@@ -93,7 +93,7 @@ route('GET', '/ticker', async (req) => {
     admin.from('leaderboard_opt_out').select('user_id'),
     admin
       .from('news_items')
-      .select('url, title, source, published_at, fetched_at')
+      .select('uuid, title, source, published_at, fetched_at, url')
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(PER_SIDE),
   ]);
@@ -145,10 +145,16 @@ route('GET', '/ticker', async (req) => {
 
   const headlines = ((news ?? []) as Row[]).map((row) => ({
     kind: 'news' as const,
-    id: String(row.url),
+    // The source's own article id. `url` was the key when these came from
+    // RSS; the news API's listing does not return one, and the link is a
+    // best-effort second lookup that may be null — see scheduler/news.ts.
+    id: String(row.uuid),
     text: String(row.title),
     source: String(row.source ?? ''),
-    url: String(row.url),
+    // Null when the link lookup failed. The client renders those as plain
+    // text rather than a dead anchor, so it must stay null rather than
+    // becoming the string "null".
+    url: typeof row.url === 'string' && row.url ? row.url : null,
     at: String(row.published_at ?? row.fetched_at),
   }));
 
