@@ -160,7 +160,7 @@ export default function CandidateOnboarding() {
               <TextInput id="years" type="number" min="0" max="50" value={draft.yearsExperience} placeholder="3" onChange={(e) => update({ yearsExperience: e.target.value })} />
             </Field>
           </div>
-          <Field label="Gender (optional)" hint="Only used to personalise your experience. Never shown to employers.">
+          <Field label="Gender (optional)" group hint="Only used to personalise your experience. Never shown to employers.">
             <div className="onboarding__chips">
               {GENDER_OPTIONS.map((option) => (
                 <Chip
@@ -184,6 +184,7 @@ export default function CandidateOnboarding() {
         >
           <Field
             label="Career interests"
+            group
             hint={
               draft.careerPathId
                 ? `Pick up to four. ${getCareerPath(draft.careerPathId)?.title} is your home path - it decides your starting district.`
@@ -227,9 +228,10 @@ export default function CandidateOnboarding() {
           title="What can you already do?"
           hint="Add at least three. You can verify them later through skill missions — verified skills carry far more weight."
         >
-          <Field label="Your skills">
+          <Field label="Your skills" htmlFor="onboarding-skills">
             <div className="skill-input">
               <TextInput
+                id="onboarding-skills"
                 value={skillDraft}
                 placeholder="Type a skill and press Enter"
                 onChange={(e) => setSkillDraft(e.target.value)}
@@ -254,7 +256,7 @@ export default function CandidateOnboarding() {
             </div>
           ) : null}
 
-          <Field label="Common skills" hint="Tap to add.">
+          <Field label="Common skills" group hint="Tap to add.">
             <div className="onboarding__chips">
               {SKILL_SUGGESTIONS.filter((s) => !draft.skills.includes(s)).slice(0, 12).map((skill) => (
                 <Chip key={skill} onClick={() => addSkill(skill)}>
@@ -296,7 +298,7 @@ export default function CandidateOnboarding() {
           title="What are you open to?"
           hint="Used to filter what you are shown. Nothing here is published to employers."
         >
-          <Field label="Employment type">
+          <Field label="Employment type" group>
             <div className="onboarding__chips">
               {EMPLOYMENT_TYPES.map((type) => (
                 <Chip key={type.id} active={draft.openTo.includes(type.id)} onClick={() => toggle('openTo', type.id)}>
@@ -305,7 +307,7 @@ export default function CandidateOnboarding() {
               ))}
             </div>
           </Field>
-          <Field label="Work type">
+          <Field label="Work type" group>
             <div className="onboarding__chips">
               {WORK_TYPES.map((type) => (
                 <Chip key={type.id} active={draft.workTypes.includes(type.id)} onClick={() => toggle('workTypes', type.id)}>
