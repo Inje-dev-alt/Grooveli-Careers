@@ -30,6 +30,7 @@ export class NoticeBoards {
     /** @type {Map<string, { texture: Phaser.GameObjects.RenderTexture, location: object, shown: number | null }>} */
     this.boards = new Map();
     this.unsubscribe = null;
+    this.unwatch = null;
   }
 
   create() {
@@ -42,6 +43,9 @@ export class NoticeBoards {
     // Zustand delivers the whole state; the render is a no-op unless a number
     // this scene is actually showing has moved.
     this.unsubscribe = useCityBoardStore.subscribe((state) => this.render(state.openRoles, state.status));
+    // Tell the store these numbers are on screen, so that invalidating them
+    // is worth a request rather than guesswork.
+    this.unwatch = useCityBoardStore.getState().watch();
   }
 
   createBoard(location) {
@@ -151,6 +155,8 @@ export class NoticeBoards {
   destroy() {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unwatch?.();
+    this.unwatch = null;
     this.boards.forEach((board) => board.texture.destroy());
     this.boards.clear();
   }

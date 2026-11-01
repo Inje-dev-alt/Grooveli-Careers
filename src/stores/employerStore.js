@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as organizationService from '../services/organizationService.js';
+import { useCityBoardStore } from './cityBoardStore.js';
 
 /**
  * The employer workspace.
@@ -9,6 +10,12 @@ import * as organizationService from '../services/organizationService.js';
  * level: they are running a hiring process, not developing a career, and
  * forcing them through candidate progression would make neither experience
  * make sense.
+ *
+ * Publishing a role, or moving one in or out of `published`, changes the
+ * open-role counts on the notice boards standing in the city. Those counts are
+ * a server-side aggregate with no live channel behind them, so nothing would
+ * tell the city it had gone stale — this store is the only place that knows
+ * the roles moved, so it is the place that says so.
  */
 export const useEmployerStore = create((set, get) => ({
   /** @type {import('../models/index.js').Organization | null} */
@@ -62,6 +69,7 @@ export const useEmployerStore = create((set, get) => ({
       const job = await organizationService.publishJob(organization.id, draft);
       const overview = await organizationService.getRecruitmentOverview(organization.id);
       set((state) => ({ jobs: [job, ...state.jobs], overview }));
+      useCityBoardStore.getState().invalidate();
       return job;
     } finally {
       set({ publishing: false });
@@ -75,6 +83,9 @@ export const useEmployerStore = create((set, get) => ({
       ? await organizationService.getRecruitmentOverview(organization.id)
       : get().overview;
     set((state) => ({ jobs: state.jobs.map((j) => (j.id === jobId ? job : j)), overview }));
+    // Pausing or closing a role removes it from the city's count just as
+    // surely as publishing one adds it.
+    useCityBoardStore.getState().invalidate();
     return job;
   },
 

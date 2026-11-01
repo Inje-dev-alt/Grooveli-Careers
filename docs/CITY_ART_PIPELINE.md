@@ -172,6 +172,28 @@ frame. Text objects are cheap to make and expensive to keep — twenty-odd live
 ones would each carry their own texture and draw call — so they are drawn into
 the board and destroyed. A board is redrawn only when its number changes.
 
+### Keeping them current
+
+The counts are server state with no live channel behind them, so the city asks
+again at the only honest moments:
+
+- **On entry.** `useCityBoards()` loads when the City page mounts.
+- **On return.** It refreshes on `visibilitychange` and on window `focus` —
+  switching browser tabs and switching applications are different events and
+  both mean the player came back. A **30-second freshness window** in the store
+  throttles the fetch, so one return costs one request rather than two, and
+  tabbing in and out repeatedly costs nothing.
+- **When roles move.** `employerStore` calls `invalidate()` after publishing a
+  role or changing a job's status. That drops the freshness stamp so the next
+  ask cannot be throttled into a no-op, and refetches immediately *only if
+  boards are on screen* — tracked by `watch()`, which the scene registers while
+  it is running. Today that branch never fires, because `/city` is
+  candidate-only and publishing happens in the employer workspace; it is there
+  for the day an employer action becomes reachable from inside the city.
+
+No polling. A poll would spend a request a minute to catch a number that moves
+a few times a day.
+
 **A board shows `—`, not `0`, while the count is unknown.** A district missing
 from a loaded response has no open roles, which is zero; a district missing
 because nothing has loaded is unknown, which is not. Treating an absent key as

@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import '../components/game/game.css';
 import { GameCanvas } from '../components/game/GameCanvas.jsx';
 import { Hud } from '../components/hud/Hud.jsx';
@@ -9,7 +9,7 @@ import { useUiStore } from '../stores/uiStore.js';
 import { usePlayerStore } from '../stores/playerStore.js';
 import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
-import { useCityBoardStore } from '../stores/cityBoardStore.js';
+import { useCityBoards } from '../hooks/useCityBoards.js';
 
 /**
  * Grooveli City.
@@ -22,15 +22,11 @@ export default function City() {
   const currentLocationId = usePlayerStore((s) => s.currentLocationId);
   const isCompact = useIsCompact();
 
-  const loadBoards = useCityBoardStore((s) => s.load);
-
   useWorldInteractions();
   useWorldViewport();
   // The world reads stores; React fills them. The notice boards in the city
   // show open-role counts, so somebody above the canvas has to go and get them.
-  useEffect(() => {
-    loadBoards();
-  }, [loadBoards]);
+  useCityBoards();
   // The district you are standing in is the room. Out on the open street
   // between them there is no room, and so no roster — which is the honest
   // answer rather than a missing one.
