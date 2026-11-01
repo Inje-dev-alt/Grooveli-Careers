@@ -25,12 +25,35 @@ export function Ticker({ inWorld = false }) {
       tickerService
         .getTicker()
         .then((next) => {
-          if (!cancelled) setItems(next);
+          if (cancelled) return;
+          setItems(next);
+          /*
+           * Say why the strip is absent, in development.
+           *
+           * It hides itself below two items, which is right — but "nothing
+           * rendered" and "nothing to render" look identical from outside,
+           * and that has already cost two rounds of guessing. The reasons are
+           * almost always one of three: the news cache is empty because the
+           * scheduler has not run, nobody has earned a milestone the
+           * allowlist admits, or the endpoint is not deployed yet.
+           */
+          if (import.meta.env.DEV && next.length < 2) {
+            const news = next.filter((item) => item.kind === 'news').length;
+            console.info(
+              `[ticker] hidden: ${next.length} item(s) — ${news} headline(s), ` +
+                `${next.length - news} milestone(s). Needs at least 2. ` +
+                'No headlines means the news cache is empty; no milestones means ' +
+                'nobody has completed a course, challenge, interview, assessment or mission.',
+            );
+          }
         })
-        .catch(() => {
-          // Deliberately silent. A ticker is ambient; a failed fetch of it is
-          // not worth an error state on a page somebody came to for
-          // something else.
+        .catch((error) => {
+          // Ambient: a failed fetch of a ticker is not worth an error state on
+          // a page somebody came to for something else. Still said out loud in
+          // development, because silence here reads as "the feature is broken".
+          if (import.meta.env.DEV) {
+            console.warn('[ticker] could not load:', error?.message ?? error);
+          }
         });
 
     load();
