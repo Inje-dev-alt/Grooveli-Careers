@@ -109,7 +109,20 @@ route('POST', '/jobs/:id/apply', async (req, params) => {
 
   const { data: created, error } = await admin
     .from('applications')
-    .insert({ job_id: params.id, candidate_id: authUser.id, status: 'applied', note })
+    /*
+     * `note ?? ''`, and the empty string matters.
+     *
+     * `applications.note` is `not null default ''`, and passing an explicit
+     * null overrides a default rather than falling back to it — so every
+     * application sent without a covering note failed the not-null
+     * constraint and came back as a 500. That is the ordinary case: the
+     * apply button sends no note at all.
+     *
+     * The same `note` goes to `appendEvent` below still as null, because
+     * `application_events.note` IS nullable and "no note" is the truth
+     * there. The two columns disagree, which is how this survived.
+     */
+    .insert({ job_id: params.id, candidate_id: authUser.id, status: 'applied', note: note ?? '' })
     .select(APP_SELECT)
     .single();
   if (error || !created) {
