@@ -19,15 +19,36 @@ const KEEP = 40;
 /**
  * The feeds.
  *
- * Chosen for being free, stable, and about work rather than gadgets. Kept
- * here rather than in a table because changing them is a deploy-sized
- * decision — a feed is a third party we send traffic to and quote on our own
- * pages, which is an editorial choice, not configuration.
+ * ABOUT WORK, NOT ABOUT TECHNOLOGY. The first pass here pointed at general
+ * tech and business headlines, which filled a career platform's ticker with
+ * product launches. These are labour-market sources: who is hiring, what
+ * roles are growing, what employers are paying and how work is changing.
+ *
+ * Every one was fetched and parsed before being listed — a feed URL that
+ * looks plausible and 404s, redirects to a login page, or serves evergreen
+ * marketing as "news" is the normal case rather than the exception.
+ *
+ * Kept in code rather than a table because a feed is a third party we send
+ * traffic to and quote on our own pages. That is an editorial decision, not
+ * configuration, and it should go through review like one.
+ *
+ * Deliberately not all American: the market this product serves is spread
+ * across four continents, and a ticker that only reports on one of them
+ * contradicts the platform underneath it.
  */
 const FEEDS = [
-  { source: 'Hacker News', url: 'https://hnrss.org/frontpage' },
-  { source: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
-  { source: 'BBC Business', url: 'http://feeds.bbci.co.uk/news/business/rss.xml' },
+  // Indeed's labour-market research arm. Hiring rates, wage growth, which
+  // sectors are posting — the closest thing here to primary data.
+  { source: 'Indeed Hiring Lab', url: 'https://hiringlab.indeed.com/feed/' },
+  // Hiring, recruitment and workplace policy, US-centred.
+  { source: 'HR Dive', url: 'https://www.hrdive.com/feeds/news/' },
+  // Work and careers desk, UK and international.
+  { source: 'The Guardian', url: 'https://www.theguardian.com/money/work-and-careers/rss' },
+  // Employment law, pay and HR practice, UK.
+  { source: 'Personnel Today', url: 'https://www.personneltoday.com/feed/' },
+  // African business and employment, so the ticker is not reporting one
+  // hemisphere to a platform that seeds roles in seven cities.
+  { source: 'African Business', url: 'https://african.business/feed' },
 ];
 
 type Item = { url: string; title: string; source: string; published_at: string | null };
@@ -39,8 +60,25 @@ function decode(text: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, ' ')
+    /*
+     * Numeric entities, decimal and hex.
+     *
+     * Found by parsing the real feeds rather than by imagination: Personnel
+     * Today writes its curly quotes as `&#8216;`, so a hand-picked list of
+     * named entities left headlines reading "Government &#8216;ready to
+     * support&#8217; staff". Anything outside the Unicode range is left as
+     * written rather than throwing — a mangled headline beats a failed fetch.
+     */
+    .replace(/&#(\d+);/g, (whole, code) => {
+      const point = Number(code);
+      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (whole, code) => {
+      const point = Number.parseInt(code, 16);
+      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
+    })
     // Ampersand last, or it would re-break everything decoded above.
     .replace(/&amp;/g, '&')
     .trim();
