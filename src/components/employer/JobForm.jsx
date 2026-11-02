@@ -120,7 +120,7 @@ export function JobForm({ onPublish, publishing, onCancel }) {
         </Field>
       </div>
 
-      <Field label="Work type">
+      <Field label="Work type" group>
         <div className="job-form__chips">
           {WORK_TYPE_OPTIONS.map((option) => (
             <Chip key={option.id} active={draft.workType === option.id} onClick={() => update({ workType: option.id })}>
@@ -130,7 +130,7 @@ export function JobForm({ onPublish, publishing, onCancel }) {
         </div>
       </Field>
 
-      <Field label="Employment type">
+      <Field label="Employment type" group>
         <div className="job-form__chips">
           {EMPLOYMENT_TYPE_OPTIONS.map((option) => (
             <Chip key={option.id} active={draft.employmentType === option.id} onClick={() => update({ employmentType: option.id })}>
@@ -140,7 +140,7 @@ export function JobForm({ onPublish, publishing, onCancel }) {
         </div>
       </Field>
 
-      <Field label="Experience level">
+      <Field label="Experience level" group>
         <div className="job-form__chips">
           {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
             <Chip key={option.id} active={draft.experienceLevel === option.id} onClick={() => update({ experienceLevel: option.id })}>
@@ -150,9 +150,10 @@ export function JobForm({ onPublish, publishing, onCancel }) {
         </div>
       </Field>
 
-      <Field label="Required skills" hint="Matching runs on these. Type and press Enter.">
+      <Field label="Required skills" htmlFor="required-skills" hint="Matching runs on these. Type and press Enter.">
         <div className="skill-input">
           <TextInput
+            id="required-skills"
             value={skillDraft}
             placeholder="Node.js"
             onChange={(e) => setSkillDraft(e.target.value)}
@@ -178,9 +179,10 @@ export function JobForm({ onPublish, publishing, onCancel }) {
         </div>
       ) : null}
 
-      <Field label="Preferred skills" hint="Nice to have, not required.">
+      <Field label="Preferred skills" htmlFor="preferred-skills" hint="Nice to have, not required.">
         <div className="skill-input">
           <TextInput
+            id="preferred-skills"
             value={preferredDraft}
             placeholder="Kubernetes"
             onChange={(e) => setPreferredDraft(e.target.value)}

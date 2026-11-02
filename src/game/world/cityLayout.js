@@ -16,7 +16,18 @@ export const roads = [
   { x: 40, y: 1148, width: WORLD.width - 80, height: 118, orientation: 'h' },
   { x: 690, y: 110, width: 118, height: WORLD.height - 220, orientation: 'v' },
   { x: 2010, y: 110, width: 118, height: WORLD.height - 220, orientation: 'v' },
-  // Short connectors into the central landmarks
+];
+
+/**
+ * Pedestrian approaches into the central landmarks.
+ *
+ * These were carriageways once, which put the AI Career Center's front door in
+ * the middle of a road: there was no crossing, so the entrance could not be
+ * walked to at all. They dead-end at a building, so they were never streets —
+ * they are promenades. Being approaches rather than roads means they are paved
+ * instead of surfaced, they carry no traffic, and they stay walkable.
+ */
+export const approaches = [
   { x: 1372, y: 110, width: 104, height: 490, orientation: 'v' },
   { x: 1248, y: 1028, width: 104, height: 300, orientation: 'v' },
 ];
@@ -29,6 +40,22 @@ export const parks = [
   { x: 1430, y: 1330, width: 180, height: 260, shape: 'rounded' },
   { x: 220, y: 640, width: 380, height: 180, shape: 'rounded' },
   { x: 2150, y: 1180, width: 420, height: 160, shape: 'rounded' },
+];
+
+/**
+ * Freestanding roadside billboards.
+ *
+ * The city's own advertising, and the only signage not attached to a building.
+ * `x, y` is the centre of the footprint the hoarding stands on; `height` is how
+ * far the panel rises above it. They are solid — you walk around a billboard,
+ * not through one — so the bake writes them into the collision mask alongside
+ * the buildings.
+ */
+export const billboards = [
+  { x: 152, y: 980, width: 186, height: 74, accent: '#5be3c8', headline: 'YOUR NEXT JOB', sub: 'COULD BE HERE' },
+  { x: 2498, y: 690, width: 196, height: 76, accent: '#6fe0ff', headline: 'GROOVELI', sub: 'BUILD YOUR CAREER' },
+  { x: 1004, y: 1712, width: 180, height: 70, accent: '#ffc46b', headline: 'HIRING NOW', sub: 'ACROSS 9 DISTRICTS' },
+  { x: 2156, y: 1706, width: 182, height: 70, accent: '#d98cff', headline: 'LEVEL UP', sub: 'COURSES · MISSIONS' },
 ];
 
 /** Pedestrian crossings where a road meets a landmark approach. */
@@ -66,10 +93,17 @@ function overlapsAnything(x, y, radius) {
   });
   if (hitsLocation) return true;
 
-  return roads.some(
-    (road) =>
-      x > road.x - radius && x < road.x + road.width + radius &&
-      y > road.y - radius && y < road.y + road.height + radius,
+  const hitsBillboard = billboards.some(
+    (board) =>
+      Math.abs(x - board.x) < board.width / 2 + radius + 20 &&
+      Math.abs(y - board.y) < 40 + radius,
+  );
+  if (hitsBillboard) return true;
+
+  return [...roads, ...approaches].some(
+    (way) =>
+      x > way.x - radius && x < way.x + way.width + radius &&
+      y > way.y - radius && y < way.y + way.height + radius,
   );
 }
 
@@ -108,7 +142,7 @@ export function generateStreetLamps() {
   const lamps = [];
   const spacing = 260;
 
-  roads.forEach((road) => {
+  [...roads, ...approaches].forEach((road) => {
     if (road.orientation === 'h') {
       for (let x = road.x + 90; x < road.x + road.width - 60; x += spacing) {
         lamps.push({ x, y: road.y - 14 });

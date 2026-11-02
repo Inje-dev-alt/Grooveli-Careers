@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import './jobs.css';
 import { Chip, Field, Select, SearchInput, Button, TextInput } from '../ui/index.js';
 import { useJobStore } from '../../stores/jobStore.js';
@@ -5,6 +6,29 @@ import { useAsync } from '../../hooks/useAsync.js';
 import * as jobService from '../../services/jobService.js';
 import { cityLocations } from '../../game/world/locations.js';
 import { formatCompactMoney } from '../../utils/format.js';
+
+/**
+ * A filter facet: a caption naming a row of chips.
+ *
+ * The chips are a set rather than one control, so the caption cannot be a
+ * <label> — nothing exists for it to point at. It names a group instead, which
+ * is what makes the row announce as "Work type" rather than as four loose
+ * buttons with no stated relationship to each other.
+ *
+ * Kept as its own component rather than four copies of the same aria wiring,
+ * and it keeps the existing class names so the styling is untouched.
+ */
+function Facet({ label, children }) {
+  const labelId = `${useId()}-facet`;
+  return (
+    <div className="job-browser__facet" role="group" aria-labelledby={labelId}>
+      <span className="g-field__label" id={labelId}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
 
 const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
 const WORK_TYPES = ['onsite', 'hybrid', 'remote'];
@@ -71,8 +95,9 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
       {expanded ? (
         <div className="job-browser__facets">
           {showDistrict ? (
-            <Field label="District">
+            <Field label="District" htmlFor="filter-district">
               <Select
+                id="filter-district"
                 value={query.districtId}
                 onChange={(event) => setQuery({ districtId: event.target.value })}
               >
@@ -95,8 +120,8 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
             />
           </Field>
 
-          <Field label="Industry">
-            <Select value={query.industry} onChange={(event) => setQuery({ industry: event.target.value })}>
+          <Field label="Industry" htmlFor="filter-industry">
+            <Select id="filter-industry" value={query.industry} onChange={(event) => setQuery({ industry: event.target.value })}>
               <option value="">Every industry</option>
               {(facets.data?.industries ?? []).map((industry) => (
                 <option key={industry} value={industry}>
@@ -106,8 +131,7 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
             </Select>
           </Field>
 
-          <div className="job-browser__facet">
-            <span className="g-field__label">Employment type</span>
+          <Facet label="Employment type">
             <div className="job-browser__chips">
               {EMPLOYMENT_TYPES.map((type) => (
                 <Chip
@@ -119,10 +143,9 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
                 </Chip>
               ))}
             </div>
-          </div>
+          </Facet>
 
-          <div className="job-browser__facet">
-            <span className="g-field__label">Work type</span>
+          <Facet label="Work type">
             <div className="job-browser__chips">
               {WORK_TYPES.map((mode) => (
                 <Chip
@@ -134,10 +157,9 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
                 </Chip>
               ))}
             </div>
-          </div>
+          </Facet>
 
-          <div className="job-browser__facet">
-            <span className="g-field__label">Experience level</span>
+          <Facet label="Experience level">
             <div className="job-browser__chips">
               {EXPERIENCE_LEVELS.map((level) => (
                 <Chip
@@ -149,11 +171,10 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
                 </Chip>
               ))}
             </div>
-          </div>
+          </Facet>
 
           {(facets.data?.skills ?? []).length > 0 ? (
-            <div className="job-browser__facet">
-              <span className="g-field__label">Skills</span>
+            <Facet label="Skills">
               <div className="job-browser__chips">
                 {facets.data.skills.slice(0, 14).map((skill) => (
                   <Chip
@@ -165,11 +186,12 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
                   </Chip>
                 ))}
               </div>
-            </div>
+            </Facet>
           ) : null}
 
-          <Field label={`Minimum salary — ${formatCompactMoney(query.minSalary)}`}>
+          <Field label={`Minimum salary — ${formatCompactMoney(query.minSalary)}`} htmlFor="filter-min-salary">
             <input
+              id="filter-min-salary"
               className="g-range"
               type="range"
               min={0}
@@ -183,8 +205,10 @@ export function JobFilters({ showDistrict = true, expanded, onToggleExpanded, re
           <Field
             label={`Minimum match — ${query.minMatch}%`}
             hint="Applications below 60% do not count toward career progress."
+            htmlFor="filter-min-match"
           >
             <input
+              id="filter-min-match"
               className="g-range"
               type="range"
               min={0}

@@ -9,6 +9,7 @@ import { useUiStore } from '../stores/uiStore.js';
 import { usePlayerStore } from '../stores/playerStore.js';
 import { usePresencePosition } from '../hooks/usePresencePosition.js';
 import { useIsCompact } from '../hooks/useMediaQuery.js';
+import { useCityBoards } from '../hooks/useCityBoards.js';
 
 /**
  * Grooveli City.
@@ -23,6 +24,9 @@ export default function City() {
 
   useWorldInteractions();
   useWorldViewport();
+  // The world reads stores; React fills them. The notice boards in the city
+  // show open-role counts, so somebody above the canvas has to go and get them.
+  useCityBoards();
   // The district you are standing in is the room. Out on the open street
   // between them there is no room, and so no roster — which is the honest
   // answer rather than a missing one.
