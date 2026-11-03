@@ -29,6 +29,9 @@
 .landing__content {
   position: relative;
   z-index: 1;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: calc(var(--g-space-5) + var(--g-safe-top)) var(--g-safe-left) calc(var(--g-space-8) + var(--g-safe-bottom)) var(--g-safe-right);
 }
 
 /* ---------- the hero ---------- */
@@ -80,6 +83,12 @@
   margin: 0;
   padding: 0 var(--g-space-6);
   text-align: left;
+}
+
+.landing__below,
+.landing__cta {
+  max-width: 1240px;
+  margin: 0 auto;
 }
 
 .landing__title {
@@ -642,6 +651,8 @@
      kerb and four lamps, so counting children here picked the nearest
      figures instead of the farthest. */
   .walker--far { display: none; }
+  .landing__activities { grid-template-columns: 1fr; }
+  .landing__paths { grid-template-columns: 1fr; }
   .mote { font-size: 10px; }
 }
 
